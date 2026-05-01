@@ -14,9 +14,10 @@ Product details, audience, motivation, monetization: see `nurra-context.md`. Rea
 
 ## Stack (fixed, we don't change it without discussion)
 
-- **Next.js 15** (App Router)
+- **Next.js 16** (App Router) + **React 19**
 - **TypeScript** (strict mode)
-- **Tailwind CSS** (for styling)
+- **Tailwind CSS 4** — config via `@theme` in `app/globals.css`, **not** via `tailwind.config.ts` (v4 has no such file by default)
+- **pnpm** (package manager) — saves disk space through symlinks; all commands go through `pnpm`, not `npm`
 - **Supabase** (Postgres + Auth + Storage), region **EU (Frankfurt or Ireland)**
 - **PWA** (next-pwa or manual manifest + service worker setup)
 - **Vercel** (frontend deploy)
@@ -56,7 +57,9 @@ I (Isabel) am a data analyst. Strong in Python, SQL, PySpark. Frontend and TypeS
 
 4. **Security from day one.** See the separate section below. This is not optional, it is an architectural requirement.
 
-5. **When something is done, show how to check it.** Not "done" but "run `npm run dev`, open /tracker, X should appear".
+5. **When something is done, show how to check it.** Not "done" but "run `pnpm dev`, open /tracker, X should appear".
+
+6. **Before non-trivial code for Next.js 16, read `node_modules/next/dist/docs/`.** Next.js 16 has breaking changes relative to the models' training data (routing, server actions, configuration). Don't rely on memory — check against the local docs (which Next.js itself asks you to read via `AGENTS.md` when scaffolding). The same goes for **React 19** (new hooks, Actions API) and **Tailwind 4** (CSS config instead of JS).
 
 ---
 
@@ -293,10 +296,10 @@ From day one — no "this is a website in a browser". The user must not see any 
 ## Commands
 
 ```bash
-npm run dev          # start the dev server
-npm run build        # production build
-npm run lint         # run the linter
-npm run typecheck    # check TypeScript (add to package.json)
+pnpm dev             # start the dev server
+pnpm build           # production build
+pnpm lint            # run the linter (eslint flat config)
+pnpm typecheck       # check TypeScript (tsc --noEmit)
 ```
 
 (update this section when you add your own scripts)
