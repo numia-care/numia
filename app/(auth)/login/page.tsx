@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 import { cancelOtp, requestOtp, resendOtp, verifyOtp } from './actions'
 
 const OTP_COOKIE_NAME = 'numia_otp_email'
@@ -7,11 +8,21 @@ const OTP_COOKIE_NAME = 'numia_otp_email'
 // Двухшаговый OTP flow: ?step=verify рендерит шаг ввода кода, иначе шаг email.
 // State между шагами хранится в httpOnly cookie с email — не в URL,
 // чтобы email не светился в истории/скриншотах.
+//
+// Если юзер уже залогинен — редирект на /, чтобы не висел на форме входа.
 export default async function LoginPage({
   searchParams,
 }: {
   searchParams: Promise<{ step?: string; error?: string; resent?: string }>
 }) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (user) {
+    redirect('/')
+  }
+
   const { step, error, resent } = await searchParams
 
   if (step === 'verify') {
