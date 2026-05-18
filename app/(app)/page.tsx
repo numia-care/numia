@@ -1,23 +1,13 @@
-import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
-// Защищённая корневая страница. Без сессии — редирект на /login.
-// Используем getUser() (а не getSession) — он верифицирует токен на сервере
-// Supabase, не доверяясь только cookie. Это рекомендация Supabase для
-// защиты страниц в Server Components.
-//
-// Контент пока — временная "проверка соединения" (заменим на главный экран
-// приложения когда дойдём до этапа 1). Сейчас служит как индикатор
-// что юзер реально залогинен и Supabase ему отвечает.
+// Главная защищённая страница. Auth и PIN-unlock уже проверены в (app)/layout.
+// Это временный экран "проверка соединения" — заменится на главный экран
+// приложения на этапе 1 (трекер ЗГТ).
 export default async function Home() {
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-
-  if (!user) {
-    redirect('/login')
-  }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
   const projectHost = url ? new URL(url).hostname : '—'
@@ -31,7 +21,7 @@ export default async function Home() {
         </div>
 
         <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
-          Ты вошла
+          Ты в Numia ✦
         </h1>
         <p className="mb-8 text-sm text-[#7A7A7A]">
           Временная страница — будет заменена на главный экран приложения.
@@ -46,7 +36,7 @@ export default async function Home() {
           </Row>
           <Row label="Юзер">
             <span className="text-[#3A3A3A]">
-              {user.email ?? `id ${user.id.slice(0, 8)}…`}
+              {user?.email ?? `id ${user?.id.slice(0, 8)}…`}
             </span>
           </Row>
         </dl>
@@ -55,7 +45,13 @@ export default async function Home() {
   )
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
   return (
     <div className="flex items-baseline justify-between gap-4 border-b border-[#FAF6F0] pb-2 last:border-0">
       <dt className="text-[#7A7A7A]">{label}</dt>
