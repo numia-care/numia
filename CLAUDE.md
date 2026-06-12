@@ -106,12 +106,23 @@ Fonts are self-hosted via next/font. No Google Fonts from a CDN.
 
 ### Encryption levels
 
-**Standard (TLS + Supabase encryption at rest):**
-- HRT tracker (medication intakes, schedule)
+**Standard (Postgres + RLS, no E2E):**
+- HRT tracker (medication intakes, schedule, dosages, intake history)
 - Labs (values, charts)
 - Metadata (dates, entry types)
 
-Rationale: the app needs this data in the clear to build charts, compute patterns and send reminders. We protect it with RLS and Supabase's standard encryption. That's an acceptable level for this data.
+**A deliberate decision for the tracker (stage 1, decided 2026-05-19):**
+HRT tracker data is stored in Postgres under RLS, **without E2E**. This is a trade-off, not an oversight.
+
+*Why:* tracker features require the server to read the data:
+- Reminders (Web Push via an Edge Function on cron) — the server needs to know what to take and when
+- Regularity statistics — aggregations are easier on the Postgres side
+- Future pattern analytics (v2) — impossible on encrypted blobs
+- Charts over time — read from the server
+
+*"Standard"-level protection:* TLS in-transit, Supabase encryption at rest, RLS policies `user_id = auth.uid()` on all tables without exception. It doesn't protect against a Supabase breach; it does protect against accidental access by another user, a client-side leak, and the development team without admin access to the DB.
+
+*E2E candidates for v2 (backlog):* the `notes` field in `medications` and `intake_events`. If a user writes something personal there ("took it before a date", etc.), that material is more sensitive than "medication name + time". We'll move it to E2E once the crypto infrastructure has been proven on the diary (stage 2).
 
 **Client-side encryption (E2E, only the user has the key):**
 - Mood / dysphoria diary texts

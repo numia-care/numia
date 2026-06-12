@@ -1,0 +1,162 @@
+{
+  "common": {
+    "appName": "Numia",
+    "cancel": "Отмена",
+    "save": "Сохранить",
+    "saving": "Сохраняю…",
+    "remove": "Убрать"
+  },
+  "datePicker": {
+    "placeholder": "Выбрать дату"
+  },
+
+  "push": {
+    "promptTitle": "Напоминания о приёме",
+    "promptText": "Включи, чтобы не пропустить — мягкий пуш с нейтральным текстом, без названий препаратов.",
+    "enableButton": "Включить напоминания",
+    "enabling": "Включаю…",
+    "enabledBadge": "Напоминания включены ✦",
+    "deniedText": "Напоминания заблокированы в настройках браузера.",
+    "unsupportedText": "Браузер не поддерживает напоминания.",
+    "subscribeError": "Не получилось подписаться. Попробуй ещё раз."
+  },
+  "tracker": {
+    "title": "Препараты ✦",
+    "addButton": "+ Добавить",
+    "emptyIcon": "✦",
+    "emptyText": "Здесь будут твои препараты. Добавь первый, чтобы начать отслеживать приём.",
+    "emptyButton": "Добавить препарат",
+
+    "today": {
+      "title": "Сегодня",
+      "empty": "На сегодня всё ✦"
+    },
+
+    "slot": {
+      "markTaken": "Принято",
+      "markSkipped": "Пропустить",
+      "takenBadge": "принято",
+      "takenAtBadge": "принято в {time}",
+      "skippedBadge": "пропущено",
+      "undo": "Отменить",
+      "undone": "Возвращено в ожидание",
+      "backfillTitle": "Когда приняла?",
+      "backfillDescription": "Время в течение сегодняшнего дня.",
+      "backfillTimeLabel": "Время",
+      "backfillConfirm": "Отметить"
+    },
+
+    "kind": {
+      "estrogen": "эстроген",
+      "antiandrogen": "антиандроген",
+      "progesterone": "прогестерон",
+      "testosterone": "тестостерон",
+      "other": "другое"
+    },
+    "medForm": {
+      "tablet": "таблетка",
+      "capsule": "капсула",
+      "injection": "инъекция",
+      "gel": "гель",
+      "patch": "пластырь",
+      "drops": "капли",
+      "spray": "спрей",
+      "other": "другое"
+    },
+    "unit": {
+      "mg": "мг",
+      "mcg": "мкг",
+      "ml": "мл",
+      "iu": "МЕ",
+      "drop": "кап.",
+      "puff": "пшик"
+    },
+
+    "schedule": {
+      "label": "Расписание",
+      "daily": "Каждый день",
+      "interval": "С интервалом",
+      "timeLabel": "Время приёма",
+      "addTime": "+ добавить время",
+      "removeTime": "Убрать",
+      "everyDaysLabel": "Каждые, дней",
+      "timeFieldLabel": "Время",
+      "anchorLabel": "Точка отсчёта",
+      "dailySummary": "каждый день в {times}",
+      "intervalSummary": "каждые {count} {days} в {time}",
+      "daysOne": "день",
+      "daysFew": "дня",
+      "daysMany": "дней"
+    },
+
+    "card": {
+      "editButton": "Изменить",
+      "deleteButton": "Убрать",
+      "deleteTitle": "Убрать {name}?",
+      "deleteDescription": "Препарат пропадёт с главного экрана. История приёмов не пропадёт.",
+      "deleteConfirm": "Убрать"
+    },
+
+    "new": {
+      "backLink": "← к препаратам",
+      "title": "Новый препарат",
+      "subtitle": "Выбери из списка или введи своё название."
+    },
+
+    "edit": {
+      "backLink": "← к препаратам",
+      "title": "Редактировать"
+    },
+
+    "form": {
+      "nameLabel": "Название",
+      "namePlaceholder": "Начни вводить название…",
+      "nameEmpty": "Не нашлось — сохрани как есть, это тоже ок",
+      "timeLabel": "Время приёма",
+      "timePlaceholder": "09:00",
+      "detailsExpand": "Уточнить детали",
+      "detailsCollapse": "Скрыть детали",
+      "catalogHint": "Поля заполнены автоматически из каталога — можно изменить.",
+      "kindLabel": "Тип",
+      "formLabel": "Форма",
+      "doseLabel": "Дозировка",
+      "dosePlaceholder": "2",
+      "unitLabel": "Единица",
+      "startDateLabel": "Дата начала",
+      "notesLabel": "Заметки",
+      "notesOptional": "· необязательно",
+      "notesPlaceholder": "Что-то важное про этот препарат",
+      "submitError": "Не получилось сохранить: {error}",
+      "submitSuccess": "Препарат добавлен ✦",
+      "updateSuccess": "Препарат обновлён ✦"
+    }
+  },
+
+  "auth": {
+    "login": {
+      "title": "Вход",
+      "emailLabel": "Почта",
+      "emailPlaceholder": "ваша@почта.com",
+      "sendCode": "Отправить код",
+      "codeTitle": "Введи код",
+      "codeLabel": "Код",
+      "codePlaceholder": "Шестизначный код из письма",
+      "verify": "Войти",
+      "wrongEmail": "Другой адрес"
+    },
+    "pin": {
+      "title": "Введи PIN",
+      "forgot": "Не помню PIN"
+    },
+    "pinSetup": {
+      "title": "Придумай PIN",
+      "subtitle": "4 цифры. Используется при каждом входе в приложение.",
+      "confirm": "Повтори PIN"
+    }
+  },
+
+  "offline": {
+    "title": "Без сети",
+    "description": "Проверь соединение и попробуй ещё раз."
+  }
+}

@@ -29,6 +29,23 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
+## VAPID keys (Web Push)
+
+The VAPID pair is generated once per project:
+
+```bash
+pnpm dlx web-push generate-vapid-keys
+```
+
+Put the result in `.env.local`:
+
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` — public, passed to the browser for `pushManager.subscribe`.
+- `VAPID_PRIVATE_KEY` — private, used only by the server when sending pushes (cron / edge function).
+
+**In Vercel**, the same values are added under Project Settings → Environment Variables (for Production and Preview). Without them Web Push doesn't work.
+
+**Key rotation.** If the private key leaks, we regenerate the pair. Then all existing `push_subscriptions` stop working and users will have to resubscribe.
+
 ## Deploy on Vercel
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.

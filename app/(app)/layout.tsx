@@ -1,13 +1,13 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+
 import { PinGate } from '@/components/pin-gate'
+import { TimezoneSync } from '@/components/timezone-sync'
+import { createClient } from '@/lib/supabase/server'
 
 // Layout для защищённых страниц приложения. Два слоя защиты:
 //   1. СЕРВЕР: Supabase auth (этот файл). Без cookie сессии → /login.
-//      Это настоящая проверка — Server Component, не обойти через клиент.
-//   2. КЛИЕНТ: PinGate. Без recent PIN-unlock в текущей сессии → /pin.
-//      Это второй фактор: даже если телефон украдут с активной сессией,
-//      нужен PIN. Реальная защита данных при компрометации — RLS в Supabase.
+//   2. КЛИЕНТ: PinGate. Без recent PIN-unlock в сессии → /pin.
+// Плюс невидимый TimezoneSync — обновляет profiles.timezone из браузера.
 export default async function AppLayout({
   children,
 }: {
@@ -19,5 +19,10 @@ export default async function AppLayout({
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  return <PinGate>{children}</PinGate>
+  return (
+    <PinGate>
+      <TimezoneSync />
+      {children}
+    </PinGate>
+  )
 }
