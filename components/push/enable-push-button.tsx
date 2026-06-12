@@ -1,12 +1,52 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { useEffect, useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { subscribeToPush } from '@/lib/push/actions'
 
 type PermissionState = 'unsupported' | 'default' | 'granted' | 'denied'
+
+// ─── Чтение browser permission через useSyncExternalStore ───────────────────
+//
+// Notification.permission — внешнее по отношению к React состояние, причём
+// на сервере (SSR) его не существует. Прямолинейные способы его прочитать
+// ломаются:
+//   - setState в useEffect → ошибка линта react-hooks/set-state-in-effect
+//   - чтение в useState-инициализаторе → hydration mismatch: сервер отрендерил
+//     кнопку ('default'), а клиент с уже выданным разрешением сразу рендерит
+//     бейдж ('granted') — React 19 ругается ошибкой в консоль
+//
+// useSyncExternalStore — штатный React-хук ровно для этого случая. Три аргумента:
+//   subscribe          — как подписаться на изменения значения. Браузер не
+//                        эмитит событий при смене Notification.permission,
+//                        подписываться не на что → no-op (но функция обязана
+//                        вернуть unsubscribe-колбэк)
+//   getSnapshot        — текущее значение на клиенте
+//   getServerSnapshot  — что считать значением при SSR и в момент гидрации
+// React сам делает до-рендер после гидрации, когда снапшоты различаются, —
+// это не считается mismatch'ем.
+//
+// Функции вынесены на уровень модуля: они должны быть стабильными между
+// рендерами (новая subscribe-функция на каждый рендер = переподписка).
+
+const subscribeNoop = () => () => {}
+
+function getPermissionSnapshot(): PermissionState {
+  if (
+    !('Notification' in window) ||
+    !('serviceWorker' in navigator) ||
+    !('PushManager' in window)
+  ) {
+    return 'unsupported'
+  }
+  return Notification.permission as PermissionState
+}
+
+// На сервере Push API недоступен в принципе — рендерим нейтральное 'default'
+// (кнопку), клиент уточнит сразу после гидрации.
+const getServerSnapshot = (): PermissionState => 'default'
 
 interface Props {
   onSubscribed?: () => void
@@ -29,18 +69,20 @@ interface Props {
  */
 export function EnablePushButton({ onSubscribed }: Props) {
   const t = useTranslations('push')
-  const [state, setState] = useState<PermissionState>('default')
+  // Что определилось из браузера (см. блок useSyncExternalStore выше)...
+  const detected = useSyncExternalStore(
+    subscribeNoop,
+    getPermissionSnapshot,
+    getServerSnapshot,
+  )
+  // ...и что мы узнали сами по ходу действий юзера (requestPermission,
+  // успешная подписка). override приоритетнее: setState в обработчике
+  // события — легально, а detected сам по себе не обновится (no-op subscribe).
+  const [override, setOverride] = useState<PermissionState | null>(null)
+  const state = override ?? detected
+
   const [isPending, setIsPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setState('unsupported')
-      return
-    }
-    setState(Notification.permission as PermissionState)
-  }, [])
 
   const enable = async () => {
     setError(null)
@@ -48,7 +90,7 @@ export function EnablePushButton({ onSubscribed }: Props) {
     try {
       const perm = await Notification.requestPermission()
       if (perm !== 'granted') {
-        setState(perm as PermissionState)
+        setOverride(perm as PermissionState)
         return
       }
 
@@ -69,7 +111,7 @@ export function EnablePushButton({ onSubscribed }: Props) {
         setError(t('subscribeError'))
         return
       }
-      setState('granted')
+      setOverride('granted')
       onSubscribed?.()
     } catch {
       setError(t('subscribeError'))
