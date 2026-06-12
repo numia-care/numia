@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Edge Functions — Deno-код (npm:-импорты, глобал Deno), Node-тулинг
+    // его не понимает. Типы проверяет сам Deno при деплое в Supabase.
+    "supabase/functions/**",
   ]),
 ]);
 
