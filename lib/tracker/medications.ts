@@ -5,8 +5,6 @@ import { z } from 'zod'
 
 import { createClient } from '@/lib/supabase/server'
 import { MedicationInputSchema } from './medication-schema'
-import type { MedicationRow } from './queries'
-import { parseSchedule } from './schedule'
 
 /**
  * CRUD-server actions для medications.
@@ -27,12 +25,11 @@ import { parseSchedule } from './schedule'
  *      кэшируются между запросами, без revalidate карточка добавленного
  *      препарата не появится до hard refresh.
  *
- *   4. listActiveMedications — НЕ server action, а обычный async helper
- *      для Server Components. 'use server' на файле всё равно делает её
- *      action'ом, но дёргать её из Server Component можно — Next.js
- *      разрешает (просто будет лишний слой сериализации).
- *      Если в будущем потребуется чисто SSR-чтение без оверхеда, вынесем
- *      в lib/tracker/queries.ts.
+ *   4. READ-функции (чтение для рендера) здесь НЕ живут — они в
+ *      lib/tracker/queries.ts. Причина: 'use server' делает каждый экспорт
+ *      Server Action'ом, а вызов экшена во время рендера ломается при
+ *      soft-навигации (Next.js 16 гонит его через action-канал → ответ не
+ *      RSC → E394 "unexpected response"). Этот файл — только МУТАЦИИ.
  */
 
 export type ActionResult<T = void> =
@@ -163,61 +160,4 @@ export async function softDeleteMedication(
 
   revalidatePath('/tracker')
   return { ok: true, data: undefined }
-}
-
-/**
- * Активные препараты юзера. Покрыто partial-индексом
- * idx_medications_user_active. RLS дополнительно фильтрует по user_id —
- * условие в where на клиенте дублирующее, но читаемое.
- *
- * Парсим schedule через parseSchedule на каждом ряду, чтобы вызывающий
- * получил уже типизированную Schedule, а не unknown.
- */
-/**
- * Один препарат по id для страницы редактирования.
- * RLS отбивает чужие; если ряд не найден или удалён — null.
- */
-export async function getMedicationForEdit(
-  id: string,
-): Promise<MedicationRow | null> {
-  if (!ID_SCHEMA.safeParse(id).success) return null
-
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data, error } = await supabase
-    .from('medications')
-    .select('*')
-    .eq('id', id)
-    .is('deleted_at', null)
-    .maybeSingle()
-
-  if (error || !data) return null
-  return { ...data, schedule: parseSchedule(data.schedule) } as MedicationRow
-}
-
-export async function listActiveMedications(): Promise<MedicationRow[]> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return []
-
-  const { data, error } = await supabase
-    .from('medications')
-    .select('*')
-    .eq('user_id', user.id)
-    .is('deleted_at', null)
-    .is('end_date', null)
-    .order('created_at', { ascending: false })
-
-  if (error || !data) return []
-
-  return data.map((row) => ({
-    ...row,
-    schedule: parseSchedule(row.schedule),
-  })) as MedicationRow[]
 }

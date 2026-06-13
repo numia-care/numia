@@ -1,5 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Schedule } from './schedule'
+import { z } from 'zod'
+
+import { createClient } from '@/lib/supabase/server'
+import { parseSchedule, type Schedule } from './schedule'
+
+const ID_SCHEMA = z.string().uuid()
 
 /**
  * Типизированные обёртки supabase select для трекера ЗГТ.
@@ -71,31 +76,72 @@ export interface IntakeEventRow {
 
 // ---- запросы ---------------------------------------------------------------
 
+// ВАЖНО: эти READ-функции живут ЗДЕСЬ, а не в medications.ts, намеренно.
+// medications.ts помечен 'use server' → каждый его экспорт становится
+// Server Action (RPC-эндпоинт для МУТАЦИЙ, который клиент дёргает по одному).
+// Если читать данные таким экспортом во время рендера страницы, то при
+// soft-навигации (переход по <Link>, а не полная перезагрузка) Next.js 16
+// прогоняет вызов через action-канал, и ответ приходит не как RSC →
+// «An unexpected response was received from the server» (E394).
+// Чтение для SSR должно быть обычной server-функцией — что и есть этот файл.
+// См. доки Next: «Server Functions are designed for server-side mutations»
+// (01-getting-started/07-mutating-data.md).
+
 /**
  * Активные препараты юзера: не stopped (end_date null) и не soft-deleted.
- * Покрыто partial-индексом idx_medications_user_active.
+ * Покрыто partial-индексом idx_medications_user_active. RLS фильтрует по
+ * user_id; условие в where дублирующее, но читаемое.
  *
- * TODO: реализовать после того как первая страница трекера будет дёргать.
- *       Не забыть: parseSchedule() на каждом ряду, чтобы Schedule был
- *       реально провалидирован а не приведён через as.
+ * parseSchedule() на каждом ряду — чтобы вызывающий получил типизированную
+ * Schedule, реально провалидированную, а не приведённую через as.
  */
-export async function getActiveMedications(
-  _supabase: SupabaseClient,
-  _userId: string,
-): Promise<MedicationRow[]> {
-  throw new Error('TODO: реализовать в (app)/tracker page')
+export async function listActiveMedications(): Promise<MedicationRow[]> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data, error } = await supabase
+    .from('medications')
+    .select('*')
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .is('end_date', null)
+    .order('created_at', { ascending: false })
+
+  if (error || !data) return []
+
+  return data.map((row) => ({
+    ...row,
+    schedule: parseSchedule(row.schedule),
+  })) as MedicationRow[]
 }
 
 /**
- * Один препарат по id (для деталки и формы редактирования).
- * RLS уже фильтрует по user_id — лишняя проверка не нужна, но id
- * передаём явно для логирования если что-то пойдёт не так.
+ * Один препарат по id для страницы редактирования.
+ * RLS отбивает чужие; если ряд не найден или удалён — null.
  */
-export async function getMedicationById(
-  _supabase: SupabaseClient,
-  _medicationId: string,
+export async function getMedicationForEdit(
+  id: string,
 ): Promise<MedicationRow | null> {
-  throw new Error('TODO: реализовать в (app)/tracker/[id] page')
+  if (!ID_SCHEMA.safeParse(id).success) return null
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data, error } = await supabase
+    .from('medications')
+    .select('*')
+    .eq('id', id)
+    .is('deleted_at', null)
+    .maybeSingle()
+
+  if (error || !data) return null
+  return { ...data, schedule: parseSchedule(data.schedule) } as MedicationRow
 }
 
 /**

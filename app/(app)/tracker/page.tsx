@@ -5,7 +5,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { PushPromptCard } from '@/components/push/push-prompt-card'
 import { MedicationCard } from '@/components/tracker/medication-card'
 import { TodaySection } from '@/components/tracker/today-section'
-import { listActiveMedications } from '@/lib/tracker/medications'
+import { listActiveMedications } from '@/lib/tracker/queries'
 
 export default async function TrackerPage() {
   const t = await getTranslations('tracker')

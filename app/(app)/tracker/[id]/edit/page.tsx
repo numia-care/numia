@@ -4,8 +4,7 @@ import { notFound } from 'next/navigation'
 
 import { MedicationForm } from '@/components/tracker/medication-form'
 import type { MedicationFormValues } from '@/components/tracker/medication-form-schema'
-import { getMedicationForEdit } from '@/lib/tracker/medications'
-import type { MedicationRow } from '@/lib/tracker/queries'
+import { getMedicationForEdit, type MedicationRow } from '@/lib/tracker/queries'
 
 export default async function EditMedicationPage({
   params,
