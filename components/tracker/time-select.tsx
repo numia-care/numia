@@ -18,20 +18,17 @@ interface Props {
 
 /**
  * Замена нативного <input type="time">. Два селекта подряд:
- * часы 00-23 и минуты с шагом 5.
+ * часы 00-23 и минуты 00-59 (шаг 1).
  *
  * Зачем: нативный time picker в iOS PWA нестабилен (показывает 12h
  * формат если у юзера в системе English, иногда вообще не открывается
  * в standalone-режиме). Selectы — гарантированно одинаково везде.
  *
- * Шаг 5 минут — компромисс точности и UX (60 опций в минутном селекте
- * — это листать в Safari неудобно). Для редких «приняла в 09:23» —
- * через backfill с произвольным временем.
+ * Шаг 1 минута — юзер должен мочь указать точное время приёма
+ * (особенно в backfill-диалоге, где реальное время может быть любым).
  */
 export function TimeSelect({ value, onChange, className }: Props) {
   const [hhPart, mmPart] = (value || '00:00').split(':')
-  // Округляем минуты к ближайшим 5 для отображения в селекте
-  // (если в БД лежит 09:23 — покажем 09:25, а не пусто).
   const hh = normalizeHour(hhPart)
   const mm = normalizeMinute(mmPart)
 
@@ -78,8 +75,8 @@ const HOURS: string[] = Array.from({ length: 24 }, (_, i) =>
   i.toString().padStart(2, '0'),
 )
 
-const MINUTES: string[] = Array.from({ length: 12 }, (_, i) =>
-  (i * 5).toString().padStart(2, '0'),
+const MINUTES: string[] = Array.from({ length: 60 }, (_, i) =>
+  i.toString().padStart(2, '0'),
 )
 
 function normalizeHour(raw: string | undefined): string {
@@ -91,8 +88,5 @@ function normalizeHour(raw: string | undefined): string {
 function normalizeMinute(raw: string | undefined): string {
   const n = Number.parseInt(raw ?? '', 10)
   if (Number.isNaN(n) || n < 0 || n > 59) return '00'
-  // Округление к ближайшим 5
-  const rounded = Math.round(n / 5) * 5
-  const clamped = rounded === 60 ? 55 : rounded
-  return clamped.toString().padStart(2, '0')
+  return n.toString().padStart(2, '0')
 }
