@@ -32,7 +32,10 @@ export function PinInput({
     <input
       ref={ref}
       name={name}
-      type="text"
+      // type=password маскирует цифры (защита от подглядывания через плечо —
+      // PIN не должен быть виден на экране). inputMode="numeric" сохраняет
+      // цифровую клавиатуру на мобилке независимо от type (iOS 12.2+, Android).
+      type="password"
       inputMode="numeric"
       autoComplete="off"
       pattern="[0-9]{6}"
