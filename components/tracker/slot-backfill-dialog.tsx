@@ -2,6 +2,7 @@
 
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
@@ -53,6 +54,7 @@ export function SlotBackfillDialog({
 }: Props) {
   const t = useTranslations('tracker.slot')
   const tc = useTranslations('common')
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [time, setTime] = useState(defaultTimeStr)
   const [isPending, startTransition] = useTransition()
@@ -67,6 +69,7 @@ export function SlotBackfillDialog({
     startTransition(async () => {
       const result = await backfillTaken(id, takenIso)
       if (result.ok) {
+        router.refresh()
         toast.success(t('takenAtBadge', { time }))
         setOpen(false)
       }

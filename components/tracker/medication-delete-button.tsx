@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 
 import { Button } from '@/components/ui/button'
@@ -24,6 +25,7 @@ export function MedicationDeleteButton({
 }) {
   const t = useTranslations('tracker.card')
   const tc = useTranslations('common')
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -32,6 +34,9 @@ export function MedicationDeleteButton({
       const result = await softDeleteMedication(id)
       if (result.ok) {
         setOpen(false)
+        // revalidatePath бьёт серверный кеш; refresh перерисовывает текущий
+        // /tracker, чтобы удалённая карточка исчезла сразу, без перезагрузки.
+        router.refresh()
       }
     })
   }

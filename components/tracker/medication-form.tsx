@@ -122,8 +122,20 @@ export function MedicationForm({
     }
   }
 
-  const onSubmit = (values: MedicationFormValues) => {
+  const onSubmit = (rawValues: MedicationFormValues) => {
     setSubmitError(null)
+    // Точка отсчёта цикла интервала = дата начала терапии. Отдельного поля
+    // в форме нет (его убрали), поэтому синхронизируем здесь, на сабмите.
+    const values: MedicationFormValues =
+      rawValues.schedule.kind === 'interval'
+        ? {
+            ...rawValues,
+            schedule: {
+              ...rawValues.schedule,
+              anchor_date: rawValues.start_date,
+            },
+          }
+        : rawValues
     startTransition(async () => {
       const result =
         mode === 'edit' && editId

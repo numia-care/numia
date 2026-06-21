@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
 import { useTransition } from 'react'
 import { toast } from 'sonner'
 
@@ -21,11 +22,13 @@ export function SlotActions({
   timeStr: string
 }) {
   const t = useTranslations('tracker.slot')
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
   const onUndo = () => {
     startTransition(async () => {
       await undoIntake(id)
+      router.refresh()
       toast.message(t('undone'))
     })
   }
@@ -37,6 +40,7 @@ export function SlotActions({
     startTransition(async () => {
       const result = await action(id)
       if (!result.ok) return
+      router.refresh()
       toast.success(successText, {
         description: `${timeStr} · ${medName}`,
         action: {

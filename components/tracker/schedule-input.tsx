@@ -16,7 +16,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 
-import { DatePicker } from './date-picker'
 import type { MedicationFormValues } from './medication-form-schema'
 import { TimeSelect } from './time-select'
 
@@ -180,8 +179,10 @@ function DailyFields() {
 function IntervalFields() {
   const t = useTranslations('tracker.schedule')
   const form = useFormContext<MedicationFormValues>()
+  // Поля «Точка отсчёта» здесь нет: цикл интервала считается от «Даты начала»
+  // (schedule.anchor_date проставляется = start_date на сабмите формы).
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-4">
       <FormField
         control={form.control}
         name="schedule.every_days"
@@ -217,21 +218,6 @@ function IntervalFields() {
                 value={field.value ?? '09:00'}
                 onChange={field.onChange}
               />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="schedule.anchor_date"
-        render={({ field }) => (
-          <FormItem className="col-span-2 sm:col-span-1">
-            <FormLabel className="text-sm text-muted-foreground">
-              {t('anchorLabel')}
-            </FormLabel>
-            <FormControl>
-              <DatePicker value={field.value ?? ''} onChange={field.onChange} />
             </FormControl>
             <FormMessage />
           </FormItem>
