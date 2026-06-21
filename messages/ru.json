@@ -132,6 +132,22 @@
     }
   },
 
+  "nav": {
+    "tracker": "Трекер",
+    "settings": "Настройки"
+  },
+
+  "settings": {
+    "title": "Настройки",
+    "futureTitle": "Скоро здесь появятся",
+    "reminders": "Напоминания",
+    "pin": "PIN-код",
+    "language": "Язык",
+    "soon": "скоро",
+    "signOut": "Выйти",
+    "signingOut": "Выходим…"
+  },
+
   "auth": {
     "login": {
       "title": "Вход",
