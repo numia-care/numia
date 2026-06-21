@@ -1,4 +1,5 @@
 import { addDays, startOfDay } from 'date-fns'
+import { formatInTimeZone } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { computeSlotsForDay, parseSchedule } from './schedule'
@@ -36,11 +37,17 @@ export async function generateSlotsForActiveMeds(
 
   for (const med of meds) {
     const schedule = parseSchedule(med.schedule)
-    const startDate = new Date(med.start_date as string)
 
     for (let i = 0; i < days; i += 1) {
       const day = addDays(today, i)
-      if (day < startDate) continue
+      // Сравниваем КАЛЕНДАРНУЮ дату дня в tz юзера со start_date (строкой
+      // YYYY-MM-DD) — лексикографическое сравнение строк = хронологическое.
+      // Раньше тут было `new Date(day) < new Date(med.start_date)`: первое —
+      // локальная полночь сервера, второе — UTC-полночь, и на сервере в UTC+N
+      // препарат со start_date=сегодня терял сегодняшний слот (день уходил
+      // в «ещё не начался»). Та же логика, что в edge-функции generate-upcoming.
+      const dayYmd = formatInTimeZone(day, timezone, 'yyyy-MM-dd')
+      if (dayYmd < (med.start_date as string)) continue
       const dayUtcSlots = computeSlotsForDay(schedule, day, timezone)
       for (const utc of dayUtcSlots) {
         slots.push({
