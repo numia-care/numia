@@ -5,6 +5,12 @@ import { z } from 'zod'
 
 import { createClient } from '@/lib/supabase/server'
 import { MedicationInputSchema } from './medication-schema'
+import { generateSlotsForActiveMeds } from './slot-generator'
+
+// Сколько дней вперёд генерим слоты при создании/редактировании препарата.
+// 3 календарных дня гарантируют покрытие ≥48ч независимо от таймзоны юзера.
+// То же значение, что у суточного cron generate-upcoming.
+const SLOT_GEN_DAYS = 3
 
 /**
  * CRUD-server actions для medications.
@@ -72,6 +78,11 @@ export async function createMedication(
 
   if (error) return { ok: false, error: error.message }
 
+  // Сразу генерим слоты на ближайшие ~48ч, чтобы напоминания работали не
+  // дожидаясь суточного cron generate-upcoming или переоткрытия трекера.
+  // Без этого свежесозданный препарат с приёмом сегодня пуш бы не получил.
+  await regenerateUpcomingSlots(supabase, user.id)
+
   revalidatePath('/tracker')
   return { ok: true, data: { id: data.id } }
 }
@@ -116,8 +127,44 @@ export async function updateMedication(
 
   if (error) return { ok: false, error: error.message }
 
+  // Если поменялось расписание — будущие неотмеченные слоты больше ему не
+  // соответствуют (придут напоминания по старому времени). Удаляем их и
+  // генерим заново. История (taken/skipped/missed) и прошлые слоты целы.
+  if ('schedule' in parsed.data) {
+    await supabase
+      .from('intake_events')
+      .delete()
+      .eq('medication_id', id)
+      .eq('status', 'upcoming')
+      .gte('scheduled_at', new Date().toISOString())
+  }
+
+  await regenerateUpcomingSlots(supabase, user.id)
+
   revalidatePath('/tracker')
   return { ok: true, data: undefined }
+}
+
+/**
+ * Сгенерировать слоты активных препаратов юзера на ближайшие SLOT_GEN_DAYS.
+ * Best-effort: сбой не должен валить создание/редактирование препарата —
+ * слот добекфилит cron generate-upcoming или on-demand при открытии трекера.
+ */
+async function regenerateUpcomingSlots(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<void> {
+  try {
+    const { data } = await supabase
+      .from('profiles')
+      .select('timezone')
+      .eq('id', userId)
+      .maybeSingle()
+    const tz = data?.timezone ?? 'UTC'
+    await generateSlotsForActiveMeds(supabase, userId, tz, SLOT_GEN_DAYS)
+  } catch (e) {
+    console.error('slot generation failed:', e)
+  }
 }
 
 /**
