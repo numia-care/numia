@@ -126,18 +126,23 @@ export function PinUnlockForm() {
           Те же 6 цифр, что и при первом входе.
         </p>
 
-        <div className="space-y-4">
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault()
+            onUnlock()
+          }}
+        >
           <PinInput value={pin} onChange={setPin} autoFocus disabled={busy} />
           {error && <p className="text-sm text-rose-600">{error}</p>}
           <button
-            type="button"
+            type="submit"
             disabled={pin.length !== 6 || busy}
-            onClick={onUnlock}
             className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
           >
             {busy ? 'Проверяем…' : 'Войти'}
           </button>
-        </div>
+        </form>
 
         <div className="mt-6 text-sm">
           <button

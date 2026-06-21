@@ -75,21 +75,25 @@ export function PinSetupForm() {
               телефон попадёт в чужие руки, в Numia без PIN не зайдут.
             </p>
 
-            <div className="space-y-4">
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault()
+                if (pin.length !== 6) return
+                setError(null)
+                setStep('confirm')
+              }}
+            >
               <PinInput value={pin} onChange={setPin} autoFocus />
               {error && <p className="text-sm text-rose-600">{error}</p>}
               <button
-                type="button"
+                type="submit"
                 disabled={pin.length !== 6}
-                onClick={() => {
-                  setError(null)
-                  setStep('confirm')
-                }}
                 className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
               >
                 Дальше
               </button>
-            </div>
+            </form>
 
             <p className="mt-6 text-xs leading-relaxed text-[#7A7A7A]">
               Важно: если забудешь PIN, восстановить его нельзя — придётся
@@ -107,7 +111,13 @@ export function PinSetupForm() {
               Введи те же 6 цифр ещё раз для подтверждения.
             </p>
 
-            <div className="space-y-4">
+            <form
+              className="space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault()
+                onCreate()
+              }}
+            >
               <PinInput
                 value={confirm}
                 onChange={setConfirm}
@@ -116,9 +126,8 @@ export function PinSetupForm() {
               />
               {error && <p className="text-sm text-rose-600">{error}</p>}
               <button
-                type="button"
+                type="submit"
                 disabled={confirm.length !== 6 || busy}
-                onClick={onCreate}
                 className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
               >
                 {busy ? 'Сохраняем…' : 'Готово'}
@@ -135,7 +144,7 @@ export function PinSetupForm() {
               >
                 Назад
               </button>
-            </div>
+            </form>
           </>
         )}
 
