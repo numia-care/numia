@@ -100,7 +100,15 @@ export function MedicationForm({
     }
   }
 
-  const currentTime = (form.watch('schedule.times') as string[] | undefined)?.[0] ?? '09:00'
+  // Время для быстрого поля (показывается только когда детали свёрнуты).
+  // Зависит от вида расписания: у daily время лежит в times[], у interval —
+  // в одиночном time. Без ветки на interval поле всегда показывало бы 09:00
+  // (times[] у interval пустой) и не отражало реальное schedule.time.
+  const quickScheduleKind = form.watch('schedule.kind')
+  const currentTime =
+    quickScheduleKind === 'interval'
+      ? ((form.watch('schedule.time') as string | undefined) ?? '09:00')
+      : ((form.watch('schedule.times') as string[] | undefined)?.[0] ?? '09:00')
 
   const handleTimeChange = (value: string) => {
     const scheduleKind = form.watch('schedule.kind')
@@ -157,12 +165,19 @@ export function MedicationForm({
           )}
         />
 
-        <div>
-          <Label>{t('timeLabel')}</Label>
-          <div className="mt-2">
-            <TimeSelect value={currentTime} onChange={handleTimeChange} />
+        {/* Быстрое поле времени — единственный контрол, пока детали свёрнуты.
+            Когда детали открыты (всегда в edit-режиме), время редактируется
+            в ScheduleInput, и дублировать его здесь нельзя: два контрола на
+            одном поле schedule перетирали друг друга (отсюда был баг
+            «изменённое время не сохраняется»). */}
+        {!detailsOpen && (
+          <div>
+            <Label>{t('timeLabel')}</Label>
+            <div className="mt-2">
+              <TimeSelect value={currentTime} onChange={handleTimeChange} />
+            </div>
           </div>
-        </div>
+        )}
 
         <Button type="submit" size="lg" disabled={!canSave || isPending} className="w-full">
           {isPending ? tc('saving') : tc('save')}
