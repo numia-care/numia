@@ -81,30 +81,6 @@ export async function getTodaySlots(timezone: string): Promise<TodaySlot[]> {
 }
 
 /**
- * Список medication_id активных препаратов юзера — нужен чтобы
- * вызвать generateUpcomingSlots() для каждого при открытии трекера.
- *
- * Лёгкая обёртка вместо listActiveMedications (та грузит schedule
- * + парсит через Zod — здесь это не нужно).
- */
-export async function getActiveMedicationIds(): Promise<string[]> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return []
-
-  const { data } = await supabase
-    .from('medications')
-    .select('id')
-    .eq('user_id', user.id)
-    .is('deleted_at', null)
-    .is('end_date', null)
-
-  return (data ?? []).map((r) => r.id as string)
-}
-
-/**
  * Стрингифицировать scheduled_at как HH:mm в tz юзера для отображения.
  */
 export function formatSlotTime(scheduledAtIso: string, timezone: string): string {

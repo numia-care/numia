@@ -1,13 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { addDays, startOfDay } from 'date-fns'
 import { z } from 'zod'
 
 import { createClient } from '@/lib/supabase/server'
-import { getUserTimezone } from '@/lib/timezone-actions'
-
-import { computeSlotsForDay, parseSchedule } from './schedule'
 
 /**
  * Server actions для intake_events.
@@ -28,83 +24,6 @@ const ID_SCHEMA = z.string().uuid()
 export type ActionResult<T = void> =
   | { ok: true; data: T }
   | { ok: false; error: string }
-
-/**
- * Генерирует слоты на ближайшие N дней для одного препарата.
- * Идемпотентна: повторный вызов на тот же день не создаст дублей (unique
- * index на (medication_id, scheduled_at), upsert с ignoreDuplicates).
- *
- * Слоты создаются ОТ СЕГОДНЯ ВКЛЮЧИТЕЛЬНО. Если start_date препарата в
- * будущем — пропускаем дни до start_date. Если end_date в прошлом —
- * не создаём ничего (препарат остановлен).
- */
-export async function generateUpcomingSlots(
-  medicationId: string,
-  days: number,
-): Promise<ActionResult<{ created: number }>> {
-  if (!ID_SCHEMA.safeParse(medicationId).success) {
-    return { ok: false, error: 'invalid_id' }
-  }
-  if (!Number.isInteger(days) || days < 1 || days > 30) {
-    return { ok: false, error: 'invalid_days' }
-  }
-
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return { ok: false, error: 'not_authenticated' }
-
-  const { data: med, error: medError } = await supabase
-    .from('medications')
-    .select('id, user_id, schedule, start_date, end_date, deleted_at')
-    .eq('id', medicationId)
-    .maybeSingle()
-
-  if (medError || !med) return { ok: false, error: 'medication_not_found' }
-  if (med.deleted_at) return { ok: true, data: { created: 0 } }
-  if (med.end_date) return { ok: true, data: { created: 0 } }
-
-  const schedule = parseSchedule(med.schedule)
-  const tz = await getUserTimezone()
-
-  // Считаем слоты для каждого из ближайших N дней.
-  const today = startOfDay(new Date())
-  const startDate = new Date(med.start_date) // calendar date, parsed as local midnight
-
-  const slots: { medication_id: string; user_id: string; scheduled_at: string; status: 'upcoming' }[] = []
-  for (let i = 0; i < days; i += 1) {
-    const day = addDays(today, i)
-    // Не генерим слоты до start_date препарата
-    if (day < startDate) continue
-    const dayUtcSlots = computeSlotsForDay(schedule, day, tz)
-    for (const utc of dayUtcSlots) {
-      slots.push({
-        medication_id: medicationId,
-        user_id: user.id,
-        scheduled_at: utc.toISOString(),
-        status: 'upcoming',
-      })
-    }
-  }
-
-  if (slots.length === 0) return { ok: true, data: { created: 0 } }
-
-  // upsert с ignoreDuplicates пропускает уже существующие (medication_id, scheduled_at)
-  // — это то, что делает функцию идемпотентной.
-  const { data: inserted, error } = await supabase
-    .from('intake_events')
-    .upsert(slots, {
-      onConflict: 'medication_id,scheduled_at',
-      ignoreDuplicates: true,
-    })
-    .select('id')
-
-  if (error) return { ok: false, error: error.message }
-
-  revalidatePath('/tracker')
-  return { ok: true, data: { created: inserted?.length ?? 0 } }
-}
 
 /**
  * Отметить слот принятым. taken_at = now() — пишем фактическое время.
