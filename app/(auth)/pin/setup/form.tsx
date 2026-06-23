@@ -3,16 +3,16 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PinInput } from '@/components/pin-input'
+import { RecoveryKeyCard } from '@/components/recovery-key-card'
 import {
   generateSalt,
   hashPin,
   bytesToBase64,
 } from '@/lib/crypto/pin'
 import { PinStorage } from '@/lib/crypto/storage'
-import { deriveCryptoKey } from '@/lib/crypto/key'
-import { markUnlocked } from '@/lib/crypto/session'
+import { setupVault } from '@/lib/crypto/vault'
 
-type Step = 'enter' | 'confirm'
+type Step = 'enter' | 'confirm' | 'recovery'
 
 export function PinSetupForm() {
   const router = useRouter()
@@ -21,6 +21,7 @@ export function PinSetupForm() {
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [phrase, setPhrase] = useState('')
 
   async function onCreate() {
     setError(null)
@@ -41,20 +42,24 @@ export function PinSetupForm() {
       const hash = await hashPin(pin, verifySalt)
       await PinStorage.writePin(bytesToBase64(hash), bytesToBase64(verifySalt))
 
-      // Отдельная соль для будущей деривации crypto-ключа (E2E этап 2+).
-      // Сейчас деривируем чтобы сразу положить ключ в память — когда E2E
-      // подключим, не придётся менять флоу setup.
-      const cryptoSalt = generateSalt()
-      await PinStorage.writeCryptoSalt(bytesToBase64(cryptoSalt))
-      const key = await deriveCryptoKey(pin, cryptoSalt)
-
-      markUnlocked(key)
-      router.replace('/')
+      // Envelope: генерим DEK + recovery-фразу, оборачиваем DEK под PIN
+      // (локально) и под фразой (серверный якорь), кладём ключ в память сессии.
+      // Возвращённую фразу показываем на следующем шаге ровно один раз.
+      const recoveryPhrase = await setupVault(pin)
+      setPhrase(recoveryPhrase)
+      setBusy(false)
+      setStep('recovery')
     } catch (e) {
       console.error('PIN setup failed:', e)
       setError('Не получилось сохранить PIN. Попробуй ещё раз.')
       setBusy(false)
     }
+  }
+
+  // Юзер сохранил ключ (или решил позже) — отмечаем и уходим в приложение.
+  async function finishRecovery(acknowledged: boolean) {
+    await PinStorage.setRecoveryAck(acknowledged)
+    router.replace('/')
   }
 
   return (
@@ -65,7 +70,13 @@ export function PinSetupForm() {
           <span className="text-sm uppercase tracking-widest">Numia</span>
         </div>
 
-        {step === 'enter' ? (
+        {step === 'recovery' ? (
+          <RecoveryKeyCard
+            phrase={phrase}
+            onDone={() => finishRecovery(true)}
+            onRemindLater={() => finishRecovery(false)}
+          />
+        ) : step === 'enter' ? (
           <>
             <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
               Придумай PIN
@@ -96,10 +107,10 @@ export function PinSetupForm() {
             </form>
 
             <p className="mt-6 text-xs leading-relaxed text-[#7A7A7A]">
-              Важно: если забудешь PIN, восстановить его нельзя — придётся
-              выйти из аккаунта. Зашифрованные записи (дневник, фото — когда
-              появятся) будут потеряны. Это by design: даже команда Numia не
-              может их расшифровать.
+              Дальше покажем твой ключ восстановления — сохрани его, и забытый
+              PIN не страшен. Без ключа PIN восстановить нельзя: зашифрованные
+              записи (дневник, фото) будут потеряны. Это by design — даже команда
+              Numia не может их расшифровать.
             </p>
           </>
         ) : (
@@ -148,15 +159,19 @@ export function PinSetupForm() {
           </>
         )}
 
-        {/* TODO (этап позже): биометрия через WebAuthn как опциональная замена PIN.
-            На этом экране — чекбокс "Использовать Face ID / Touch ID вместо PIN".
-            Если включён: navigator.credentials.create({ publicKey: { ... } }) с
-            authenticatorAttachment="platform", сохраняем credentialId в IndexedDB.
-            На unlock — navigator.credentials.get → если success, помечаем unlocked
-            БЕЗ необходимости вводить PIN. Однако crypto-ключ всё равно деривируется
-            из PIN — поэтому для E2E полей биометрия одна не подойдёт, нужен либо
-            "biometric-secured PIN" (шифруем PIN на WebAuthn-выводе), либо отдельный
-            ключ. Требует архитектурного расширения, делаем отдельной задачей. */}
+        {/* TODO (этап позже): биометрия Face ID / Touch ID для ежедневного входа.
+            Теперь архитектура это вмещает легко — envelope encryption (envelope.ts)
+            позволяет добавить ЕЩЁ ОДНУ обёртку DEK, помимо PIN и recovery-фразы:
+
+              dek_wrapped_bio = AES-GCM(KEK_bio, DEK)
+
+            KEK_bio берём из WebAuthn PRF-расширения (navigator.credentials.get
+            с extensions.prf) — платформенный аутентификатор (Face/Touch ID)
+            отдаёт стабильный секрет ТОЛЬКО после биопроверки. Из него деривируем
+            KEK_bio и оборачиваем DEK. Хранить обёртку — локально (как PIN), не на
+            сервере: биопривязка к устройству. На unlock: PRF → KEK_bio → unwrapDek
+            → DEK, без ввода PIN. PIN и фраза остаются как fallback. Отдельная
+            задача (WebAuthn PRF поддержан не везде — нужен graceful fallback). */}
       </main>
     </div>
   )

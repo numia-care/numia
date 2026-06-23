@@ -6,9 +6,16 @@
 // Поля:
 //   pin_hash         — base64 от PBKDF2 хэша
 //   pin_salt         — base64 от соли для верификации
-//   pin_crypto_salt  — base64 от соли для деривации crypto-ключа (E2E этап 2+)
+//   pin_crypto_salt  — base64 от соли для деривации KEK_pin (envelope, локально)
+//   dek_wrapped_pin  — base64(iv‖ct): DEK, обёрнутый ключом из PIN (envelope)
+//   recovery_ack     — boolean: сохранил ли юзер recovery-ключ (для напоминания)
 //   pin_created_at   — timestamp (number) когда PIN был создан
 //   failed_attempts  — счётчик неудачных попыток unlock (для soft-lockout UX)
+//
+// ВАЖНО про envelope (см. lib/crypto/envelope.ts): обёртка DEK под PIN
+// (dek_wrapped_pin) и соль PIN живут ТОЛЬКО здесь, локально. На сервере их
+// держать нельзя — 6-значный PIN перебираем оффлайн при утечке БД. Серверный
+// якорь — это обёртка под recovery-фразой (profiles.dek_wrapped_recovery).
 
 const DB_NAME = 'numia'
 const DB_VERSION = 1
@@ -91,6 +98,8 @@ export const PinStorage = {
     await removeItem('pin_salt')
     await removeItem('pin_created_at')
     await removeItem('pin_crypto_salt')
+    await removeItem('dek_wrapped_pin')
+    await removeItem('recovery_ack')
     await removeItem('failed_attempts')
   },
 
@@ -100,6 +109,26 @@ export const PinStorage = {
 
   async readCryptoSalt(): Promise<string | null> {
     return await getItem<string>('pin_crypto_salt')
+  },
+
+  // Обёртка DEK под PIN-ключом (envelope). Локально — на сервер нельзя.
+  async writeWrappedDek(wrappedB64: string): Promise<void> {
+    await setItem('dek_wrapped_pin', wrappedB64)
+  },
+
+  async readWrappedDek(): Promise<string | null> {
+    return await getItem<string>('dek_wrapped_pin')
+  },
+
+  // Сохранил ли юзер recovery-ключ. false → показываем мягкое напоминание.
+  // Дефолт true, чтобы у юзеров без envelope (до этой фичи) баннер не висел —
+  // его выставит в false только setupVault, когда ключ реально сгенерён.
+  async setRecoveryAck(ack: boolean): Promise<void> {
+    await setItem('recovery_ack', ack)
+  },
+
+  async getRecoveryAck(): Promise<boolean> {
+    return (await getItem<boolean>('recovery_ack')) ?? true
   },
 
   async getFailedAttempts(): Promise<number> {

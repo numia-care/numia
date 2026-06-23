@@ -4,14 +4,15 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { PinInput } from '@/components/pin-input'
+import { RecoveryKeyCard } from '@/components/recovery-key-card'
 import {
   base64ToBytes,
   constantTimeEqual,
   hashPin,
 } from '@/lib/crypto/pin'
 import { PinStorage } from '@/lib/crypto/storage'
-import { deriveCryptoKey } from '@/lib/crypto/key'
-import { lock, markUnlocked } from '@/lib/crypto/session'
+import { setupVault, unlockWithPin } from '@/lib/crypto/vault'
+import { lock } from '@/lib/crypto/session'
 
 // После этого числа неудачных попыток — выделяем "Не помню PIN" красным,
 // сигналим юзеру что есть выход. Жёсткой блокировки по попыткам не делаем:
@@ -27,6 +28,10 @@ export function PinUnlockForm() {
   const [error, setError] = useState<string | null>(null)
   const [attempts, setAttempts] = useState(0)
   const [checked, setChecked] = useState(false)
+  // 'recovery' — показываем ключ восстановления после ленивого бэкфилла
+  // (старый PIN без envelope получает DEK+фразу на первом unlock).
+  const [step, setStep] = useState<'unlock' | 'recovery'>('unlock')
+  const [phrase, setPhrase] = useState('')
 
   // На случай "PIN был удалён из IDB между переходами" — отправляем на setup.
   useEffect(() => {
@@ -73,20 +78,37 @@ export function PinUnlockForm() {
         return
       }
 
-      // PIN верен — деривируем crypto-ключ и помечаем сессию разблокированной.
-      const cryptoSaltB64 = await PinStorage.readCryptoSalt()
-      const key = cryptoSaltB64
-        ? await deriveCryptoKey(pin, base64ToBytes(cryptoSaltB64))
-        : null
-
       await PinStorage.resetFailedAttempts()
-      markUnlocked(key)
-      router.replace('/')
+
+      // PIN верен — разворачиваем DEK из локальной обёртки (envelope).
+      const result = await unlockWithPin(pin)
+      if (result === 'ok') {
+        router.replace('/')
+        return
+      }
+      if (result === 'no_vault') {
+        // Ленивый бэкфилл: PIN создан до E2E-фичи, envelope ещё нет. Заводим
+        // DEK + recovery-фразу под тем же PIN и показываем ключ один раз.
+        const recoveryPhrase = await setupVault(pin)
+        setPhrase(recoveryPhrase)
+        setBusy(false)
+        setStep('recovery')
+        return
+      }
+      // 'wrong': хэш сошёлся, но обёртка не разворачивается (повреждена) —
+      // редкий случай рассинхрона хранилищ.
+      setError('Не удалось открыть хранилище. Попробуй ещё раз.')
+      setBusy(false)
     } catch (e) {
       console.error('PIN unlock failed:', e)
       setError('Что-то пошло не так. Попробуй ещё раз.')
       setBusy(false)
     }
+  }
+
+  async function finishRecovery(acknowledged: boolean) {
+    await PinStorage.setRecoveryAck(acknowledged)
+    router.replace('/')
   }
 
   async function onForgot() {
@@ -121,6 +143,14 @@ export function PinUnlockForm() {
           <span className="text-sm uppercase tracking-widest">Numia</span>
         </div>
 
+        {step === 'recovery' ? (
+          <RecoveryKeyCard
+            phrase={phrase}
+            onDone={() => finishRecovery(true)}
+            onRemindLater={() => finishRecovery(false)}
+          />
+        ) : (
+          <>
         <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">Введи PIN</h1>
         <p className="mb-6 text-sm text-[#7A7A7A]">
           Те же 6 цифр, что и при первом входе.
@@ -158,6 +188,9 @@ export function PinUnlockForm() {
             Не помню PIN
           </button>
         </div>
+
+          </>
+        )}
 
         {/* TODO (этап позже): биометрия через WebAuthn — см. комментарий в setup/form.tsx */}
       </main>

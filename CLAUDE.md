@@ -131,14 +131,54 @@ HRT tracker data is stored in Postgres under RLS, **without E2E**. This is a tra
 
 Rationale: this is the most personal material. We encrypt it on the user's device with a key derived from their password or PIN via PBKDF2. What reaches the database is an already encrypted blob. Neither Supabase nor the development team can decrypt it without the user's key.
 
-**E2E implementation (via the Web Crypto API):**
-- The key is derived from the user's password/PIN via PBKDF2 (≥210000 iterations, SHA-256)
-- AES-GCM encryption with a unique IV per entry
-- The PBKDF2 salt is stored in the user's profile (not a secret)
-- On sign-in, the key is derived and kept in session memory (not in localStorage!)
-- When the tab is closed, the key is forgotten; on return, the PIN is needed
+**E2E implementation — envelope encryption (decided 2026-06-23):**
 
-**Important:** if the user forgets their password/PIN, the encrypted data cannot be recovered. This is by design. The sign-up page says so honestly.
+Content is encrypted NOT with a key from the PIN directly, but with a random **DEK** (Data
+Encryption Key, 256 bits). The DEK is "wrapped" with keys derived from
+secrets — one wrap per sign-in method. Code: `lib/crypto/envelope.ts`
+(primitives), `lib/crypto/vault.ts` (orchestration), `lib/crypto/recovery.ts`
+(phrase). Why not "a key straight from the PIN": (1) the recovery phrase can't yield the same
+key as the PIN (different PBKDF2 inputs); (2) changing the PIN would re-encrypt all
+content. Envelope solves both: the phrase unwraps the same DEK; changing the PIN =
+redoing only the wrap.
+
+- **DEK** — a random AES-GCM 256 key, encrypts all E2E content. In session memory
+  (`session.ts`), not in storage. Forgotten when the tab is closed → the PIN is needed.
+- **KEK** = PBKDF2(secret, salt, 210k, SHA-256). Wraps a copy of the DEK.
+- **DEK wraps and where they live** (this is key to the threat model):
+  - under the **PIN** (`dek_wrapped_pin`) + PIN salt — **local only, IndexedDB**.
+    The PIN is just 6 digits (10⁶) → its wrap can't be kept on the server: if the
+    DB leaks, it is brute-forced offline in minutes. The PIN is a fast local unlocker.
+  - under the **recovery phrase** (`profiles.dek_wrapped_recovery`) + `recovery_salt`
+    — **on the server**. The phrase = 12 BIP39 words, 128 bits → brute force is impossible,
+    hence a safe server-side anchor. The phrase itself does NOT reach the server —
+    only the DEK ciphertext wrapped with it. This is what makes it cross-device: on a new
+    device you enter the phrase → unwrap the DEK → set a new local PIN.
+- **PIN verification** (`pin_salt`/`pin_hash`, `pin.ts`) — a separate device-local
+  mechanism ("is this the right PIN on this device"), not to be confused with the wraps.
+- **Recovery key (UX):** we call it «Ключ восстановления ✦» ("Recovery key ✦"), not «seed phrase».
+  Shown once when the PIN is created (`components/recovery-key-card.tsx`):
+  copy / download .txt / send to yourself (mailto, our server doesn't see it) +
+  a «сохранила» ("I've saved it", feminine) checkbox. Optional («Напомнить позже» ("Remind me later"), flag `recovery_ack`).
+
+**Important:** forgot the PIN AND didn't save the recovery key → the data can't be recovered. With
+the key, it can be. Resetting the PIN/«Сбросить всё» ("Reset everything") wipes the wraps → the old
+content is unreadable forever. By design, the user is warned.
+
+### The Path feature — privacy model (decided 2026-06-22)
+
+Path is a chronological feed of the transition (photos, voice, notes, labs, milestones). Table `path_entries`, Storage bucket `path-media`. The encryption boundary is drawn per field:
+
+- **Content is E2E-encrypted** with the key from the PIN session (`lib/crypto`). The server and the team can't read it:
+  - `encrypted_content` — encrypted JSON of the text part (photo caption / note text)
+  - the file in Storage `path-media/{user_id}/{entry_id}` — encrypted on the client BEFORE upload, `media_iv` stores the nonce
+- **Metadata is NOT encrypted** — the server needs it to build the feed without decryption:
+  - `entry_type` (entry type), `occurred_at` (event date, sort key), `id`, `created_at`
+  - This is a deliberate trade-off: the type and date are visible to the server, the content is not.
+- **Media is compressed on the client before encryption.** An encrypted blob can't be compressed on the server, so photo resize/JPEG compression happens on the client, before AES-GCM (`lib/path`).
+- Where the PIN session has expired (no key), there is nothing to encrypt/decrypt with, so we politely ask for the PIN.
+- **Cross-device:** via the recovery phrase (server-side anchor `dek_wrapped_recovery`, see "E2E implementation — envelope"). On a new device you enter the phrase → unwrap the same DEK → set a new local PIN. Path content is readable everywhere. The PIN stays local and differs between devices — that's normal.
+- **PIN reset** («Сбросить всё» ("Reset everything")) wipes the DEK wraps → Path content is unreadable forever. «Ввести фразу» ("Enter phrase"), on the contrary, restores access. By design, the user is warned (same as for the diary).
 
 ### Transparency
 
