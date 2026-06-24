@@ -31,16 +31,38 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  // Секунды до следующей разрешённой отправки. Тикает вниз (см. useEffect).
-  const [cooldown, setCooldown] = useState(0)
+  // Момент (epoch ms), до которого resend заблокирован; 0 — можно отправлять.
+  // Храним АБСОЛЮТНЫЙ дедлайн, а не счётчик секунд: setInterval в фоновой вкладке
+  // тормозится/замораживается, счётчик «отстаёт» от реального времени — из-за
+  // этого таймер висел после возврата спустя минуты. От стенных часов остаток
+  // считается верно при любой заморозке.
+  const [cooldownUntil, setCooldownUntil] = useState(0)
+  // «Сейчас» — тикает раз в секунду, пока активен дедлайн. Нужен только чтобы
+  // перерисовывать счётчик; само число секунд — производное (ниже).
+  const [now, setNow] = useState(() => Date.now())
+
+  // Оставшиеся секунды считаем В РЕНДЕРЕ из дедлайна и текущего времени — без
+  // отдельного стейта и без setState в эффекте (тот давал каскадные ререндеры).
+  const cooldown = cooldownUntil > now ? Math.ceil((cooldownUntil - now) / 1000) : 0
 
   useEffect(() => {
-    if (cooldown <= 0) return
+    if (cooldownUntil <= 0) return
     const id = setInterval(() => {
-      setCooldown((s) => (s <= 1 ? 0 : s - 1))
+      const t = Date.now()
+      setNow(t)
+      if (t >= cooldownUntil) setCooldownUntil(0) // окно истекло — гасим таймер
     }, 1000)
-    return () => clearInterval(id)
-  }, [cooldown])
+    // Возврат вкладки из фона: интервал мог простоять — подтягиваем время сразу,
+    // иначе кнопка осталась бы заблокированной дольше, чем реально нужно.
+    const onVisible = () => {
+      if (!document.hidden) setNow(Date.now())
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [cooldownUntil])
 
   // Отправка/переотправка кода. isResend — для текста уведомления.
   async function send(isResend: boolean) {
@@ -73,7 +95,9 @@ export function LoginForm() {
         // Rate limit на ОТПРАВКУ означает, что код недавно уже улетел. Ведём
         // юзера на ввод кода (а не оставляем на email с ошибкой) и заводим
         // таймер resend. Это и есть фикс «код пришёл, а ввести негде».
-        setCooldown(parseRetryAfter(err) ?? RESEND_COOLDOWN)
+        const secs = parseRetryAfter(err) ?? RESEND_COOLDOWN
+        setNow(Date.now())
+        setCooldownUntil(Date.now() + secs * 1000)
         setStep('verify')
         setNotice('Код уже отправлен — проверь почту, в т.ч. спам.')
         return
@@ -83,7 +107,8 @@ export function LoginForm() {
     }
 
     // Успех: код ушёл, переходим на ввод и блокируем resend на окно отправки.
-    setCooldown(RESEND_COOLDOWN)
+    setNow(Date.now())
+    setCooldownUntil(Date.now() + RESEND_COOLDOWN * 1000)
     setStep('verify')
     if (isResend) setNotice('Новый код отправлен')
   }
