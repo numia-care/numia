@@ -148,6 +148,41 @@ export async function decryptText(dek: CryptoKey, blobB64: string): Promise<stri
   return dec.decode(pt)
 }
 
+// ── Шифрование бинарных блобов (медиа «Пути»: фото, голос) ───────────────────
+//
+// Отличие от encryptText: IV возвращается ОТДЕЛЬНО, не упакован в шифротекст.
+// Так нужно, потому что схема path_entries хранит media_iv отдельной колонкой,
+// а сам шифроблоб — файлом в Storage. Новый IV на каждый файл (вызывающий не
+// должен переиспользовать) — это и даёт AES-GCM стойкость.
+
+// Возврат типизируем как Uint8Array<ArrayBuffer> (не голый Uint8Array): иначе TS
+// расширяет до ArrayBufferLike, и значение не лезет в BlobPart при сборке Blob.
+export async function encryptBytes(
+  dek: CryptoKey,
+  data: Uint8Array,
+): Promise<{ iv: Uint8Array<ArrayBuffer>; ciphertext: Uint8Array<ArrayBuffer> }> {
+  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES))
+  const ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv as BufferSource },
+    dek,
+    data as BufferSource,
+  )
+  return { iv, ciphertext: new Uint8Array(ct) }
+}
+
+export async function decryptBytes(
+  dek: CryptoKey,
+  iv: Uint8Array,
+  ciphertext: Uint8Array,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const pt = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: iv as BufferSource },
+    dek,
+    ciphertext as BufferSource,
+  )
+  return new Uint8Array(pt)
+}
+
 // ── base64(iv ‖ ct) упаковка ────────────────────────────────────────────────
 
 function pack(iv: Uint8Array, ct: Uint8Array): string {
