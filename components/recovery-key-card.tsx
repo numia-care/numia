@@ -119,7 +119,7 @@ export function RecoveryKeyCard({ phrase, onDone, onRemindLater }: Props) {
           onChange={(e) => setConfirmed(e.target.checked)}
           className="mt-0.5 h-4 w-4 accent-[#5A6B4A]"
         />
-        <span>Я сохранила ключ в надёжном месте</span>
+        <span>Ключ сохранён в надёжном месте ✦</span>
       </label>
 
       <button
@@ -139,7 +139,8 @@ export function RecoveryKeyCard({ phrase, onDone, onRemindLater }: Props) {
         Напомнить позже
       </button>
       <p className="mt-2 text-center text-xs text-[#7A7A7A]">
-        Без сохранённого ключа забытый PIN означает потерю зашифрованных записей.
+        Пока ключ сохранён, забытый PIN не страшен — доступ вернёшь им. Записи
+        пропадут навсегда, только если потеряешь и PIN, и ключ.
       </p>
     </>
   )

@@ -121,6 +121,16 @@ export async function setLocalPin(dek: Dek, newPin: string): Promise<void> {
   await PinStorage.writeWrappedDek(wrappedPin)
 }
 
+/**
+ * Есть ли на сервере якорь восстановления. true → vault уже настраивался
+ * (хотя бы на одном устройстве), значит НЕЛЬЗЯ генерить новый DEK через
+ * setupVault — он осиротит существующий E2E-контент и повторно покажет ключ.
+ * В таком случае доступ возвращают по recovery-фразе (recoverWithPhrase).
+ */
+export async function hasRemoteVault(): Promise<boolean> {
+  return (await readRecoveryAnchor()) !== null
+}
+
 // ── Supabase helpers: серверный якорь в profiles ────────────────────────────
 
 async function writeRecoveryAnchor(recoverySaltB64: string, wrappedRecoveryB64: string): Promise<void> {

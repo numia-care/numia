@@ -4,15 +4,18 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PinInput } from '@/components/pin-input'
 import { RecoveryKeyCard } from '@/components/recovery-key-card'
+import { RecoveryEntryForm } from '@/components/recovery-entry-form'
 import {
   generateSalt,
   hashPin,
   bytesToBase64,
 } from '@/lib/crypto/pin'
 import { PinStorage } from '@/lib/crypto/storage'
-import { setupVault } from '@/lib/crypto/vault'
+import { hasRemoteVault, setupVault } from '@/lib/crypto/vault'
 
-type Step = 'enter' | 'confirm' | 'recovery'
+// 'recovery' — показ нового ключа (RecoveryKeyCard, при первом setup).
+// 'recover'  — ввод существующего ключа (RecoveryEntryForm, кросс-девайс).
+type Step = 'enter' | 'confirm' | 'recovery' | 'recover'
 
 export function PinSetupForm() {
   const router = useRouter()
@@ -37,6 +40,17 @@ export function PinSetupForm() {
 
     setBusy(true)
     try {
+      // Кросс-девайс: если на сервере УЖЕ есть якорь восстановления, vault
+      // настраивался на другом устройстве. Новый DEK генерить нельзя — он
+      // перезапишет якорь и осиротит весь E2E-контент. Ведём на ввод
+      // существующего ключа (там же зададим локальный PIN). PIN-хэш ещё НЕ
+      // пишем — его запишет RecoveryEntryForm под новый PIN после восстановления.
+      if (await hasRemoteVault()) {
+        setBusy(false)
+        setStep('recover')
+        return
+      }
+
       // Соль для верификации хранится с хэшем — это не секрет.
       const verifySalt = generateSalt()
       const hash = await hashPin(pin, verifySalt)
@@ -76,6 +90,11 @@ export function PinSetupForm() {
             onDone={() => finishRecovery(true)}
             onRemindLater={() => finishRecovery(false)}
           />
+        ) : step === 'recover' ? (
+          <RecoveryEntryForm
+            onSuccess={() => router.replace('/')}
+            onBack={() => setStep('enter')}
+          />
         ) : step === 'enter' ? (
           <>
             <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
@@ -107,10 +126,11 @@ export function PinSetupForm() {
             </form>
 
             <p className="mt-6 text-xs leading-relaxed text-[#7A7A7A]">
-              Дальше покажем твой ключ восстановления — сохрани его, и забытый
-              PIN не страшен. Без ключа PIN восстановить нельзя: зашифрованные
-              записи (дневник, фото) будут потеряны. Это by design — даже команда
-              Numia не может их расшифровать.
+              Дальше покажем твой ключ восстановления. Сохрани его — это
+              страховка: им вернёшь доступ, если забудешь PIN или сменишь
+              устройство. Зашифрованные записи (дневник, фото) пропадут навсегда,
+              только если потеряешь и PIN, и ключ. Расшифровать их не можем даже
+              мы — это by design ✦
             </p>
           </>
         ) : (
