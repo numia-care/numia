@@ -1,6 +1,6 @@
 'use client'
 
-import { LeafIcon, SettingsIcon, type LucideIcon } from 'lucide-react'
+import { LeafIcon, RouteIcon, SettingsIcon, type LucideIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -21,14 +21,15 @@ import { cn } from '@/lib/utils'
 type Tab = {
   href: string
   /** ключ в messages.nav */
-  key: 'tracker' | 'settings'
+  key: 'tracker' | 'path' | 'settings'
   icon: LucideIcon
 }
 
 const TABS: Tab[] = [
   { href: '/tracker', key: 'tracker', icon: LeafIcon },
+  { href: '/path', key: 'path', icon: RouteIcon },
   { href: '/settings', key: 'settings', icon: SettingsIcon },
-  // место под будущие: Путь, Дневник, Вики
+  // место под будущие: Дневник, Вики
 ]
 
 export function BottomNav() {
