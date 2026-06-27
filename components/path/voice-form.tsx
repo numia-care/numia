@@ -28,11 +28,23 @@ const MIME_CANDIDATES = [
   'audio/webm',
 ]
 
+// Мягкий лимит длительности: на 2:00 запись останавливается автоматически.
+const MAX_MS = 2 * 60 * 1000
+
+// Длительность в mm:ss (не превышает лимит).
+function formatMmSs(ms: number): string {
+  const total = Math.floor(Math.min(ms, MAX_MS) / 1000)
+  const mm = String(Math.floor(total / 60)).padStart(2, '0')
+  const ss = String(total % 60).padStart(2, '0')
+  return `${mm}:${ss}`
+}
+
 export function VoiceForm() {
   const t = useTranslations('path.new')
   const router = useRouter()
 
   const [recording, setRecording] = useState(false)
+  const [elapsedMs, setElapsedMs] = useState(0)
   const [blob, setBlob] = useState<Blob | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
@@ -56,6 +68,22 @@ export function VoiceForm() {
     }
   }, [])
 
+  // Таймер длительности + мягкий автостоп на MAX_MS. elapsedMs сбрасываем в 0
+  // в startRecording (не здесь — иначе синхронный setState в эффекте).
+  useEffect(() => {
+    if (!recording) return
+    const startedAt = Date.now()
+    const id = setInterval(() => {
+      const e = Date.now() - startedAt
+      setElapsedMs(e)
+      // Достигли лимита — мягко останавливаем (stop() только из 'recording').
+      if (e >= MAX_MS && recorderRef.current?.state === 'recording') {
+        recorderRef.current.stop()
+      }
+    }, 250)
+    return () => clearInterval(id)
+  }, [recording])
+
   function releaseMic() {
     streamRef.current?.getTracks().forEach((tr) => tr.stop())
     streamRef.current = null
@@ -64,6 +92,7 @@ export function VoiceForm() {
   async function startRecording() {
     setBlob(null)
     setPreviewUrl(null)
+    setElapsedMs(0)
     chunksRef.current = []
 
     try {
@@ -133,10 +162,15 @@ export function VoiceForm() {
       <div className="space-y-3 rounded-2xl bg-card p-5 ring-1 ring-border">
         {previewUrl ? (
           <audio src={previewUrl} controls playsInline className="w-full" />
+        ) : recording ? (
+          <div className="text-center">
+            <p className="font-mono text-3xl tabular-nums text-[#5A6B4A]">
+              {formatMmSs(elapsedMs)}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('recording')}</p>
+          </div>
         ) : (
-          <p className="text-center text-sm text-muted-foreground">
-            {recording ? t('recording') : t('recordHint')}
-          </p>
+          <p className="text-center text-sm text-muted-foreground">{t('recordHint')}</p>
         )}
 
         <button
@@ -150,6 +184,10 @@ export function VoiceForm() {
         >
           {recording ? t('stopRecording') : blob ? t('reRecord') : t('record')}
         </button>
+
+        {!previewUrl && (
+          <p className="text-center text-xs text-muted-foreground">{t('recordMax')}</p>
+        )}
       </div>
 
       {/* Дата события */}
