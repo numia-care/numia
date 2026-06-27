@@ -179,11 +179,20 @@ function normalizeNotes(notes: string | undefined): string | null {
 
 /**
  * Мягкое удаление: ставим deleted_at = now(). Препарат пропадает из
- * listActiveMedications, но история intake_events ссылается на него
- * как и раньше — graphic регулярности не теряет данных.
+ * listActiveMedications, но история intake_events ссылается на него как и
+ * раньше — график регулярности не теряет данных.
  *
- * Восстановление (flip deleted_at → NULL) пока не реализовано в UI,
- * но БД поддерживает (см. CLAUDE.md).
+ * Заодно убираем будущие/неотмеченные напоминалки. Без этого слоты status=
+ * 'upcoming' оставались: висели в «Сегодня» (getTodaySlots не фильтрует
+ * deleted_at) и пушились (send-reminders читает upcoming-слоты у времени).
+ * Удаляем ВСЕ upcoming этого препарата (и прошлые неотмеченные — это тоже
+ * напоминалки, не история), а taken/skipped/missed НЕ трогаем — это история.
+ * Воссоздания не будет: и cron generate-upcoming, и on-demand slot-generator
+ * фильтруют deleted_at IS NULL.
+ *
+ * Восстановление (flip deleted_at → NULL) пока не реализовано в UI, но БД
+ * поддерживает (см. CLAUDE.md). После восстановления будущие слоты заведёт
+ * ближайший прогон генерации.
  */
 export async function softDeleteMedication(
   id: string,
@@ -198,6 +207,18 @@ export async function softDeleteMedication(
   } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'not_authenticated' }
 
+  // 1. Сначала убираем upcoming-слоты. Порядок важен: если этот шаг упадёт,
+  //    препарат ещё активен → состояние консистентно (слоты при необходимости
+  //    переродятся), а не «препарат удалён, но пуши идут».
+  const { error: slotsError } = await supabase
+    .from('intake_events')
+    .delete()
+    .eq('medication_id', id)
+    .eq('status', 'upcoming')
+
+  if (slotsError) return { ok: false, error: slotsError.message }
+
+  // 2. Мягкое удаление самого препарата.
   const { error } = await supabase
     .from('medications')
     .update({ deleted_at: new Date().toISOString() })
