@@ -11,7 +11,7 @@ import { createClient } from '@/lib/supabase/client'
 /**
  * Кнопка «Выйти». Завершает Supabase-сессию и уводит на /login.
  *
- * lock() забывает in-memory crypto-ключ и флаг разблокировки сессии. PIN на
+ * lock() забывает in-memory crypto-ключ (дальше потребуется PIN). PIN на
  * устройстве НЕ удаляем — это не «забыл PIN», а обычный выход: при следующем
  * входе тем же устройством снова попросят тот же PIN (см. forgot-flow в
  * (auth)/pin/form.tsx — там PIN как раз чистится, здесь нет).

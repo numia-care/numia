@@ -1,42 +1,62 @@
-// Состояние "разблокировано" в текущей сессии браузера.
+// Состояние «разблокировано» в текущей сессии браузера.
 //
-// sessionStorage очищается при закрытии вкладки/PWA — это нужное свойство:
-// после закрытия приложения и повторного открытия снова потребуется PIN,
-// даже если Supabase-сессия ещё валидна. CLAUDE.md (раздел "PIN-код"):
-// "телефон попал в чужие руки на 30 секунд".
+// Модель блокировки:
+//   • Crypto-ключ (DEK) держим ТОЛЬКО в памяти модуля — он теряется при reload и
+//     холодном старте PWA. Нет ключа → расшифровать нечем → нужен PIN. Это и
+//     есть требование «PIN при холодном старте».
+//   • Грейс-период по фону: короткий уход в фон НЕ лочит. PIN запрашиваем,
+//     только если приложение пробыло в фоне дольше LOCK_GRACE_MS (по умолчанию
+//     2 минуты). Момент ухода в фон пишем в sessionStorage — он переживает
+//     заморозку вкладки, но не полный перезапуск PWA (там и так холодный старт).
 //
-// Crypto-ключ держим только в переменной модуля — не в storage. Это правильно
-// для модели угроз: storage можно проинспектировать через DevTools, переменная
-// модуля живёт только пока загружена страница и автоматически уходит при reload.
+// Крипта и локальное хранение PIN при этом НЕ меняются — это лишь условие
+// показа экрана ввода PIN.
+//
+// Crypto-ключ держим в переменной модуля, не в storage: storage инспектируется
+// через DevTools, а переменная живёт только пока загружена страница и
+// автоматически уходит при reload.
 
-const UNLOCK_FLAG = 'numia_unlocked_at'
+const HIDDEN_AT = 'numia_hidden_at'
 
-// TTL разблокировки в миллисекундах. После возврата из фона спустя этот срок —
-// требуем PIN снова. 5 минут — баланс между UX и безопасностью.
-export const UNLOCK_TTL_MS = 5 * 60 * 1000
+// Грейс-период: сколько можно пробыть в фоне без повторного запроса PIN.
+export const LOCK_GRACE_MS = 2 * 60 * 1000
 
 let memoryKey: CryptoKey | null = null
 
+// Разблокировка: кладём DEK в память и сбрасываем маркер фона.
 export function markUnlocked(key?: CryptoKey | null): void {
-  sessionStorage.setItem(UNLOCK_FLAG, String(Date.now()))
   if (key) memoryKey = key
+  if (typeof window !== 'undefined') sessionStorage.removeItem(HIDDEN_AT)
 }
 
-export function isUnlocked(): boolean {
-  if (typeof window === 'undefined') return false
-  const ts = sessionStorage.getItem(UNLOCK_FLAG)
-  if (!ts) return false
-  const age = Date.now() - Number(ts)
-  return age >= 0 && age < UNLOCK_TTL_MS
-}
-
+// Заблокировать: забыть ключ (дальше потребуется PIN) и очистить маркер фона.
 export function lock(): void {
-  sessionStorage.removeItem(UNLOCK_FLAG)
   memoryKey = null
+  if (typeof window !== 'undefined') sessionStorage.removeItem(HIDDEN_AT)
 }
 
-// Доступен только текущему рантайму — между перезагрузками теряется.
-// Используют только модули шифрования (этап 2+).
+// DEK текущей сессии. null → расшифровать нечем, нужен PIN.
+// Используют модули шифрования (lib/path) и PinGate.
 export function getCryptoKey(): CryptoKey | null {
   return memoryKey
+}
+
+// Запомнить момент ухода в фон (visibilitychange → hidden).
+export function noteHidden(): void {
+  if (typeof window === 'undefined') return
+  sessionStorage.setItem(HIDDEN_AT, String(Date.now()))
+}
+
+// Сколько приложение пробыло в фоне (ms). 0 — если маркера нет.
+export function hiddenDurationMs(): number {
+  if (typeof window === 'undefined') return 0
+  const ts = sessionStorage.getItem(HIDDEN_AT)
+  if (!ts) return 0
+  const ms = Date.now() - Number(ts)
+  return ms > 0 ? ms : 0
+}
+
+// Сбросить маркер фона (вернулись в пределах грейс-периода).
+export function clearHidden(): void {
+  if (typeof window !== 'undefined') sessionStorage.removeItem(HIDDEN_AT)
 }
