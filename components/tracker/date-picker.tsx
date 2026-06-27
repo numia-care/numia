@@ -19,9 +19,13 @@ interface Props {
   value: string
   onChange: (ymd: string) => void
   className?: string
+  // Запретить выбор будущих дат (today включительно ок). Нужно для анализов:
+  // measured_at не может быть позже сегодня. Трекер этот проп не передаёт —
+  // его поведение не меняется.
+  disableFuture?: boolean
 }
 
-export function DatePicker({ value, onChange, className }: Props) {
+export function DatePicker({ value, onChange, className, disableFuture }: Props) {
   const t = useTranslations('datePicker')
   const [open, setOpen] = useState(false)
 
@@ -60,6 +64,10 @@ export function DatePicker({ value, onChange, className }: Props) {
           locale={ru}
           weekStartsOn={1}
           captionLayout="dropdown"
+          // Будущие дни недоступны и не навигируются (endMonth ограничивает
+          // выпадашку месяцев/лет текущим месяцем).
+          disabled={disableFuture ? { after: new Date() } : undefined}
+          endMonth={disableFuture ? new Date() : undefined}
         />
       </PopoverContent>
     </Popover>

@@ -27,6 +27,9 @@ const selectClass =
   'w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50'
 const inputClass = selectClass
 
+// Свободная единица для «другое»: реальные единицы короткие («ммоль/л», «мкМЕ/мл»).
+const UNIT_MAX_LEN = 20
+
 export function LabForm() {
   const t = useTranslations('labs.new')
   const router = useRouter()
@@ -76,6 +79,11 @@ export function LabForm() {
       setError(t('valueInvalid'))
       return
     }
+    // Будущая дата недопустима (датапикер её и не даёт — это защита на сабмите).
+    if (date > format(new Date(), 'yyyy-MM-dd')) {
+      setError(t('dateFuture'))
+      return
+    }
     if (isOther && !customName.trim()) {
       setError(t('customNameRequired'))
       return
@@ -83,6 +91,11 @@ export function LabForm() {
     const unit = isOther ? customUnit.trim() : unitCode
     if (!unit) {
       setError(t('unitRequired'))
+      return
+    }
+    // Свободная единица «другого» — базовая проверка длины (непустая уже выше).
+    if (isOther && unit.length > UNIT_MAX_LEN) {
+      setError(t('unitInvalid'))
       return
     }
 
@@ -142,6 +155,7 @@ export function LabForm() {
             value={customName}
             onChange={(e) => setCustomName(e.target.value)}
             placeholder={t('customNamePlaceholder')}
+            maxLength={60}
             disabled={saving}
             className={inputClass}
           />
@@ -173,6 +187,7 @@ export function LabForm() {
               value={customUnit}
               onChange={(e) => setCustomUnit(e.target.value)}
               placeholder={t('unitPlaceholder')}
+              maxLength={UNIT_MAX_LEN}
               disabled={saving}
               className={inputClass}
             />
@@ -203,7 +218,8 @@ export function LabForm() {
       <div className="space-y-1.5">
         <Label htmlFor="measured-at">{t('dateLabel')}</Label>
         <div>
-          <DatePicker value={date} onChange={setDate} />
+          {/* Будущие даты запрещены: анализа из будущего не существует. */}
+          <DatePicker value={date} onChange={setDate} disableFuture />
         </div>
       </div>
 
