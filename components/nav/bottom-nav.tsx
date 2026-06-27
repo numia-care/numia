@@ -1,6 +1,12 @@
 'use client'
 
-import { LeafIcon, RouteIcon, SettingsIcon, type LucideIcon } from 'lucide-react'
+import {
+  FlaskConicalIcon,
+  LeafIcon,
+  RouteIcon,
+  SettingsIcon,
+  type LucideIcon,
+} from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -21,13 +27,14 @@ import { cn } from '@/lib/utils'
 type Tab = {
   href: string
   /** ключ в messages.nav */
-  key: 'tracker' | 'path' | 'settings'
+  key: 'tracker' | 'path' | 'labs' | 'settings'
   icon: LucideIcon
 }
 
 const TABS: Tab[] = [
   { href: '/tracker', key: 'tracker', icon: LeafIcon },
   { href: '/path', key: 'path', icon: RouteIcon },
+  { href: '/labs', key: 'labs', icon: FlaskConicalIcon },
   { href: '/settings', key: 'settings', icon: SettingsIcon },
   // место под будущие: Дневник, Вики
 ]
