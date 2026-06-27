@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { getCryptoKey } from '@/lib/crypto/session'
 import { listEntries, type PathEntry } from '@/lib/path/entries'
 import { buttonVariants } from '@/components/ui/button'
-import { PhotoThumb } from './photo-thumb'
+import { EntryMedia } from './entry-media'
 
 // Лента «Пути»: тянет МЕТАДАННЫЕ записей (listEntries не расшифровывает), затем
 // каждая миниатюра лениво расшифровывается сама (PhotoThumb). Экран не блокируем.
@@ -117,7 +117,7 @@ function Timeline({ entries }: { entries: PathEntry[] }) {
           </h2>
           <div className="space-y-5">
             {group.items.map((entry) => (
-              <PhotoThumb key={entry.id} entry={entry} />
+              <EntryMedia key={entry.id} entry={entry} />
             ))}
           </div>
         </section>

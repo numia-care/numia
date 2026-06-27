@@ -22,18 +22,6 @@ export default async function PathPage() {
       </header>
 
       <PathFeed />
-
-      {/* ВРЕМЕННО: вход в смоук-тест записи голоса (в standalone-PWA нет адресной
-          строки, поэтому нужна ссылка изнутри). Удалить вместе с /path/voice-test
-          после подтверждения записи в iOS PWA. */}
-      <div className="mt-12 border-t border-border pt-4 text-center">
-        <Link
-          href="/path/voice-test"
-          className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-        >
-          🎙 тест записи голоса
-        </Link>
-      </div>
     </div>
   )
 }

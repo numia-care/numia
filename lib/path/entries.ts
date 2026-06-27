@@ -62,23 +62,37 @@ export interface NewPhoto {
   caption?: string
 }
 
-// Форма расшифрованного encrypted_content. Объект (а не голая строка), чтобы
-// будущие типы записей клали свои поля, не ломая старые.
-interface PhotoContent {
+export interface NewVoice {
+  blob: Blob
+  occurredAt: Date
   caption?: string
 }
 
-// ── Запись: добавить фото ────────────────────────────────────────────────────
+// Форма расшифрованного encrypted_content. Объект (а не голая строка), чтобы
+// будущие типы записей клали свои поля, не ломая старые.
+interface EntryContent {
+  caption?: string
+}
+
+// ── Запись: общий пайплайн ────────────────────────────────────────────────────
 
 /**
- * Полный пайплайн добавления фото-записи:
- *   сжать (клиент) → зашифровать блоб DEK'ом → загрузить в Storage →
- *   записать метаданные в path_entries. Возвращает id новой записи.
+ * Общий E2E-пайплайн для любого медиа-типа:
+ *   зашифровать байты DEK'ом (новый IV на файл) → загрузить шифроблоб в Storage
+ *   → записать метаданные в path_entries. Возвращает id новой записи.
+ *
+ * Фото и голос отличаются только подготовкой байт (сжатие vs готовый mp4) и
+ * entry_type — всё остальное (шифрование, аплоад, запись) общее.
  *
  * Атомарности на два хранилища (Storage + таблица) нет, поэтому при провале
  * вставки чистим уже загруженный блоб, чтобы не копить осиротевшие файлы.
  */
-export async function addPhotoEntry(input: NewPhoto): Promise<string> {
+async function saveEntry(params: {
+  entryType: PathEntryType
+  bytes: Uint8Array
+  occurredAt: Date
+  caption?: string
+}): Promise<string> {
   const dek = requireDek()
   const supabase = createClient()
   const {
@@ -86,25 +100,21 @@ export async function addPhotoEntry(input: NewPhoto): Promise<string> {
   } = await supabase.auth.getUser()
   if (!user) throw new Error('not_authenticated')
 
-  // 1. Сжать на клиенте (до шифрования — см. compress.ts).
-  const compressed = await compressImage(input.file)
-  const plainBytes = new Uint8Array(await compressed.arrayBuffer())
+  // Зашифровать блоб DEK'ом (новый IV на файл).
+  const { iv, ciphertext } = await encryptBytes(dek, params.bytes)
 
-  // 2. Зашифровать блоб DEK'ом (новый IV на файл).
-  const { iv, ciphertext } = await encryptBytes(dek, plainBytes)
-
-  // 3. Подпись (опционально) — отдельным зашифрованным полем, как JSON.
-  const caption = input.caption?.trim()
+  // Подпись (опционально) — отдельным зашифрованным полем, как JSON.
+  const caption = params.caption?.trim()
   const encryptedContent = caption
-    ? await encryptText(dek, JSON.stringify({ caption } satisfies PhotoContent))
+    ? await encryptText(dek, JSON.stringify({ caption } satisfies EntryContent))
     : null
 
-  // 4. id генерим заранее — он же имя файла в Storage (путь {user_id}/{id},
-  //    RLS бакета изолирует юзеров по первому сегменту).
+  // id генерим заранее — он же имя файла в Storage (путь {user_id}/{id},
+  // RLS бакета изолирует юзеров по первому сегменту).
   const entryId = crypto.randomUUID()
   const mediaPath = `${user.id}/${entryId}`
 
-  // 5. Загрузить ЗАШИФРОВАННЫЙ блоб. upsert:false — не перезатираем существующее.
+  // Загрузить ЗАШИФРОВАННЫЙ блоб. upsert:false — не перезатираем существующее.
   const { error: upErr } = await supabase.storage
     .from(BUCKET)
     .upload(mediaPath, new Blob([ciphertext], { type: 'application/octet-stream' }), {
@@ -113,12 +123,12 @@ export async function addPhotoEntry(input: NewPhoto): Promise<string> {
     })
   if (upErr) throw new Error(`media_upload_failed: ${upErr.message}`)
 
-  // 6. Записать метаданные. Упало — убираем осиротевший блоб и пробрасываем.
+  // Записать метаданные. Упало — убираем осиротевший блоб и пробрасываем.
   const { error: insErr } = await supabase.from('path_entries').insert({
     id: entryId,
     user_id: user.id,
-    entry_type: 'photo',
-    occurred_at: input.occurredAt.toISOString(),
+    entry_type: params.entryType,
+    occurred_at: params.occurredAt.toISOString(),
     media_path: mediaPath,
     media_iv: bytesToBase64(iv),
     encrypted_content: encryptedContent,
@@ -129,6 +139,32 @@ export async function addPhotoEntry(input: NewPhoto): Promise<string> {
   }
 
   return entryId
+}
+
+/** Фото: сжать на клиенте (до шифрования, см. compress.ts) → общий пайплайн. */
+export async function addPhotoEntry(input: NewPhoto): Promise<string> {
+  const compressed = await compressImage(input.file)
+  const bytes = new Uint8Array(await compressed.arrayBuffer())
+  return saveEntry({
+    entryType: 'photo',
+    bytes,
+    occurredAt: input.occurredAt,
+    caption: input.caption,
+  })
+}
+
+/**
+ * Голос: блоб уже сжат (mp4/AAC из MediaRecorder), сжимать нечего — сразу в
+ * общий пайплайн. Тип воспроизведения восстановим по entry_type (mediaMimeType).
+ */
+export async function addVoiceEntry(input: NewVoice): Promise<string> {
+  const bytes = new Uint8Array(await input.blob.arrayBuffer())
+  return saveEntry({
+    entryType: 'voice',
+    bytes,
+    occurredAt: input.occurredAt,
+    caption: input.caption,
+  })
 }
 
 // ── Чтение: лента (метаданные) ────────────────────────────────────────────────
@@ -159,24 +195,32 @@ export async function listEntries(): Promise<PathEntry[]> {
 
 // ── Чтение: расшифровка контента (ленивая, на запись) ────────────────────────
 
-/** Расшифровать подпись фото. null — если подписи нет. */
+/** Расшифровать подпись записи (фото/голос). null — если подписи нет. */
 export async function decryptCaption(entry: PathEntry): Promise<string | null> {
   if (!entry.encryptedContent) return null
   const dek = requireDek()
   const json = await decryptText(dek, entry.encryptedContent)
-  const parsed = JSON.parse(json) as PhotoContent
+  const parsed = JSON.parse(json) as EntryContent
   return parsed.caption ?? null
 }
 
+// MIME расшифрованного медиа по типу записи: фото всегда JPEG (compress.ts),
+// голос — mp4/AAC (запись MediaRecorder на iOS). Тип нужен для Blob, чтобы
+// <img>/<audio> корректно проиграли. Аудитория — iOS PWA, там голос всегда mp4.
+function mediaMimeType(entryType: PathEntryType): string {
+  return entryType === 'voice' ? 'audio/mp4' : 'image/jpeg'
+}
+
 /**
- * Обратный путь для фото: скачать шифроблоб → расшифровать в памяти → отдать
- * object URL для <img src>.
+ * Обратный путь для медиа (фото/голос): скачать шифроблоб → расшифровать в
+ * памяти → отдать object URL для <img src> / <audio src>. Тип Blob выбирается
+ * по entry_type (mediaMimeType).
  *
- * ВАЖНО: вызывающий ОБЯЗАН вызвать URL.revokeObjectURL(url), когда картинка
- * больше не нужна (размонтирование компонента) — иначе расшифрованный блоб
- * висит в памяти до перезагрузки страницы.
+ * ВАЖНО: вызывающий ОБЯЗАН вызвать URL.revokeObjectURL(url), когда медиа больше
+ * не нужно (размонтирование компонента) — иначе расшифрованный блоб висит в
+ * памяти до перезагрузки страницы.
  */
-export async function loadPhotoUrl(entry: PathEntry): Promise<string> {
+export async function loadMediaUrl(entry: PathEntry): Promise<string> {
   if (!entry.mediaPath || !entry.mediaIv) throw new Error('entry_has_no_media')
   const dek = requireDek()
   const supabase = createClient()
@@ -190,6 +234,5 @@ export async function loadPhotoUrl(entry: PathEntry): Promise<string> {
   const iv = base64ToBytes(entry.mediaIv)
   const plain = await decryptBytes(dek, iv, ciphertext)
 
-  // Всегда JPEG — мы сами так кодируем в compress.ts.
-  return URL.createObjectURL(new Blob([plain], { type: 'image/jpeg' }))
+  return URL.createObjectURL(new Blob([plain], { type: mediaMimeType(entry.entryType) }))
 }

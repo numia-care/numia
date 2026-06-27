@@ -1,10 +1,10 @@
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 
-import { PhotoForm } from '@/components/path/photo-form'
+import { NewEntry } from '@/components/path/new-entry'
 
-// Добавление фото-записи. Оболочка серверная (заголовок), сама форма —
-// клиентская: сжатие, шифрование и загрузка идут на устройстве (lib/path).
+// Добавление записи в «Путь» (фото или голос). Оболочка серверная (заголовок),
+// формы клиентские: сжатие/запись, шифрование и загрузка идут на устройстве.
 export default async function NewPathEntryPage() {
   const t = await getTranslations('path.new')
 
@@ -23,7 +23,7 @@ export default async function NewPathEntryPage() {
         <p className="mt-2 text-sm text-muted-foreground">{t('subtitle')}</p>
       </header>
 
-      <PhotoForm />
+      <NewEntry />
     </div>
   )
 }
