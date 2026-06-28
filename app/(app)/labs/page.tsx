@@ -4,6 +4,7 @@ import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 
 import { buttonVariants } from '@/components/ui/button'
+import { LabChart } from '@/components/labs/lab-chart'
 import { ANALYTES, getAnalyte, unitLabel } from '@/lib/labs/catalog'
 import { listLabResults, type LabResultRow } from '@/lib/labs/queries'
 
@@ -38,6 +39,19 @@ export default async function LabsPage() {
               <h2 className="mb-4 font-heading text-xl text-foreground/70">
                 {group.title}
               </h2>
+
+              {/* График динамики — от 2 точек. Чистая линия, без коридоров. */}
+              {group.rows.length >= 2 && (
+                <LabChart
+                  analyteCode={group.rows[0].analyte}
+                  rows={group.rows.map((r) => ({
+                    value: r.value,
+                    unit: r.unit,
+                    measuredAt: r.measured_at,
+                  }))}
+                />
+              )}
+
               <div className="space-y-2">
                 {group.rows.map((row) => (
                   <div
