@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 
 import { Greeting } from '@/components/dashboard/greeting'
+import { QueerHistoryCard } from '@/components/dashboard/queer-history-card'
 
 // Главный экран «Сегодня» — точка входа в приложение (после login + PIN).
 // Этот дроб: приветствие + каркас блоков с тёплыми пустыми состояниями.
@@ -29,8 +30,13 @@ export default async function TodayPage() {
           </div>
         </FadeIn>
 
-        {/* Сегодняшние приёмы — пока тёплая заглушка; сводку подключим дальше. */}
+        {/* Квир-история дня. */}
         <FadeIn delayMs={80}>
+          <QueerHistoryCard />
+        </FadeIn>
+
+        {/* Сегодняшние приёмы — пока тёплая заглушка; сводку подключим дальше. */}
+        <FadeIn delayMs={160}>
           <SectionCard
             href="/tracker"
             title={t('medsTitle')}
@@ -39,7 +45,7 @@ export default async function TodayPage() {
         </FadeIn>
 
         {/* Последнее из «Пути» — пока приглашение; превью подключим дальше. */}
-        <FadeIn delayMs={160}>
+        <FadeIn delayMs={240}>
           <SectionCard href="/path" title={t('pathTitle')} body={t('pathEmpty')} />
         </FadeIn>
       </div>
