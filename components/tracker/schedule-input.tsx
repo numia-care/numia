@@ -26,10 +26,16 @@ export function ScheduleInput() {
 
   const switchTo = (next: 'daily' | 'interval') => {
     if (next === kind) return
+    // Переносим основное (первое) время между расписаниями — время единое,
+    // смена «каждый день ↔ интервал» его не сбрасывает. Доп. времена daily при
+    // переходе в interval теряются (у интервала приём один) — это ожидаемо.
+    const current = form.getValues('schedule')
+    const primary =
+      (current.kind === 'daily' ? current.times?.[0] : current.time) ?? '09:00'
     if (next === 'daily') {
       form.setValue(
         'schedule',
-        { kind: 'daily', times: ['09:00'] },
+        { kind: 'daily', times: [primary] },
         { shouldValidate: false, shouldDirty: true },
       )
     } else {
@@ -38,7 +44,7 @@ export function ScheduleInput() {
         {
           kind: 'interval',
           every_days: 7,
-          time: '09:00',
+          time: primary,
           anchor_date: format(new Date(), 'yyyy-MM-dd'),
         },
         { shouldValidate: false, shouldDirty: true },
@@ -129,6 +135,8 @@ function DailyFields() {
     )
   }
 
+  // Первый приём (times[0]) живёт в базовом слое формы — единый источник.
+  // Здесь только ДОПОЛНИТЕЛЬНЫЕ времена (со второго) + кнопка добавления.
   return (
     <FormField
       control={form.control}
@@ -136,29 +144,29 @@ function DailyFields() {
       render={() => (
         <FormItem>
           <FormLabel className="text-sm text-muted-foreground">
-            {t('timeLabel')}
+            {t('moreTimes')}
           </FormLabel>
-          <div className="space-y-2">
-            {times.map((time, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <TimeSelect
-                  value={time}
-                  onChange={(v) => setTime(idx, v)}
-                />
-                {times.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeTime(idx)}
-                    className="text-muted-foreground"
-                  >
-                    {t('removeTime')}
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
+          {times.length > 1 && (
+            <div className="space-y-2">
+              {times.slice(1).map((time, i) => {
+                const idx = i + 1
+                return (
+                  <div key={idx} className="flex items-center gap-2">
+                    <TimeSelect value={time} onChange={(v) => setTime(idx, v)} />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeTime(idx)}
+                      className="text-muted-foreground"
+                    >
+                      {t('removeTime')}
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
           <Button
             type="button"
             variant="secondary"
@@ -179,50 +187,32 @@ function DailyFields() {
 function IntervalFields() {
   const t = useTranslations('tracker.schedule')
   const form = useFormContext<MedicationFormValues>()
-  // Поля «Точка отсчёта» здесь нет: цикл интервала считается от «Даты начала»
-  // (schedule.anchor_date проставляется = start_date на сабмите формы).
+  // Время приёма у интервала — то же базовое поле формы (single source), здесь
+  // НЕ дублируем. «Точка отсчёта» тоже не поле: цикл считается от «Даты начала»
+  // (schedule.anchor_date = start_date на сабмите).
   return (
-    <div className="grid grid-cols-2 gap-4">
-      <FormField
-        control={form.control}
-        name="schedule.every_days"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel className="text-sm text-muted-foreground">
-              {t('everyDaysLabel')}
-            </FormLabel>
-            <FormControl>
-              <Input
-                type="number"
-                min={1}
-                max={180}
-                {...field}
-                onChange={(e) => field.onChange(e.target.valueAsNumber)}
-                value={field.value ?? ''}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="schedule.time"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel className="text-sm text-muted-foreground">
-              {t('timeFieldLabel')}
-            </FormLabel>
-            <FormControl>
-              <TimeSelect
-                value={field.value ?? '09:00'}
-                onChange={field.onChange}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </div>
+    <FormField
+      control={form.control}
+      name="schedule.every_days"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel className="text-sm text-muted-foreground">
+            {t('everyDaysLabel')}
+          </FormLabel>
+          <FormControl>
+            <Input
+              type="number"
+              min={1}
+              max={180}
+              {...field}
+              onChange={(e) => field.onChange(e.target.valueAsNumber)}
+              value={field.value ?? ''}
+              className="max-w-32"
+            />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
   )
 }
