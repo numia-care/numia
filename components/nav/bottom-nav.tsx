@@ -1,10 +1,10 @@
 'use client'
 
 import {
-  FlaskConicalIcon,
+  EllipsisIcon,
   LeafIcon,
   RouteIcon,
-  SettingsIcon,
+  SparklesIcon,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -27,16 +27,18 @@ import { cn } from '@/lib/utils'
 type Tab = {
   href: string
   /** ключ в messages.nav */
-  key: 'tracker' | 'path' | 'labs' | 'settings'
+  key: 'today' | 'tracker' | 'path' | 'more'
   icon: LucideIcon
+  /** доп. пути, при которых таб считается активным (для «Ещё»: его разделы) */
+  match?: string[]
 }
 
 const TABS: Tab[] = [
+  { href: '/', key: 'today', icon: SparklesIcon },
   { href: '/tracker', key: 'tracker', icon: LeafIcon },
   { href: '/path', key: 'path', icon: RouteIcon },
-  { href: '/labs', key: 'labs', icon: FlaskConicalIcon },
-  { href: '/settings', key: 'settings', icon: SettingsIcon },
-  // место под будущие: Дневник, Вики
+  // «Ещё» подсвечивается и на своих разделах (Анализы, Вики, Настройки).
+  { href: '/more', key: 'more', icon: EllipsisIcon, match: ['/labs', '/wiki', '/settings'] },
 ]
 
 export function BottomNav() {
@@ -48,7 +50,12 @@ export function BottomNav() {
       <ul className="mx-auto flex max-w-2xl">
         {TABS.map((tab) => {
           const active =
-            pathname === tab.href || pathname.startsWith(`${tab.href}/`)
+            pathname === tab.href ||
+            pathname.startsWith(`${tab.href}/`) ||
+            (tab.match?.some(
+              (p) => pathname === p || pathname.startsWith(`${p}/`),
+            ) ??
+              false)
           const Icon = tab.icon
           return (
             <li key={tab.href} className="flex-1">
