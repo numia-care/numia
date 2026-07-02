@@ -3,7 +3,9 @@ import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 
 import { Greeting } from '@/components/dashboard/greeting'
+import { PathPreview } from '@/components/dashboard/path-preview'
 import { QueerHistoryCard } from '@/components/dashboard/queer-history-card'
+import { TodayMeds } from '@/components/dashboard/today-meds'
 
 // Главный экран «Сегодня» — точка входа в приложение (после login + PIN).
 // Этот дроб: приветствие + каркас блоков с тёплыми пустыми состояниями.
@@ -35,18 +37,14 @@ export default async function TodayPage() {
           <QueerHistoryCard />
         </FadeIn>
 
-        {/* Сегодняшние приёмы — пока тёплая заглушка; сводку подключим дальше. */}
+        {/* Сегодняшние приёмы — реальная сводка (заглушка внутри, если пусто). */}
         <FadeIn delayMs={160}>
-          <SectionCard
-            href="/tracker"
-            title={t('medsTitle')}
-            body={t('medsEmpty')}
-          />
+          <TodayMeds />
         </FadeIn>
 
-        {/* Последнее из «Пути» — пока приглашение; превью подключим дальше. */}
+        {/* Последнее из «Пути» — превью 1–2 записей (заглушка, если пусто). */}
         <FadeIn delayMs={240}>
-          <SectionCard href="/path" title={t('pathTitle')} body={t('pathEmpty')} />
+          <PathPreview />
         </FadeIn>
       </div>
     </div>
@@ -69,25 +67,5 @@ function FadeIn({
     >
       {children}
     </div>
-  )
-}
-
-function SectionCard({
-  href,
-  title,
-  body,
-}: {
-  href: string
-  title: string
-  body: string
-}) {
-  return (
-    <Link
-      href={href}
-      className="block rounded-2xl bg-card p-5 ring-1 ring-border transition-colors hover:ring-sage/50"
-    >
-      <h2 className="font-heading text-lg text-foreground">{title}</h2>
-      <p className="mt-1 text-sm text-foreground/70">{body}</p>
-    </Link>
   )
 }
