@@ -43,9 +43,18 @@ function requireDek(): CryptoKey {
 
 // ── Типы ────────────────────────────────────────────────────────────────────
 
-export type PathEntryType = 'photo' | 'voice' | 'note' | 'lab_result' | 'milestone'
+export type PathEntryType =
+  | 'photo'
+  | 'voice'
+  | 'note'
+  | 'diary'
+  | 'lab_result'
+  | 'milestone'
 
 // Ряд ленты — только МЕТАДАННЫЕ (расшифровки тут нет, она ленивая, см. ниже).
+// mood — исключение: он ОТКРЫТ (не шифруется), поэтому едет прямо в метаданных
+// ленты, без отдельной расшифровки. Текст заметки (note_ciphertext) — шифрован,
+// расшифровывается лениво, как caption у фото.
 export interface PathEntry {
   id: string
   entryType: PathEntryType
@@ -53,6 +62,8 @@ export interface PathEntry {
   mediaPath: string | null
   mediaIv: string | null // base64 IV для расшифровки файла
   encryptedContent: string | null
+  mood: number | null // 1–5, открыто (дневник)
+  noteCiphertext: string | null // E2E-текст заметки дневника
   createdAt: string
 }
 
@@ -66,6 +77,16 @@ export interface NewVoice {
   blob: Blob
   occurredAt: Date
   caption?: string
+}
+
+// Запись дневника: настроение (1–5) и/или текст. Оба опциональны по отдельности,
+// но addDiaryEntry требует хотя бы одно (та же инварианта, что в CHECK миграции).
+export type MoodLevel = 1 | 2 | 3 | 4 | 5
+
+export interface NewDiary {
+  mood?: MoodLevel
+  note?: string
+  occurredAt: Date
 }
 
 // Форма расшифрованного encrypted_content. Объект (а не голая строка), чтобы
@@ -167,6 +188,44 @@ export async function addVoiceEntry(input: NewVoice): Promise<string> {
   })
 }
 
+/**
+ * Дневник: настроение и/или заметка, без медиа — поэтому НЕ через saveEntry
+ * (там аплоад файла в Storage). Пишем прямо в path_entries:
+ *   • mood      — открыто (число нужно серверу для будущих графиков);
+ *   • note      — шифруется DEK'ом в note_ciphertext (как заметка анализов).
+ * Требуем хотя бы одно из двух — совпадает с CHECK path_entries_diary_not_empty.
+ */
+export async function addDiaryEntry(input: NewDiary): Promise<string> {
+  const dek = requireDek()
+
+  const note = input.note?.trim()
+  if (input.mood == null && !note) {
+    // Клиентская страховка к серверному CHECK — не даём собрать пустую запись.
+    throw new Error('diary_empty')
+  }
+
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('not_authenticated')
+
+  const noteCiphertext = note ? await encryptText(dek, note) : null
+
+  const entryId = crypto.randomUUID()
+  const { error } = await supabase.from('path_entries').insert({
+    id: entryId,
+    user_id: user.id,
+    entry_type: 'diary',
+    occurred_at: input.occurredAt.toISOString(),
+    mood: input.mood ?? null,
+    note_ciphertext: noteCiphertext,
+  })
+  if (error) throw new Error(`diary_insert_failed: ${error.message}`)
+
+  return entryId
+}
+
 // ── Чтение: лента (метаданные) ────────────────────────────────────────────────
 
 /**
@@ -178,7 +237,9 @@ export async function listEntries(): Promise<PathEntry[]> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('path_entries')
-    .select('id, entry_type, occurred_at, media_path, media_iv, encrypted_content, created_at')
+    .select(
+      'id, entry_type, occurred_at, media_path, media_iv, encrypted_content, mood, note_ciphertext, created_at',
+    )
     .order('occurred_at', { ascending: false })
   if (error) throw new Error(`entries_list_failed: ${error.message}`)
 
@@ -189,6 +250,8 @@ export async function listEntries(): Promise<PathEntry[]> {
     mediaPath: r.media_path,
     mediaIv: r.media_iv,
     encryptedContent: r.encrypted_content,
+    mood: r.mood,
+    noteCiphertext: r.note_ciphertext,
     createdAt: r.created_at,
   }))
 }
@@ -202,6 +265,17 @@ export async function decryptCaption(entry: PathEntry): Promise<string | null> {
   const json = await decryptText(dek, entry.encryptedContent)
   const parsed = JSON.parse(json) as EntryContent
   return parsed.caption ?? null
+}
+
+/**
+ * Расшифровать текст заметки дневника. null — если заметки нет (запись только с
+ * настроением). В отличие от caption, текст лежит голой строкой в note_ciphertext
+ * (не JSON) — как заметка анализов.
+ */
+export async function decryptNote(entry: PathEntry): Promise<string | null> {
+  if (!entry.noteCiphertext) return null
+  const dek = requireDek()
+  return decryptText(dek, entry.noteCiphertext)
 }
 
 // MIME расшифрованного медиа по типу записи: фото всегда JPEG (compress.ts),

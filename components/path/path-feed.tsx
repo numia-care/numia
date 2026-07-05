@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { getCryptoKey } from '@/lib/crypto/session'
 import { listEntries, type PathEntry } from '@/lib/path/entries'
 import { buttonVariants } from '@/components/ui/button'
+import { DiaryCard } from './diary-card'
 import { EntryMedia } from './entry-media'
 
 // Лента «Пути»: тянет МЕТАДАННЫЕ записей (listEntries не расшифровывает), затем
@@ -116,9 +117,13 @@ function Timeline({ entries }: { entries: PathEntry[] }) {
             {group.label}
           </h2>
           <div className="space-y-5">
-            {group.items.map((entry) => (
-              <EntryMedia key={entry.id} entry={entry} />
-            ))}
+            {group.items.map((entry) =>
+              entry.entryType === 'diary' ? (
+                <DiaryCard key={entry.id} entry={entry} />
+              ) : (
+                <EntryMedia key={entry.id} entry={entry} />
+              ),
+            )}
           </div>
         </section>
       ))}
