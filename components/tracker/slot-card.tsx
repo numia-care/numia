@@ -19,6 +19,8 @@ export interface SlotCardProps {
   formStr: string
   status: 'upcoming' | 'taken' | 'skipped' | 'missed'
   timezone: string
+  // true, если это последний upcoming-слот дня → щедрее вспышка при отметке.
+  isLast?: boolean
 }
 
 /**
@@ -36,7 +38,7 @@ export interface SlotCardProps {
 export function SlotCard(props: SlotCardProps) {
   const t = useTranslations('tracker.slot')
 
-  const { status, id, scheduledIso, timeStr, takenTimeStr, medName, doseStr, formStr, timezone } = props
+  const { status, id, scheduledIso, timeStr, takenTimeStr, medName, doseStr, formStr, timezone, isLast } = props
 
   const isUpcoming = status === 'upcoming'
   const isTaken = status === 'taken'
@@ -47,6 +49,7 @@ export function SlotCard(props: SlotCardProps) {
 
   const content = (
     <Card
+      data-slot-card=""
       className={cn(
         'flex flex-col gap-3 p-4',
         wrapInBackfill && 'cursor-pointer transition-colors hover:bg-muted/30',
@@ -76,7 +79,7 @@ export function SlotCard(props: SlotCardProps) {
       </div>
 
       {isUpcoming && (
-        <SlotActions id={id} medName={medName} timeStr={timeStr} />
+        <SlotActions id={id} medName={medName} timeStr={timeStr} isLast={isLast} />
       )}
     </Card>
   )

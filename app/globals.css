@@ -131,3 +131,79 @@
     @apply font-sans;
   }
 }
+
+/* ----------------------------------------------------------------------------
+   Микро-вспышка ✦ при отметке приёма «Принято».
+   Узлы создаёт lib/tracker/spark.ts, разлёт/поворот приходят в CSS-переменных
+   --dx/--dy/--rot. Здесь — только анимация. Лёгкое: transform + opacity, без
+   тяжёлых фильтров, чтобы не грузить слабые телефоны.
+   ---------------------------------------------------------------------------- */
+.intake-sparks {
+  position: fixed;
+  z-index: 60;
+  pointer-events: none;
+  /* left/top — точка тапа; центрируем разлёт относительно неё. */
+  transform: translate(-50%, -50%);
+}
+
+.intake-spark {
+  position: absolute;
+  left: 0;
+  top: 0;
+  line-height: 1;
+  opacity: 0;
+  will-change: transform, opacity;
+  /* Разлёт + мерцание (яркость дрожит несколько раз за время жизни). */
+  animation:
+    intake-spark-fly 620ms ease-out forwards,
+    intake-spark-flicker 180ms ease-in-out 3;
+}
+
+@keyframes intake-spark-fly {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.3) rotate(0deg);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(1) rotate(var(--rot));
+  }
+}
+
+@keyframes intake-spark-flicker {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.6);
+  }
+}
+
+/* Мягкий scale-пульс карточки приёма в момент отметки (класс навешивает
+   slot-actions.tsx на data-slot-card и снимает через 600мс). */
+.slot-pulse {
+  animation: slot-pulse 600ms ease-out;
+}
+
+@keyframes slot-pulse {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.03);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Уважаем системную «меньше движения»: гасим пульс (вспышку гасит сам JS). */
+@media (prefers-reduced-motion: reduce) {
+  .slot-pulse {
+    animation: none;
+  }
+}
