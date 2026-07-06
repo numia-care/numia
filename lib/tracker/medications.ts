@@ -127,16 +127,21 @@ export async function updateMedication(
 
   if (error) return { ok: false, error: error.message }
 
-  // Если поменялось расписание — будущие неотмеченные слоты больше ему не
-  // соответствуют (придут напоминания по старому времени). Удаляем их и
-  // генерим заново. История (taken/skipped/missed) и прошлые слоты целы.
+  // Если поменялось расписание — неотмеченные слоты больше ему не
+  // соответствуют. Удаляем ВСЕ upcoming этого препарата и генерим заново —
+  // ровно как softDeleteMedication (и по той же причине): прошедшие
+  // неотмеченные слоты — тоже напоминалки старого расписания, не история.
+  // Раньше стоял фильтр .gte(scheduled_at, now) — из-за него просроченный
+  // upcoming старого расписания оставался сиротой в «Сегодня» (баг с
+  // 22:00/23:00). История (taken/skipped/missed) не трогается.
   if ('schedule' in parsed.data) {
-    await supabase
+    const { error: slotsError } = await supabase
       .from('intake_events')
       .delete()
       .eq('medication_id', id)
       .eq('status', 'upcoming')
-      .gte('scheduled_at', new Date().toISOString())
+    // Не молчим (как раньше): осиротевшие слоты хуже, чем ошибка формы.
+    if (slotsError) return { ok: false, error: slotsError.message }
   }
 
   await regenerateUpcomingSlots(supabase, user.id)
