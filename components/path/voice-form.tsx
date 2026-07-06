@@ -39,6 +39,42 @@ function formatMmSs(ms: number): string {
   return `${mm}:${ss}`
 }
 
+// ── Жизненный цикл микрофона ─────────────────────────────────────────────────
+// Железное правило: остановка записи = НЕМЕДЛЕННЫЙ track.stop() по всем трекам
+// (это и гасит системный индикатор микрофона). Асинхронного onstop не ждём.
+
+// Остановить все треки потока. track.stop() идемпотентен — повторный вызов
+// безвреден, поэтому и синхронный стоп, и подстраховка в onstop могут звать его
+// на один поток.
+function stopTracks(stream: MediaStream | null) {
+  stream?.getTracks().forEach((tr) => tr.stop())
+}
+
+// Полный teardown текущей пары рекордер+поток: снять колбэки (опоздавший
+// onstop старого рекордера не должен трогать новое состояние), остановить
+// рекордер, погасить треки, очистить refs. Используется перед перезаписью,
+// при ошибке getUserMedia и на unmount.
+function disposeRecorder(
+  recorderRef: React.RefObject<MediaRecorder | null>,
+  streamRef: React.RefObject<MediaStream | null>,
+) {
+  const rec = recorderRef.current
+  if (rec) {
+    rec.ondataavailable = null
+    rec.onstop = null
+    if (rec.state !== 'inactive') {
+      try {
+        rec.stop()
+      } catch {
+        // уже остановлен между проверкой state и вызовом — не страшно
+      }
+    }
+    recorderRef.current = null
+  }
+  stopTracks(streamRef.current)
+  streamRef.current = null
+}
+
 export function VoiceForm() {
   const t = useTranslations('path.new')
   const router = useRouter()
@@ -61,10 +97,12 @@ export function VoiceForm() {
     return () => URL.revokeObjectURL(previewUrl)
   }, [previewUrl])
 
-  // Подстраховка: отпустить микрофон, если ушли со страницы во время записи.
+  // Подстраховка: полностью освободить микрофон, если ушли со страницы во
+  // время записи (навигация, свайп назад → unmount). Снимаем и колбэки
+  // рекордера — блоб после смерти компонента собирать некому и незачем.
   useEffect(() => {
     return () => {
-      streamRef.current?.getTracks().forEach((tr) => tr.stop())
+      disposeRecorder(recorderRef, streamRef)
     }
   }, [])
 
@@ -76,20 +114,21 @@ export function VoiceForm() {
     const id = setInterval(() => {
       const e = Date.now() - startedAt
       setElapsedMs(e)
-      // Достигли лимита — мягко останавливаем (stop() только из 'recording').
-      if (e >= MAX_MS && recorderRef.current?.state === 'recording') {
-        recorderRef.current.stop()
-      }
+      // Достигли лимита — останавливаем как по тапу «Остановить»: рекордер
+      // флашит данные, треки гаснут сразу (индикатор микрофона тоже).
+      if (e >= MAX_MS) stopRecording()
     }, 250)
     return () => clearInterval(id)
   }, [recording])
 
-  function releaseMic() {
-    streamRef.current?.getTracks().forEach((tr) => tr.stop())
-    streamRef.current = null
-  }
-
   async function startRecording() {
+    // ПЕРЕЗАПИСЬ: старый рекордер и поток обязаны быть полностью освобождены
+    // ДО getUserMedia — iOS с ещё занятым микрофоном иногда отдаёт
+    // NotReadableError (отсюда «то падает, то работает»). Снятие колбэков
+    // важно не меньше: опоздавший onstop СТАРОГО рекордера не должен стрелять
+    // в состояние НОВОЙ записи.
+    disposeRecorder(recorderRef, streamRef)
+
     setBlob(null)
     setPreviewUrl(null)
     setElapsedMs(0)
@@ -115,19 +154,30 @@ export function VoiceForm() {
         setBlob(recorded)
         setPreviewUrl(URL.createObjectURL(recorded))
         setRecording(false)
-        releaseMic()
+        // Гасим именно ЭТОТ поток (замыкание), а не streamRef.current: к
+        // моменту асинхронного onstop в ref может лежать уже СЛЕДУЮЩИЙ поток
+        // перезаписи — его гасить нельзя. Обычно треки уже остановлены
+        // синхронно в stopRecording, тогда это no-op (stop() идемпотентен).
+        stopTracks(stream)
       }
 
       recorder.start()
       setRecording(true)
     } catch {
       toast.error(t('micError'))
-      releaseMic()
+      disposeRecorder(recorderRef, streamRef)
     }
   }
 
   function stopRecording() {
-    recorderRef.current?.stop()
+    const rec = recorderRef.current
+    // stop() флашит записанное (финальный dataavailable + onstop придут
+    // асинхронно) — данные уже в буфере, остановка треков их не теряет.
+    if (rec && rec.state !== 'inactive') rec.stop()
+    // Треки гасим СИНХРОННО, не дожидаясь onstop: индикатор микрофона должен
+    // погаснуть сразу после тапа, всегда (на iOS onstop может опаздывать).
+    stopTracks(streamRef.current)
+    streamRef.current = null
   }
 
   async function onSubmit(e: React.FormEvent) {
