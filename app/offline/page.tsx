@@ -1,7 +1,13 @@
+import { connection } from 'next/server'
+
 // Страница, которая показывается когда юзер офлайн и нужного кеша нет.
 // Намеренно без зависимостей от Supabase / клиентского JS — чтобы рендерилась
 // в любом состоянии. SW кеширует её на install.
-export default function OfflinePage() {
+export default async function OfflinePage() {
+  // Динамический рендер (не prerender): CSP-nonce генерится per-request в
+  // proxy.ts, а в prerendered HTML скрипты Next остались бы без nonce и
+  // блокировались бы. SW кеширует страницу целиком с install — консистентно.
+  await connection()
   return (
     <div className="flex flex-1 items-center justify-center bg-[#FAF6F0] px-6 py-16">
       <main className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-black/[0.04]">
