@@ -66,6 +66,15 @@ export function PathFeed() {
     setReloadKey((k) => k + 1)
   }
 
+  // Убрать удалённую запись из state (лента клиентская — refresh не поможет).
+  function removeEntry(id: string) {
+    setState((s) =>
+      s.kind === 'ready'
+        ? { kind: 'ready', entries: s.entries.filter((e) => e.id !== id) }
+        : s,
+    )
+  }
+
   if (state.kind === 'loading') return <FeedSkeleton />
 
   if (state.kind === 'pin') {
@@ -101,12 +110,18 @@ export function PathFeed() {
 
   if (state.entries.length === 0) return <EmptyState />
 
-  return <Timeline entries={state.entries} />
+  return <Timeline entries={state.entries} onDeleted={removeEntry} />
 }
 
 // ── Лента, сгруппированная по месяцам (новые сверху) ─────────────────────────
 
-function Timeline({ entries }: { entries: PathEntry[] }) {
+function Timeline({
+  entries,
+  onDeleted,
+}: {
+  entries: PathEntry[]
+  onDeleted: (id: string) => void
+}) {
   const groups = groupByMonth(entries)
 
   return (
@@ -119,9 +134,9 @@ function Timeline({ entries }: { entries: PathEntry[] }) {
           <div className="space-y-5">
             {group.items.map((entry) =>
               entry.entryType === 'diary' ? (
-                <DiaryCard key={entry.id} entry={entry} />
+                <DiaryCard key={entry.id} entry={entry} onDeleted={onDeleted} />
               ) : (
-                <EntryMedia key={entry.id} entry={entry} />
+                <EntryMedia key={entry.id} entry={entry} onDeleted={onDeleted} />
               ),
             )}
           </div>

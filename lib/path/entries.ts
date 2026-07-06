@@ -226,6 +226,30 @@ export async function addDiaryEntry(input: NewDiary): Promise<string> {
   return entryId
 }
 
+// ── Удаление записи ──────────────────────────────────────────────────────────
+
+/**
+ * Удалить запись целиком: ряд из path_entries + шифроблоб из Storage (если у
+ * записи есть медиа). DEK не нужен — удаляем шифротекст, не читая его.
+ *
+ * Порядок: сначала ряд (авторитетный источник — запись исчезает из ленты),
+ * потом блоб best-effort. Если блоб удалить не удалось — остаётся осиротевший
+ * шифроблоб (безвреден: зашифрован и недостижим, путь знал только ряд);
+ * обратный порядок дал бы хуже — запись с битым медиа в ленте.
+ * Чужую запись удалить не даст RLS (path_entries_delete_own / storage-политика).
+ */
+export async function deleteEntry(entry: PathEntry): Promise<void> {
+  const supabase = createClient()
+
+  const { error } = await supabase.from('path_entries').delete().eq('id', entry.id)
+  if (error) throw new Error(`entry_delete_failed: ${error.message}`)
+
+  if (entry.mediaPath) {
+    // best-effort: ошибку не пробрасываем, запись уже удалена.
+    await supabase.storage.from(BUCKET).remove([entry.mediaPath])
+  }
+}
+
 // ── Чтение: лента (метаданные) ────────────────────────────────────────────────
 
 /**

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 
 import { decryptCaption, loadMediaUrl, type PathEntry } from '@/lib/path/entries'
+import { EntryDeleteButton } from './entry-delete-button'
 
 // Одна запись ленты (фото или голос). Лениво (когда подъезжает к вьюпорту)
 // скачивает шифроблоб, расшифровывает на устройстве и показывает медиа + дату +
@@ -19,7 +20,13 @@ import { decryptCaption, loadMediaUrl, type PathEntry } from '@/lib/path/entries
 
 const dayLabel = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' })
 
-export function EntryMedia({ entry }: { entry: PathEntry }) {
+export function EntryMedia({
+  entry,
+  onDeleted,
+}: {
+  entry: PathEntry
+  onDeleted: (id: string) => void
+}) {
   const t = useTranslations('path')
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -116,9 +123,12 @@ export function EntryMedia({ entry }: { entry: PathEntry }) {
       )}
 
       <figcaption className="px-1">
-        <time className="text-sm text-foreground/60" dateTime={entry.occurredAt}>
-          {date}
-        </time>
+        <div className="flex items-center justify-between gap-2">
+          <time className="text-sm text-foreground/60" dateTime={entry.occurredAt}>
+            {date}
+          </time>
+          <EntryDeleteButton entry={entry} onDeleted={onDeleted} />
+        </div>
         {caption && <p className="mt-0.5 text-foreground/90">{caption}</p>}
       </figcaption>
     </figure>
