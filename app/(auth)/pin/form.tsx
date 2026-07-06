@@ -16,12 +16,18 @@ import { PinStorage } from '@/lib/crypto/storage'
 import { hasRemoteVault, setupVault, unlockWithPin } from '@/lib/crypto/vault'
 import { lock } from '@/lib/crypto/session'
 
-// После этого числа неудачных попыток — выделяем "Не помню PIN" красным,
-// сигналим юзеру что есть выход. Жёсткой блокировки по попыткам не делаем:
-// PIN всего 6 цифр и хранится только локально, без серверной составляющей
-// аккаунт-локаут не имеет смысла (атакующий с физическим доступом к девайсу
-// может просто очистить IndexedDB и сбросить счётчик).
+// Soft-lockout: после этого числа неверных попыток подряд — нарастающая пауза
+// перед следующей, и выделяем "Не помню PIN" красным (сигналим что есть выход).
+// Это часть модели «защита от чужих рук на 30 секунд»: без паузы онлайн-перебор
+// по клавиатуре ничем не ограничен. Обход очисткой IndexedDB атакующему не
+// помогает: вместе с паузой сотрётся обёртка DEK — данные не расшифровать
+// без ключа восстановления.
 const SOFT_LOCKOUT_AFTER = 5
+
+// Пауза после n-й неверной попытки: 30с → 1м → 2м → 4м → потолок 5 минут.
+function lockoutMs(attempts: number): number {
+  return Math.min(30_000 * 2 ** (attempts - SOFT_LOCKOUT_AFTER), 300_000)
+}
 
 export function PinUnlockForm() {
   const router = useRouter()
@@ -40,6 +46,8 @@ export function PinUnlockForm() {
     'unlock',
   )
   const [phrase, setPhrase] = useState('')
+  // Секунд до конца паузы ввода (0 = паузы нет). Тикает в эффекте ниже.
+  const [lockoutLeft, setLockoutLeft] = useState(0)
 
   // На случай "PIN был удалён из IDB между переходами" — отправляем на setup.
   useEffect(() => {
@@ -52,6 +60,9 @@ export function PinUnlockForm() {
         return
       }
       setAttempts(await PinStorage.getFailedAttempts())
+      // Пауза переживает reload — восстанавливаем отсчёт из IndexedDB.
+      const until = await PinStorage.getLockoutUntil()
+      if (until) setLockoutLeft(Math.max(0, Math.ceil((until - Date.now()) / 1000)))
       setChecked(true)
     })()
     return () => {
@@ -59,10 +70,27 @@ export function PinUnlockForm() {
     }
   }, [router])
 
+  // Отсчёт паузы: раз в секунду вниз до нуля.
+  useEffect(() => {
+    if (lockoutLeft <= 0) return
+    const id = setInterval(() => {
+      setLockoutLeft((s) => (s > 1 ? s - 1 : 0))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [lockoutLeft])
+
   async function onUnlock() {
     setError(null)
     if (pin.length !== 6) {
       setError('Введи 6 цифр')
+      return
+    }
+    // Пауза активна (state — и подстраховка из IDB, вдруг state обошли) → не
+    // проверяем PIN вообще, PBKDF2 не гоняем.
+    if (lockoutLeft > 0) return
+    const until = await PinStorage.getLockoutUntil()
+    if (until && until > Date.now()) {
+      setLockoutLeft(Math.ceil((until - Date.now()) / 1000))
       return
     }
 
@@ -82,6 +110,12 @@ export function PinUnlockForm() {
       if (!constantTimeEqual(got, expected)) {
         const n = await PinStorage.incrementFailedAttempts()
         setAttempts(n)
+        // С пятой неверной попытки — нарастающая пауза перед следующей.
+        if (n >= SOFT_LOCKOUT_AFTER) {
+          const ms = lockoutMs(n)
+          await PinStorage.setLockoutUntil(Date.now() + ms)
+          setLockoutLeft(Math.ceil(ms / 1000))
+        }
         setError('Неверный PIN')
         setPin('')
         setBusy(false)
@@ -234,14 +268,34 @@ export function PinUnlockForm() {
             onUnlock()
           }}
         >
-          <PinInput value={pin} onChange={setPin} autoFocus disabled={busy} />
-          {error && <p className="text-sm text-rose-600">{error}</p>}
+          <PinInput
+            value={pin}
+            onChange={setPin}
+            autoFocus
+            disabled={busy || lockoutLeft > 0}
+          />
+          {lockoutLeft > 0 ? (
+            // Пауза после серии неверных попыток. Тон спокойный: это защита,
+            // не наказание — настоящий владелец просто подождёт и попробует.
+            <p className="text-sm text-[#7A7A7A]">
+              Слишком много попыток подряд. Пауза {lockoutLeft}{' '}
+              {lockoutLeft % 10 === 1 && lockoutLeft % 100 !== 11
+                ? 'секунду'
+                : [2, 3, 4].includes(lockoutLeft % 10) &&
+                    ![12, 13, 14].includes(lockoutLeft % 100)
+                  ? 'секунды'
+                  : 'секунд'}{' '}
+              — а если PIN не вспоминается, ниже есть выход ✦
+            </p>
+          ) : (
+            error && <p className="text-sm text-rose-600">{error}</p>
+          )}
           <button
             type="submit"
-            disabled={pin.length !== 6 || busy}
+            disabled={pin.length !== 6 || busy || lockoutLeft > 0}
             className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
           >
-            {busy ? 'Проверяем…' : 'Войти'}
+            {busy ? 'Проверяем…' : lockoutLeft > 0 ? `Подожди ${lockoutLeft} c` : 'Войти'}
           </button>
         </form>
 

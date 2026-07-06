@@ -15,7 +15,9 @@
 //                      других» ломает вход при верном PIN.
 //   recovery_ack     — boolean: сохранил ли юзер recovery-ключ (для напоминания)
 //   pin_created_at   — timestamp (number) когда PIN был создан
-//   failed_attempts  — счётчик неудачных попыток unlock (для soft-lockout UX)
+//   failed_attempts  — счётчик неудачных попыток unlock (для soft-lockout)
+//   lockout_until    — timestamp (ms): до этого момента ввод PIN на паузе
+//                      (нарастающий backoff после серии неверных попыток)
 //
 // ВАЖНО про envelope (см. lib/crypto/envelope.ts): обёртка DEK под PIN
 // (dek_wrapped_pin) и соль PIN живут ТОЛЬКО здесь, локально. На сервере их
@@ -132,6 +134,7 @@ export const PinStorage = {
       kdf_iterations: v.iterations,
       pin_created_at: Date.now(),
       failed_attempts: 0,
+      lockout_until: 0, // новый набор = чистый лист, пауза не переживает его
     })
   },
 
@@ -144,6 +147,7 @@ export const PinStorage = {
     await removeItem('kdf_iterations')
     await removeItem('recovery_ack')
     await removeItem('failed_attempts')
+    await removeItem('lockout_until')
   },
 
   async readCryptoSalt(): Promise<string | null> {
@@ -177,5 +181,17 @@ export const PinStorage = {
 
   async resetFailedAttempts(): Promise<void> {
     await setItem('failed_attempts', 0)
+    await removeItem('lockout_until')
+  },
+
+  // Пауза ввода PIN (soft-lockout). Переживает reload — лежит в IndexedDB.
+  // Обход через очистку IndexedDB не помогает атакующему: вместе с паузой
+  // сотрётся и обёртка DEK — расшифровать станет нечем без recovery-ключа.
+  async getLockoutUntil(): Promise<number | null> {
+    return await getItem<number>('lockout_until')
+  },
+
+  async setLockoutUntil(ts: number): Promise<void> {
+    await setItem('lockout_until', ts)
   },
 }
