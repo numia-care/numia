@@ -3,10 +3,18 @@ import Link from 'next/link'
 
 import { NewEntry } from '@/components/path/new-entry'
 
-// Добавление записи в «Путь» (фото или голос). Оболочка серверная (заголовок),
-// формы клиентские: сжатие/запись, шифрование и загрузка идут на устройстве.
-export default async function NewPathEntryPage() {
+// Добавление записи в «Путь» (фото, голос или дневник). Оболочка серверная
+// (заголовок), формы клиентские: сжатие/запись, шифрование и загрузка идут на
+// устройстве. ?mode=diary открывает сразу вкладку дневника (вечерний заход с
+// дашборда «Как прошёл день?»).
+export default async function NewPathEntryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mode?: string }>
+}) {
   const t = await getTranslations('path.new')
+  const { mode } = await searchParams
+  const initialMode = mode === 'diary' || mode === 'voice' ? mode : 'photo'
 
   return (
     <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
@@ -23,7 +31,7 @@ export default async function NewPathEntryPage() {
         <p className="mt-2 text-sm text-muted-foreground">{t('subtitle')}</p>
       </header>
 
-      <NewEntry />
+      <NewEntry initialMode={initialMode} />
     </div>
   )
 }

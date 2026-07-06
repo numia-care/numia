@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 
 import { decryptNote, type MoodLevel, type PathEntry } from '@/lib/path/entries'
 import { MOOD_COLOR } from '@/lib/path/mood'
+import { cn } from '@/lib/utils'
 import { EntryDeleteButton } from './entry-delete-button'
 
 // Карточка дневниковой записи в ленте «Пути»: индикатор настроения (если есть) +
@@ -16,10 +17,10 @@ const dayLabel = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long
 
 export function DiaryCard({
   entry,
-  onDeleted,
+  onDelete,
 }: {
   entry: PathEntry
-  onDeleted: (id: string) => void
+  onDelete: (entry: PathEntry) => void
 }) {
   const t = useTranslations('path')
   const tMood = useTranslations('path.mood')
@@ -67,9 +68,14 @@ export function DiaryCard({
   const hasNote = entry.noteCiphertext !== null
 
   return (
+    // Появление с fade+подъёмом при первом попадании во вьюпорт — как у
+    // медиа-записей (EntryMedia), visible уже отслеживается для расшифровки.
     <div
       ref={containerRef}
-      className="rounded-2xl bg-card p-4 ring-1 ring-border"
+      className={cn(
+        'rounded-2xl bg-card p-4 ring-1 ring-border transition-all duration-500 motion-reduce:transition-none',
+        visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
+      )}
     >
       {/* «Ярлычок»-заголовок карточки — как в концепции макета. */}
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -80,7 +86,7 @@ export function DiaryCard({
           <time className="text-sm text-foreground/60" dateTime={entry.occurredAt}>
             {date}
           </time>
-          <EntryDeleteButton entry={entry} onDeleted={onDeleted} />
+          <EntryDeleteButton entry={entry} onDelete={onDelete} />
         </div>
       </div>
 

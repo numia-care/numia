@@ -1,8 +1,7 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { useTranslations } from 'next-intl'
-import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -14,36 +13,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { deleteEntry, type PathEntry } from '@/lib/path/entries'
+import type { PathEntry } from '@/lib/path/entries'
 
 // Кнопка «Убрать» на записи ленты «Пути» (любой тип: фото/голос/дневник) с
-// диалогом подтверждения — паттерн как у удаления препарата. Удаление
-// НЕОБРАТИМОЕ (в отличие от soft-delete препаратов): ряд + шифроблоб в Storage.
-// После успеха дёргаем onDeleted — лента убирает запись из своего state сама
-// (она клиентская, router.refresh() её не перерисует).
+// диалогом подтверждения. Сама НЕ удаляет: после подтверждения отдаёт запись
+// наверх (onDelete), а лента делает отложенное удаление с 5-секундным
+// «Отменить» в тосте (см. PathFeed.scheduleDelete) — случайный тап обратим.
 export function EntryDeleteButton({
   entry,
-  onDeleted,
+  onDelete,
 }: {
   entry: PathEntry
-  onDeleted: (id: string) => void
+  onDelete: (entry: PathEntry) => void
 }) {
   const t = useTranslations('path.delete')
   const tc = useTranslations('common')
   const [open, setOpen] = useState(false)
-  const [isPending, startTransition] = useTransition()
 
   const onConfirm = () => {
-    startTransition(async () => {
-      try {
-        await deleteEntry(entry)
-        setOpen(false)
-        toast.success(t('success'))
-        onDeleted(entry.id)
-      } catch {
-        toast.error(t('error'))
-      }
-    })
+    setOpen(false)
+    onDelete(entry)
   }
 
   return (
@@ -65,18 +54,10 @@ export function EntryDeleteButton({
           <DialogDescription>{t('description')}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button
-            variant="ghost"
-            onClick={() => setOpen(false)}
-            disabled={isPending}
-          >
+          <Button variant="ghost" onClick={() => setOpen(false)}>
             {tc('cancel')}
           </Button>
-          <Button
-            variant="destructive"
-            onClick={onConfirm}
-            disabled={isPending}
-          >
+          <Button variant="destructive" onClick={onConfirm}>
             {t('confirm')}
           </Button>
         </DialogFooter>

@@ -21,9 +21,9 @@ const MODE_LABEL: Record<Mode, string> = {
   diary: 'modeDiary',
 }
 
-export function NewEntry() {
+export function NewEntry({ initialMode = 'photo' }: { initialMode?: Mode }) {
   const t = useTranslations('path.new')
-  const [mode, setMode] = useState<Mode>('photo')
+  const [mode, setMode] = useState<Mode>(initialMode)
 
   return (
     <div className="space-y-6">

@@ -1,0 +1,178 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
+
+import { createClient } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils'
+
+// Онбординг-занавес: 2–3 экрана поверх дашборда при САМОМ первом входе.
+// Показывается один раз (флаг в localStorage) и только если у юзера ещё
+// совсем пусто (нет ни препаратов, ни записей «Пути») — иначе человек уже
+// освоился и занавес будет только мешать.
+//
+// Лёгкий: две head-count-выборки (RLS сам ограничит своим), CSS-анимации из
+// tw-animate-css, никаких таймеров/жестов. Пропускаем «позже» в любой момент.
+
+const SEEN_KEY = 'numia_onboarding_seen'
+
+type Step = 0 | 1 | 2
+
+export function OnboardingCurtain() {
+  const t = useTranslations('onboarding')
+  const router = useRouter()
+  const [visible, setVisible] = useState(false)
+  const [step, setStep] = useState<Step>(0)
+
+  useEffect(() => {
+    // Флаг локальный: онбординг — свойство устройства, не аккаунта. На новом
+    // устройстве покажется снова — и это ок (там та же ситуация «всё в новинку»).
+    if (localStorage.getItem(SEEN_KEY)) return
+
+    let cancelled = false
+    async function check() {
+      try {
+        const supabase = createClient()
+        // head:true — только count, без строк. RLS ограничивает своим юзером.
+        const [meds, paths] = await Promise.all([
+          supabase
+            .from('medications')
+            .select('id', { count: 'exact', head: true })
+            .is('deleted_at', null),
+          supabase
+            .from('path_entries')
+            .select('id', { count: 'exact', head: true }),
+        ])
+        if (cancelled) return
+        if ((meds.count ?? 0) === 0 && (paths.count ?? 0) === 0) {
+          setVisible(true)
+        } else {
+          // Данные уже есть — занавес не нужен и в будущем: помечаем сразу.
+          localStorage.setItem(SEEN_KEY, '1')
+        }
+      } catch {
+        // Проверка не удалась — не показываем (занавес некритичен).
+      }
+    }
+    check()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  function dismiss() {
+    localStorage.setItem(SEEN_KEY, '1')
+    setVisible(false)
+  }
+
+  function go(href: string) {
+    dismiss()
+    router.push(href)
+  }
+
+  if (!visible) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-background via-secondary/50 to-accent/40"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('step1Title')}
+    >
+      {/* «Позже» — всегда доступный выход, без чувства вины. */}
+      <div className="flex justify-end p-5">
+        <button
+          type="button"
+          onClick={dismiss}
+          className="rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+        >
+          {t('later')}
+        </button>
+      </div>
+
+      {/* key={step} перезапускает CSS-анимацию появления на каждом шаге. */}
+      <div
+        key={step}
+        className="flex flex-1 flex-col items-center justify-center px-8 pb-24 text-center animate-in fade-in slide-in-from-bottom-3 duration-500"
+      >
+        <div className="mb-6 text-4xl text-moss">✦</div>
+
+        {step === 0 && (
+          <>
+            <h2 className="font-heading text-3xl text-foreground">
+              {t('step1Title')}
+            </h2>
+            <NextButton onClick={() => setStep(1)} label={t('next')} />
+          </>
+        )}
+
+        {step === 1 && (
+          <>
+            <h2 className="font-heading text-3xl text-foreground">
+              {t('step2Title')}
+            </h2>
+            <p className="mt-3 max-w-sm leading-relaxed text-foreground/80">
+              {t('step2Text')}
+            </p>
+            <NextButton onClick={() => setStep(2)} label={t('next')} />
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <h2 className="font-heading text-3xl text-foreground">
+              {t('step3Title')}
+            </h2>
+            <div className="mt-8 flex w-full max-w-xs flex-col gap-3">
+              <ChoiceButton onClick={() => go('/tracker')} primary>
+                {t('choiceTracker')}
+              </ChoiceButton>
+              <ChoiceButton onClick={() => go('/path')} primary>
+                {t('choicePath')}
+              </ChoiceButton>
+              <ChoiceButton onClick={dismiss}>{t('choiceLook')}</ChoiceButton>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function NextButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="mt-8 rounded-full bg-primary px-8 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+    >
+      {label}
+    </button>
+  )
+}
+
+function ChoiceButton({
+  children,
+  onClick,
+  primary,
+}: {
+  children: React.ReactNode
+  onClick: () => void
+  primary?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'w-full rounded-2xl px-6 py-4 text-base font-medium transition-colors',
+        primary
+          ? 'bg-card text-foreground ring-1 ring-border hover:ring-sage/60'
+          : 'text-muted-foreground hover:text-foreground',
+      )}
+    >
+      {children}
+    </button>
+  )
+}

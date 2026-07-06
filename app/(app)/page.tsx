@@ -2,8 +2,11 @@ import { UserIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 
+import { EveningNudge } from '@/components/dashboard/evening-nudge'
 import { Greeting } from '@/components/dashboard/greeting'
+import { OnboardingCurtain } from '@/components/dashboard/onboarding-curtain'
 import { PathPreview } from '@/components/dashboard/path-preview'
+import { RetroCard } from '@/components/dashboard/retro-card'
 import { QueerHistoryCard } from '@/components/dashboard/queer-history-card'
 import { TodayMeds } from '@/components/dashboard/today-meds'
 
@@ -17,6 +20,8 @@ export default async function TodayPage() {
   return (
     // Мягкий пастельный градиент — базовый атмосферный слой (дизайнер усилит).
     <div className="bg-gradient-to-b from-background to-secondary/25">
+      {/* Занавес первого входа — сам решает, показываться ли (клиент). */}
+      <OnboardingCurtain />
       <div className="mx-auto w-full max-w-2xl space-y-6 px-5 py-10 sm:py-14">
         <FadeIn>
           <div className="flex items-start justify-between gap-4">
@@ -30,12 +35,19 @@ export default async function TodayPage() {
               <UserIcon className="size-5" />
             </Link>
           </div>
+          {/* Вечерний мягкий заход на дневник — сам решает, показываться ли. */}
+          <EveningNudge />
         </FadeIn>
 
         {/* Квир-история дня. */}
         <FadeIn delayMs={80}>
           <QueerHistoryCard />
         </FadeIn>
+
+        {/* Ретроспектива «Месяц/Год назад» — сама решает, показываться ли
+            (клиент; null → не занимает места). Анимация появления у неё
+            внутри, поэтому без FadeIn-обёртки. */}
+        <RetroCard />
 
         {/* Сегодняшние приёмы — реальная сводка (заглушка внутри, если пусто). */}
         <FadeIn delayMs={160}>

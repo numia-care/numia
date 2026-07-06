@@ -201,9 +201,31 @@
   }
 }
 
-/* Уважаем системную «меньше движения»: гасим пульс (вспышку гасит сам JS). */
+/* Дыхание логотипной ✦ на дашборде: очень медленный мягкий цикл (5с), слабая
+   амплитуда — едва заметное «приложение живое». Чистый CSS, только transform
+   и opacity (дёшево для слабых телефонов). */
+.star-breathe {
+  display: inline-block;
+  animation: star-breathe 5s ease-in-out infinite;
+}
+
+@keyframes star-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+/* Уважаем системную «меньше движения»: гасим пульс и дыхание
+   (вспышку гасит сам JS). */
 @media (prefers-reduced-motion: reduce) {
-  .slot-pulse {
+  .slot-pulse,
+  .star-breathe {
     animation: none;
   }
 }

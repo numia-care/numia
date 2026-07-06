@@ -2,19 +2,29 @@
 
 import { MicIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 
-import { decryptCaption, loadMediaUrl, type PathEntry } from '@/lib/path/entries'
+import {
+  decryptCaption,
+  decryptNote,
+  loadMediaUrl,
+  type MoodLevel,
+  type PathEntry,
+} from '@/lib/path/entries'
+import { MOOD_COLOR } from '@/lib/path/mood'
 
-// Один компактный элемент превью «Пути»: миниатюра (фото) или иконка (голос) +
-// дата + подпись. Расшифровка на устройстве, как в ленте; object URL отзываем
-// при размонтировании. Интерактивного плеера тут нет (вся карточка — ссылка в
-// «Путь»), для голоса показываем иконку.
+// Один компактный элемент превью «Пути»: миниатюра (фото), иконка (голос) или
+// ✦ (дневник; в цвете настроения, если оно задано) + дата + текст. Расшифровка
+// на устройстве, как в ленте; object URL отзываем при размонтировании.
+// Интерактива тут нет (вся карточка — ссылка в «Путь»).
 const dayFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' })
 
 export function PathPreviewItem({ entry }: { entry: PathEntry }) {
+  const t = useTranslations('path')
   const [url, setUrl] = useState<string | null>(null)
-  const [caption, setCaption] = useState<string | null>(null)
+  const [text, setText] = useState<string | null>(null)
   const isVoice = entry.entryType === 'voice'
+  const isDiary = entry.entryType === 'diary'
 
   useEffect(() => {
     let active = true
@@ -22,10 +32,14 @@ export function PathPreviewItem({ entry }: { entry: PathEntry }) {
 
     async function load() {
       try {
-        const cap = await decryptCaption(entry)
-        if (active) setCaption(cap)
-        // Миниатюру тянем только для фото; для голоса хватит иконки.
-        if (!isVoice) {
+        // Текстовая часть: у дневника — сам текст (note_ciphertext), у
+        // медиа-записей — подпись (encrypted_content). Расшифровка своя у каждого.
+        const textPart = isDiary
+          ? await decryptNote(entry)
+          : await decryptCaption(entry)
+        if (active) setText(textPart)
+        // Миниатюру тянем только для фото; голосу и дневнику хватает иконки.
+        if (!isVoice && !isDiary) {
           const u = await loadMediaUrl(entry)
           objectUrl = u
           if (active) setUrl(u)
@@ -41,14 +55,27 @@ export function PathPreviewItem({ entry }: { entry: PathEntry }) {
       active = false
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [entry, isVoice])
+  }, [entry, isVoice, isDiary])
 
   const date = dayFmt.format(new Date(entry.occurredAt))
 
   return (
     <div className="flex items-center gap-3">
       <div className="size-14 shrink-0 overflow-hidden rounded-xl bg-muted/50">
-        {isVoice ? (
+        {isDiary ? (
+          // ✦ в цвете ступени настроения — тот же язык, что шкала и карточка
+          // в ленте. Настроение не задано → нейтральный мох.
+          <div
+            className="flex size-full items-center justify-center text-xl"
+            style={{
+              color:
+                entry.mood != null ? MOOD_COLOR[entry.mood as MoodLevel] : undefined,
+            }}
+            aria-hidden
+          >
+            <span className={entry.mood == null ? 'text-moss' : undefined}>✦</span>
+          </div>
+        ) : isVoice ? (
           <div className="flex size-full items-center justify-center text-moss">
             <MicIcon className="size-5" />
           </div>
@@ -62,7 +89,13 @@ export function PathPreviewItem({ entry }: { entry: PathEntry }) {
       </div>
       <div className="min-w-0">
         <p className="text-sm text-foreground/60">{date}</p>
-        {caption && <p className="truncate text-foreground/90">{caption}</p>}
+        {/* У дневника без текста (только настроение) — подпись «Дневник»,
+            чтобы строка не была голой датой. */}
+        {text ? (
+          <p className="truncate text-foreground/90">{text}</p>
+        ) : isDiary ? (
+          <p className="text-sm text-foreground/70">{t('diaryTag')}</p>
+        ) : null}
       </div>
     </div>
   )

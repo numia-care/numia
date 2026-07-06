@@ -35,9 +35,9 @@ export function Greeting() {
     <div suppressHydrationWarning>
       <h1 className="font-heading text-3xl text-foreground sm:text-4xl">
         Привет{data.name ? `, ${data.name}` : ''}{' '}
-        <span className="inline-block animate-pulse text-fairy [animation-duration:3s]">
-          ✦
-        </span>
+        {/* Дыхание вместо animate-pulse: pulse мигает прозрачностью и читается
+            как «грузится», дыхание — медленный scale, «живое». */}
+        <span className="star-breathe text-fairy">✦</span>
       </h1>
       {data.phrase && (
         <p className="mt-2 text-foreground/80">{data.phrase}</p>

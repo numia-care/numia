@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 
 import { decryptCaption, loadMediaUrl, type PathEntry } from '@/lib/path/entries'
+import { cn } from '@/lib/utils'
 import { EntryDeleteButton } from './entry-delete-button'
 
 // Одна запись ленты (фото или голос). Лениво (когда подъезжает к вьюпорту)
@@ -22,10 +23,10 @@ const dayLabel = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long
 
 export function EntryMedia({
   entry,
-  onDeleted,
+  onDelete,
 }: {
   entry: PathEntry
-  onDeleted: (id: string) => void
+  onDelete: (entry: PathEntry) => void
 }) {
   const t = useTranslations('path')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -89,7 +90,16 @@ export function EntryMedia({
   const isVoice = entry.entryType === 'voice'
 
   return (
-    <figure ref={containerRef} className="space-y-2">
+    // Появление с fade+подъёмом при первом попадании во вьюпорт (visible уже
+    // отслеживается для ленивой расшифровки — переиспользуем). Один раз на
+    // запись: IO отключается после срабатывания, класс не откатывается.
+    <figure
+      ref={containerRef}
+      className={cn(
+        'space-y-2 transition-all duration-500 motion-reduce:transition-none',
+        visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
+      )}
+    >
       {isVoice ? (
         // Голос: контейнер не нужно прятать за фиксированным аспектом — плеер
         // компактный. Скелетон до готовности URL.
@@ -127,7 +137,7 @@ export function EntryMedia({
           <time className="text-sm text-foreground/60" dateTime={entry.occurredAt}>
             {date}
           </time>
-          <EntryDeleteButton entry={entry} onDeleted={onDeleted} />
+          <EntryDeleteButton entry={entry} onDelete={onDelete} />
         </div>
         {caption && <p className="mt-0.5 text-foreground/90">{caption}</p>}
       </figcaption>

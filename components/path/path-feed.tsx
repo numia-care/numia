@@ -1,14 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 import { getCryptoKey } from '@/lib/crypto/session'
-import { listEntries, type PathEntry } from '@/lib/path/entries'
+import { deleteEntry, listEntries, type PathEntry } from '@/lib/path/entries'
 import { buttonVariants } from '@/components/ui/button'
 import { DiaryCard } from './diary-card'
 import { EntryMedia } from './entry-media'
+
+// Окно «Отменить» после подтверждения удаления: запись уже скрыта из ленты,
+// но реально удаляется только по истечении. Совпадает с duration тоста.
+const UNDO_MS = 5000
 
 // Лента «Пути»: тянет МЕТАДАННЫЕ записей (listEntries не расшифровывает), затем
 // каждая миниатюра лениво расшифровывается сама (PhotoThumb). Экран не блокируем.
@@ -66,13 +71,83 @@ export function PathFeed() {
     setReloadKey((k) => k + 1)
   }
 
-  // Убрать удалённую запись из state (лента клиентская — refresh не поможет).
-  function removeEntry(id: string) {
+  // ── Отложенное удаление с «Отменить» ────────────────────────────────────────
+  // Подтверждение → запись сразу скрыта из ленты, но реальное удаление (ряд +
+  // шифроблоб) откладывается на UNDO_MS. «Отменить» в тосте возвращает запись —
+  // к серверу ещё не ходили, отменять нечего. Случайный тап перестаёт быть
+  // необратимым.
+
+  // Записи, ждущие реального удаления: id → {entry, timer}.
+  const pendingRef = useRef(new Map<string, { entry: PathEntry; timer: number }>())
+
+  // Уход со страницы (unmount) до истечения окна: удаляем сразу, fire-and-
+  // forget. Иначе таймеры умрут с компонентом, записи «воскреснут» при
+  // следующем заходе, хотя юзер видел «Запись убрана».
+  useEffect(() => {
+    const pending = pendingRef.current
+    return () => {
+      for (const { entry, timer } of pending.values()) {
+        clearTimeout(timer)
+        void deleteEntry(entry).catch(() => {
+          // Не удалилась — запись просто останется в ленте при следующем
+          // заходе. Fail-safe в сторону сохранности данных.
+        })
+      }
+      pending.clear()
+    }
+  }, [])
+
+  function hideEntry(id: string) {
     setState((s) =>
       s.kind === 'ready'
         ? { kind: 'ready', entries: s.entries.filter((e) => e.id !== id) }
         : s,
     )
+  }
+
+  // Вернуть запись на место (undo): вставляем и восстанавливаем порядок ленты
+  // (occurred_at desc — ISO-строки сравнимы лексикографически).
+  function restoreEntry(entry: PathEntry) {
+    setState((s) =>
+      s.kind === 'ready'
+        ? {
+            kind: 'ready',
+            entries: [...s.entries, entry].sort((a, b) =>
+              b.occurredAt.localeCompare(a.occurredAt),
+            ),
+          }
+        : s,
+    )
+  }
+
+  function undoDelete(id: string) {
+    const p = pendingRef.current.get(id)
+    if (!p) return // окно уже истекло, запись удалена по-настоящему
+    clearTimeout(p.timer)
+    pendingRef.current.delete(id)
+    restoreEntry(p.entry)
+  }
+
+  function scheduleDelete(entry: PathEntry) {
+    hideEntry(entry.id)
+
+    const timer = window.setTimeout(async () => {
+      pendingRef.current.delete(entry.id)
+      try {
+        await deleteEntry(entry)
+      } catch {
+        // Реальное удаление не удалось — честно возвращаем запись в ленту.
+        restoreEntry(entry)
+        toast.error(t('delete.error'))
+      }
+    }, UNDO_MS)
+
+    pendingRef.current.set(entry.id, { entry, timer })
+
+    toast.success(t('delete.success'), {
+      action: { label: t('delete.undo'), onClick: () => undoDelete(entry.id) },
+      duration: UNDO_MS,
+    })
   }
 
   if (state.kind === 'loading') return <FeedSkeleton />
@@ -110,17 +185,17 @@ export function PathFeed() {
 
   if (state.entries.length === 0) return <EmptyState />
 
-  return <Timeline entries={state.entries} onDeleted={removeEntry} />
+  return <Timeline entries={state.entries} onDelete={scheduleDelete} />
 }
 
 // ── Лента, сгруппированная по месяцам (новые сверху) ─────────────────────────
 
 function Timeline({
   entries,
-  onDeleted,
+  onDelete,
 }: {
   entries: PathEntry[]
-  onDeleted: (id: string) => void
+  onDelete: (entry: PathEntry) => void
 }) {
   const groups = groupByMonth(entries)
 
@@ -134,9 +209,9 @@ function Timeline({
           <div className="space-y-5">
             {group.items.map((entry) =>
               entry.entryType === 'diary' ? (
-                <DiaryCard key={entry.id} entry={entry} onDeleted={onDeleted} />
+                <DiaryCard key={entry.id} entry={entry} onDelete={onDelete} />
               ) : (
-                <EntryMedia key={entry.id} entry={entry} onDeleted={onDeleted} />
+                <EntryMedia key={entry.id} entry={entry} onDelete={onDelete} />
               ),
             )}
           </div>
