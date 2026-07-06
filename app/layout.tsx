@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
 import { Geist, Geist_Mono } from 'next/font/google'
 
+import { KeyboardScrollAssist } from '@/components/keyboard-scroll-assist'
 import { SwRegister } from '@/components/sw-register'
 import { Toaster } from '@/components/ui/sonner'
 
@@ -36,6 +37,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   themeColor: '#5A6B4A',
   colorScheme: 'light',
+  // Клавиатура сжимает layout, а не перекрывает его (Android/Chrome; iOS
+  // Safari директиву игнорирует — там смягчаем через KeyboardScrollAssist
+  // и font-size ≥16px на инпутах, чтобы не было автозума).
+  interactiveWidget: 'resizes-content',
 }
 
 export default async function RootLayout({
@@ -56,6 +61,7 @@ export default async function RootLayout({
           {children}
         </NextIntlClientProvider>
         <SwRegister />
+        <KeyboardScrollAssist />
         <Toaster position="top-center" />
       </body>
     </html>

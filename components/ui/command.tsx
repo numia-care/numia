@@ -76,7 +76,9 @@ function CommandInput({
         <CommandPrimitive.Input
           data-slot="command-input"
           className={cn(
-            "w-full text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            // text-base на мобильном (шрифт <16px заставляет iOS автозумить
+            // страницу при фокусе — «уезжает шапка»), text-sm с md как у Input.
+            "w-full text-base outline-hidden disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
             className
           )}
           {...props}
