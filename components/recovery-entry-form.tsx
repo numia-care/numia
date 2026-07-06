@@ -4,7 +4,6 @@ import { useState } from 'react'
 
 import { PinInput } from '@/components/pin-input'
 import type { Dek } from '@/lib/crypto/envelope'
-import { bytesToBase64, generateSalt, hashPin } from '@/lib/crypto/pin'
 import { isValidRecoveryPhrase } from '@/lib/crypto/recovery'
 import { PinStorage } from '@/lib/crypto/storage'
 import { recoverWithPhrase, setLocalPin } from '@/lib/crypto/vault'
@@ -15,9 +14,8 @@ import { recoverWithPhrase, setLocalPin } from '@/lib/crypto/vault'
 // Поток: ввод фразы → новый PIN → успех.
 //   1. Фраза проверяется BIP39-checksum'ом ДО сети (ловит опечатки), затем
 //      recoverWithPhrase разворачивает ТОТ ЖЕ DEK из серверного якоря.
-//   2. Новый локальный PIN: пишем и верификационный хэш (writePin — иначе
-//      будущие unlock не пройдут), и envelope-обёртку (setLocalPin, тот же DEK
-//      → весь контент остаётся читаемым).
+//   2. Новый локальный PIN: setLocalPin пишет весь набор (verify-хэш +
+//      envelope-обёртка, атомарно) поверх того же DEK → контент читаем.
 //
 // Тон тёплый: аудитория тревожная, момент «забыл PIN» — стрессовый.
 
@@ -91,12 +89,8 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
 
     setBusy(true)
     try {
-      // 1. Верификационный хэш нового PIN (для будущих unlock на устройстве).
-      const verifySalt = generateSalt()
-      const hash = await hashPin(newPin, verifySalt)
-      await PinStorage.writePin(bytesToBase64(hash), bytesToBase64(verifySalt))
-
-      // 2. Envelope-обёртка под новым PIN поверх ТОГО ЖЕ DEK — контент цел.
+      // Весь локальный набор (verify-хэш + envelope-обёртка под новым PIN)
+      // поверх ТОГО ЖЕ DEK — одной атомарной записью, контент цел.
       await setLocalPin(dek, newPin)
 
       // Ключ заведомо у юзера (только что вошёл им) — баннер-напоминание не нужен.

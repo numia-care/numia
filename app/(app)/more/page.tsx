@@ -3,6 +3,7 @@ import {
   ChevronRightIcon,
   FlaskConicalIcon,
   SettingsIcon,
+  ShieldCheckIcon,
   UserIcon,
   type LucideIcon,
 } from 'lucide-react'
@@ -27,6 +28,7 @@ export default async function MorePage() {
         <Row href="/labs" icon={FlaskConicalIcon} label={t('labs')} />
         {/* Вики — раздела пока нет, показываем неактивным с пометкой «скоро». */}
         <SoonRow icon={BookOpenIcon} label={t('wiki')} soon={t('soon')} />
+        <Row href="/safety" icon={ShieldCheckIcon} label={t('safety')} />
         <Row href="/settings" icon={SettingsIcon} label={t('settings')} />
       </ul>
     </div>

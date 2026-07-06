@@ -8,6 +8,11 @@
 //   pin_salt         — base64 от соли для верификации
 //   pin_crypto_salt  — base64 от соли для деривации KEK_pin (envelope, локально)
 //   dek_wrapped_pin  — base64(iv‖ct): DEK, обёрнутый ключом из PIN (envelope)
+//   kdf_iterations   — итерации PBKDF2, которыми создан ВЕСЬ набор выше
+//                      (hash И обёртка). Отсутствует = legacy 210k. Пишется
+//                      ТОЛЬКО атомарно вместе с набором (writeLocalVault) —
+//                      иначе рассинхрон «hash на одних итерациях, обёртка на
+//                      других» ломает вход при верном PIN.
 //   recovery_ack     — boolean: сохранил ли юзер recovery-ключ (для напоминания)
 //   pin_created_at   — timestamp (number) когда PIN был создан
 //   failed_attempts  — счётчик неудачных попыток unlock (для soft-lockout UX)
@@ -71,6 +76,20 @@ async function removeItem(key: string): Promise<void> {
   })
 }
 
+// Несколько put в ОДНОЙ транзакции — атомарно (все или ничего). Нужно для
+// записи связного набора PIN-артефактов: частичная запись при обрыве оставила
+// бы хранилище в состоянии, где верный PIN не проходит.
+async function setItems(entries: Record<string, unknown>): Promise<void> {
+  const db = await openDb()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    const store = tx.objectStore(STORE)
+    for (const [key, value] of Object.entries(entries)) store.put(value, key)
+    tx.onerror = () => reject(tx.error)
+    tx.oncomplete = () => resolve()
+  })
+}
+
 // Доменные хелперы — всё что надо вызывающим компонентам.
 // Низкоуровневые get/set/remove оставлены приватными — чтобы случайно не появилось
 // разнотык в названиях ключей в разных местах кодовой базы.
@@ -79,18 +98,41 @@ export const PinStorage = {
     return (await getItem('pin_hash')) !== null
   },
 
-  async readPin(): Promise<{ hash: string; salt: string } | null> {
+  // iterations: null — набор создан до версионирования (legacy 210k);
+  // интерпретация legacy-значения — на вызывающем (LEGACY_KDF_ITERATIONS).
+  async readPin(): Promise<{ hash: string; salt: string; iterations: number | null } | null> {
     const hash = await getItem<string>('pin_hash')
     const salt = await getItem<string>('pin_salt')
     if (!hash || !salt) return null
-    return { hash, salt }
+    return { hash, salt, iterations: await getItem<number>('kdf_iterations') }
   },
 
-  async writePin(hashB64: string, saltB64: string): Promise<void> {
-    await setItem('pin_hash', hashB64)
-    await setItem('pin_salt', saltB64)
-    await setItem('pin_created_at', Date.now())
-    await setItem('failed_attempts', 0)
+  async readKdfIterations(): Promise<number | null> {
+    return await getItem<number>('kdf_iterations')
+  },
+
+  /**
+   * ЕДИНСТВЕННЫЙ способ записать локальный PIN-набор — целиком и атомарно
+   * (одна IndexedDB-транзакция): verify-хэш, обе соли, обёртка DEK и итерации,
+   * которыми всё это создано. Частичной записи не бывает by construction.
+   * Вызывается из vault.ts (setup / setLocalPin / lazy-апгрейд итераций).
+   */
+  async writeLocalVault(v: {
+    pinHashB64: string
+    pinSaltB64: string
+    cryptoSaltB64: string
+    wrappedDekB64: string
+    iterations: number
+  }): Promise<void> {
+    await setItems({
+      pin_hash: v.pinHashB64,
+      pin_salt: v.pinSaltB64,
+      pin_crypto_salt: v.cryptoSaltB64,
+      dek_wrapped_pin: v.wrappedDekB64,
+      kdf_iterations: v.iterations,
+      pin_created_at: Date.now(),
+      failed_attempts: 0,
+    })
   },
 
   async clearPin(): Promise<void> {
@@ -99,21 +141,13 @@ export const PinStorage = {
     await removeItem('pin_created_at')
     await removeItem('pin_crypto_salt')
     await removeItem('dek_wrapped_pin')
+    await removeItem('kdf_iterations')
     await removeItem('recovery_ack')
     await removeItem('failed_attempts')
   },
 
-  async writeCryptoSalt(saltB64: string): Promise<void> {
-    await setItem('pin_crypto_salt', saltB64)
-  },
-
   async readCryptoSalt(): Promise<string | null> {
     return await getItem<string>('pin_crypto_salt')
-  },
-
-  // Обёртка DEK под PIN-ключом (envelope). Локально — на сервер нельзя.
-  async writeWrappedDek(wrappedB64: string): Promise<void> {
-    await setItem('dek_wrapped_pin', wrappedB64)
   },
 
   async readWrappedDek(): Promise<string | null> {

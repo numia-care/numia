@@ -10,6 +10,7 @@ import {
   base64ToBytes,
   constantTimeEqual,
   hashPin,
+  LEGACY_KDF_ITERATIONS,
 } from '@/lib/crypto/pin'
 import { PinStorage } from '@/lib/crypto/storage'
 import { hasRemoteVault, setupVault, unlockWithPin } from '@/lib/crypto/vault'
@@ -74,7 +75,9 @@ export function PinUnlockForm() {
       }
       const salt = base64ToBytes(stored.salt)
       const expected = base64ToBytes(stored.hash)
-      const got = await hashPin(pin, salt)
+      // Хэш проверяем теми итерациями, которыми он создан (null = legacy
+      // 210k). На текущие набор переведёт lazy-апгрейд внутри unlockWithPin.
+      const got = await hashPin(pin, salt, stored.iterations ?? LEGACY_KDF_ITERATIONS)
 
       if (!constantTimeEqual(got, expected)) {
         const n = await PinStorage.incrementFailedAttempts()

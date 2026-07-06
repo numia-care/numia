@@ -32,9 +32,8 @@
 //    (обёрнут слабым 6-значным PIN) — НЕ на сервере. Эти функции не знают про
 //    хранилище — только примитивы. Решение «где хранить» — в вызывающем коде.
 
-import { base64ToBytes, bytesToBase64 } from './pin'
+import { base64ToBytes, bytesToBase64, KDF_ITERATIONS } from './pin'
 
-const KEK_ITERATIONS = 210_000
 // info-тег отделяет домен KEK от домена verify-хэша (pin.ts) — даже при той же
 // соли и том же PIN это разные секреты.
 const KEK_INFO = 'numia-kek-v1'
@@ -78,7 +77,15 @@ export async function importDek(raw: Uint8Array): Promise<CryptoKey> {
 // recovery_salt). Высокая энтропия фразы (128 бит) делает для неё число
 // итераций некритичным, но единый код-путь проще ревьюить; стоимость
 // платится редко (только на unlock/recovery).
-export async function deriveKek(secret: string, salt: Uint8Array): Promise<CryptoKey> {
+//
+// iterations по умолчанию — текущие (600k); для разворачивания СТАРОЙ обёртки
+// вызывающий передаёт значение, сохранённое рядом с ней (kdf_iterations в
+// IndexedDB / recovery_kdf_iterations в profiles). См. шапку pin.ts.
+export async function deriveKek(
+  secret: string,
+  salt: Uint8Array,
+  iterations: number = KDF_ITERATIONS,
+): Promise<CryptoKey> {
   const base = await crypto.subtle.importKey(
     'raw',
     enc.encode(secret + KEK_INFO),
@@ -87,7 +94,7 @@ export async function deriveKek(secret: string, salt: Uint8Array): Promise<Crypt
     ['deriveKey'],
   )
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: salt as BufferSource, iterations: KEK_ITERATIONS, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: salt as BufferSource, iterations, hash: 'SHA-256' },
     base,
     { name: 'AES-GCM', length: 256 },
     false,

@@ -144,7 +144,10 @@ redoing only the wrap.
 
 - **DEK** — a random AES-GCM 256 key, encrypts all E2E content. In session memory
   (`session.ts`), not in storage. Forgotten when the tab is closed → the PIN is needed.
-- **KEK** = PBKDF2(secret, salt, 210k, SHA-256). Wraps a copy of the DEK.
+- **KEK** = PBKDF2(secret, salt, 600k, SHA-256). Wraps a copy of the DEK.
+  Iterations are versioned (audit 2026-07-06): stored next to the artifact
+  (IndexedDB `kdf_iterations` / `profiles.recovery_kdf_iterations`), NULL =
+  legacy 210k. The upgrade is lazy, on unlock. Constants are in `lib/crypto/pin.ts`.
 - **DEK wraps and where they live** (this is key to the threat model):
   - under the **PIN** (`dek_wrapped_pin`) + PIN salt — **local only, IndexedDB**.
     The PIN is just 6 digits (10⁶) → its wrap can't be kept on the server: if the

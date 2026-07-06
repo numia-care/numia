@@ -5,11 +5,6 @@ import { useRouter } from 'next/navigation'
 import { PinInput } from '@/components/pin-input'
 import { RecoveryKeyCard } from '@/components/recovery-key-card'
 import { RecoveryEntryForm } from '@/components/recovery-entry-form'
-import {
-  generateSalt,
-  hashPin,
-  bytesToBase64,
-} from '@/lib/crypto/pin'
 import { PinStorage } from '@/lib/crypto/storage'
 import { hasRemoteVault, setupVault } from '@/lib/crypto/vault'
 
@@ -51,13 +46,9 @@ export function PinSetupForm() {
         return
       }
 
-      // Соль для верификации хранится с хэшем — это не секрет.
-      const verifySalt = generateSalt()
-      const hash = await hashPin(pin, verifySalt)
-      await PinStorage.writePin(bytesToBase64(hash), bytesToBase64(verifySalt))
-
       // Envelope: генерим DEK + recovery-фразу, оборачиваем DEK под PIN
       // (локально) и под фразой (серверный якорь), кладём ключ в память сессии.
+      // Verify-хэш PIN setupVault пишет сам — весь локальный набор атомарно.
       // Возвращённую фразу показываем на следующем шаге ровно один раз.
       const recoveryPhrase = await setupVault(pin)
       setPhrase(recoveryPhrase)
