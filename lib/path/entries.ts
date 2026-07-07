@@ -196,8 +196,6 @@ export async function addVoiceEntry(input: NewVoice): Promise<string> {
  * Требуем хотя бы одно из двух — совпадает с CHECK path_entries_diary_not_empty.
  */
 export async function addDiaryEntry(input: NewDiary): Promise<string> {
-  const dek = requireDek()
-
   const note = input.note?.trim()
   if (input.mood == null && !note) {
     // Клиентская страховка к серверному CHECK — не даём собрать пустую запись.
@@ -210,7 +208,10 @@ export async function addDiaryEntry(input: NewDiary): Promise<string> {
   } = await supabase.auth.getUser()
   if (!user) throw new Error('not_authenticated')
 
-  const noteCiphertext = note ? await encryptText(dek, note) : null
+  // DEK нужен ТОЛЬКО для шифрования текста. Запись «только настроение»
+  // (быстрый тап с дашборда) не трогает крипту вовсе — mood открытый by
+  // design, поэтому PIN для одного тапа не требуем.
+  const noteCiphertext = note ? await encryptText(requireDek(), note) : null
 
   const entryId = crypto.randomUUID()
   const { error } = await supabase.from('path_entries').insert({
@@ -224,6 +225,54 @@ export async function addDiaryEntry(input: NewDiary): Promise<string> {
   if (error) throw new Error(`diary_insert_failed: ${error.message}`)
 
   return entryId
+}
+
+/**
+ * Дописать текст к существующей записи дневника (быстрый вход с дашборда:
+ * тап по настроению уже создал запись, «пара слов» добавляется следом).
+ * Текст шифруется DEK'ом — здесь PIN-сессия уже обязательна.
+ */
+export async function updateDiaryNote(entryId: string, note: string): Promise<void> {
+  const trimmed = note.trim()
+  if (!trimmed) return // пустой текст не пишем — запись уже валидна настроением
+
+  const dek = requireDek()
+  const supabase = createClient()
+  const noteCiphertext = await encryptText(dek, trimmed)
+
+  const { error } = await supabase
+    .from('path_entries')
+    .update({ note_ciphertext: noteCiphertext })
+    .eq('id', entryId)
+    .eq('entry_type', 'diary') // страховка: только дневник
+  if (error) throw new Error(`diary_note_update_failed: ${error.message}`)
+}
+
+/**
+ * Сегодняшняя запись дневника (по occurred_at, локальные сутки) — для карточки
+ * быстрого входа на дашборде. Только открытые метаданные, без расшифровки.
+ * null — сегодня записи нет.
+ */
+export async function getTodayDiaryEntry(): Promise<{
+  id: string
+  mood: number | null
+  hasNote: boolean
+} | null> {
+  const supabase = createClient()
+  const startOfDay = new Date()
+  startOfDay.setHours(0, 0, 0, 0)
+
+  const { data, error } = await supabase
+    .from('path_entries')
+    .select('id, mood, note_ciphertext')
+    .eq('entry_type', 'diary')
+    .gte('occurred_at', startOfDay.toISOString())
+    .order('occurred_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !data) return null
+  return { id: data.id, mood: data.mood, hasNote: data.note_ciphertext !== null }
 }
 
 // ── Удаление записи ──────────────────────────────────────────────────────────

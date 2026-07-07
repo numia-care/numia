@@ -4,6 +4,7 @@ import Link from 'next/link'
 
 import { EveningNudge } from '@/components/dashboard/evening-nudge'
 import { Greeting } from '@/components/dashboard/greeting'
+import { MoodQuickEntry } from '@/components/dashboard/mood-quick-entry'
 import { OnboardingCurtain } from '@/components/dashboard/onboarding-curtain'
 import { PathPreview } from '@/components/dashboard/path-preview'
 import { RetroCard } from '@/components/dashboard/retro-card'
@@ -39,8 +40,13 @@ export default async function TodayPage() {
           <EveningNudge />
         </FadeIn>
 
+        {/* Быстрый вход настроения — один тап создаёт запись дневника. */}
+        <FadeIn delayMs={60}>
+          <MoodQuickEntry />
+        </FadeIn>
+
         {/* Квир-история дня. */}
-        <FadeIn delayMs={80}>
+        <FadeIn delayMs={120}>
           <QueerHistoryCard />
         </FadeIn>
 
