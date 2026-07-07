@@ -59,8 +59,9 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col">
         <NextIntlClientProvider messages={messages}>
           {children}
+          {/* Внутри intl-провайдера: баннер обновления использует переводы. */}
+          <SwRegister />
         </NextIntlClientProvider>
-        <SwRegister />
         <KeyboardScrollAssist />
         <Toaster position="top-center" />
       </body>

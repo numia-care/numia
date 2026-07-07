@@ -17,12 +17,16 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_VERSION).then((cache) => cache.addAll(PRECACHE_URLS)),
   )
-  // TODO: для прода переделать update flow на вежливый — postMessage клиентам
-  // что готов новый SW, показать тост "новая версия, перезагрузить?", и только
-  // по подтверждению вызывать skipWaiting(). Сейчас (MVP) активируемся сразу,
-  // что норм пока приложение почти не используется. Когда юзеры реально начнут
-  // что-то писать в формы — резкий перехват может потерять введённое.
-  self.skipWaiting()
+  // ВЕЖЛИВЫЙ update flow (важно для беты): skipWaiting() здесь НЕ вызываем.
+  // Новый SW остаётся в waiting; клиент (sw-register.tsx) видит его и
+  // показывает баннер «Доступно обновление ✦». Активация — только по тапу
+  // юзера (message SKIP_WAITING ниже) + reload. Резкий перехват мог бы
+  // потерять введённое в формах.
+})
+
+// Тап «Обновить» в баннере: клиент шлёт SKIP_WAITING → активируемся.
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
