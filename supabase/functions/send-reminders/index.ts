@@ -47,11 +47,26 @@ const WINDOW_AHEAD_MS = 15 * 60_000
 // при открытии трекера (они вставляются задним числом для backfill-UI).
 const LOOKBACK_MS = 15 * 60_000
 
+// Сравнение постоянного времени (аудит L3): обычный !== закорачивается на
+// первом несовпавшем символе — теоретически тайминг подсказывает перебору,
+// сколько символов угадано. XOR-цикл по всей длине этого не выдаёт.
+// Та же идея, что constantTimeEqual в lib/crypto/pin.ts.
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder()
+  const ab = enc.encode(a)
+  const bb = enc.encode(b)
+  if (ab.length !== bb.length) return false
+  let diff = 0
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i]
+  return diff === 0
+}
+
 Deno.serve(async (req) => {
   // Функция задеплоена с verify_jwt=off (вызывает её pg_cron, а не юзер),
   // поэтому свой гейт: без правильного секрета — отказ.
   const cronSecret = Deno.env.get('CRON_SECRET')
-  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+  const given = req.headers.get('x-cron-secret')
+  if (!cronSecret || !given || !timingSafeEqual(given, cronSecret)) {
     return new Response('forbidden', { status: 403 })
   }
 
@@ -127,7 +142,10 @@ Deno.serve(async (req) => {
           deadSubIds.push(sub.id as string)
         } else {
           failed += 1
-          console.error(`push to ${sub.user_id} failed with ${status}:`, err)
+          // Минимизация данных в логах (аудит L2): полный user_id в логи
+          // Supabase не пишем — первых 8 символов хватает для дебага.
+          const userRef = String(sub.user_id).slice(0, 8)
+          console.error(`push to ${userRef}… failed with ${status}:`, err)
         }
       }
     }),

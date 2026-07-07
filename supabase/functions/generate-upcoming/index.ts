@@ -85,9 +85,22 @@ function daysBetweenCalendarDates(fromYmd: string, toYmd: string): number {
   return Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86_400_000)
 }
 
+// Сравнение постоянного времени — как в send-reminders (аудит L3): !== мог бы
+// подсказывать перебору длину совпавшего префикса через тайминг.
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder()
+  const ab = enc.encode(a)
+  const bb = enc.encode(b)
+  if (ab.length !== bb.length) return false
+  let diff = 0
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i]
+  return diff === 0
+}
+
 Deno.serve(async (req) => {
   const cronSecret = Deno.env.get('CRON_SECRET')
-  if (!cronSecret || req.headers.get('x-cron-secret') !== cronSecret) {
+  const given = req.headers.get('x-cron-secret')
+  if (!cronSecret || !given || !timingSafeEqual(given, cronSecret)) {
     return new Response('forbidden', { status: 403 })
   }
 
