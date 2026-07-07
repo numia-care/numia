@@ -201,9 +201,11 @@ export function LoginForm() {
               </button>
             </form>
 
+            {/* Обещание прозрачности с /safety — говорим сразу, на входе. */}
             <p className="mt-6 text-xs leading-relaxed text-[#7A7A7A]">
-              Можно использовать одноразовый email (SimpleLogin, AnonAddy) — мы не
-              блокируем по домену.
+              Почта нужна только для входа. Это единственное, что связывает
+              аккаунт с тобой, поэтому можно любую, хоть одноразовую
+              (SimpleLogin, AnonAddy). Не блокируем ✦
             </p>
           </>
         ) : (
