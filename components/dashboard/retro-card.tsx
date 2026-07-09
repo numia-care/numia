@@ -90,9 +90,9 @@ export function RetroCard() {
   return (
     <Link
       href="/path"
-      className="block rounded-2xl bg-card p-5 ring-1 ring-border transition-colors animate-in fade-in slide-in-from-bottom-3 duration-500 hover:ring-sage/50"
+      className="card-glass block p-5 transition-shadow animate-in fade-in slide-in-from-bottom-3 duration-500 hover:shadow-md"
     >
-      <h2 className="font-heading text-lg text-foreground">
+      <h2 className="text-sm font-medium text-[#1F1F1F]">
         {hit.kind === 'year' ? t('retroYear') : t('retroMonth')}
       </h2>
       <div className="mt-3">

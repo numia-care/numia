@@ -26,9 +26,9 @@ export default async function AppLayout({
     <PinGate>
       <TimezoneSync />
       <PushSelfHeal />
-      {/* padding-bottom = высота таб-бара (≈4rem) + iOS safe-area, чтобы
-          фиксированный BottomNav не перекрывал контент в самом низу. */}
-      <div className="min-h-dvh pb-[calc(4rem+env(safe-area-inset-bottom))]">
+      {/* padding-bottom = плавающая пилюля (62px) + её отступ + запас + iOS
+          safe-area, чтобы BottomNav не перекрывал контент в самом низу. */}
+      <div className="min-h-dvh pb-[calc(6.5rem+env(safe-area-inset-bottom))]">
         {children}
       </div>
       <BottomNav />

@@ -159,7 +159,7 @@
   "dashboard": {
     "medsTitle": "Сегодняшние приёмы",
     "medsEmpty": "Здесь будут сегодняшние приёмы. Загляни в трекер ✦",
-    "medsProgress": "Принято {taken} из {total}",
+    "medsProgress": "{taken} из {total}",
     "pathTitle": "Путь",
     "pathEmpty": "Здесь появится твой путь. Добавь первую запись ✦",
     "retroMonth": "Месяц назад в твоём пути ✦",
@@ -179,8 +179,7 @@
       "error": "Не получилось записать — попробуй ещё раз"
     },
     "profileLink": "Профиль",
-    "historyTitle": "Из квир-истории ✦",
-    "historyToday": "В этот день ✦"
+    "historyTitle": "из квир-истории ✦"
   },
 
   "profile": {

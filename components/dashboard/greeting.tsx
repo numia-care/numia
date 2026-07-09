@@ -32,15 +32,14 @@ export function Greeting() {
   })
 
   return (
+    // По фрейму Кая: заголовок 30px без ✦ (звезда теперь в шапке страницы),
+    // letter-spacing слегка ужат, тёплая фраза под ним.
     <div suppressHydrationWarning>
-      <h1 className="font-heading text-3xl text-foreground sm:text-4xl">
-        Привет{data.name ? `, ${data.name}` : ''}{' '}
-        {/* Дыхание вместо animate-pulse: pulse мигает прозрачностью и читается
-            как «грузится», дыхание — медленный scale, «живое». */}
-        <span className="star-breathe text-fairy">✦</span>
+      <h1 className="text-3xl tracking-[-0.03em] text-foreground">
+        Привет{data.name ? `, ${data.name}` : ''}
       </h1>
       {data.phrase && (
-        <p className="mt-2 text-foreground/80">{data.phrase}</p>
+        <p className="mt-2 text-base text-[#242424]">{data.phrase}</p>
       )}
       {data.date && (
         <p className="mt-1 text-sm text-muted-foreground">{data.date}</p>

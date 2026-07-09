@@ -2,6 +2,7 @@ import { UserIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 
+import { DateBadge } from '@/components/dashboard/date-badge'
 import { EveningNudge } from '@/components/dashboard/evening-nudge'
 import { Greeting } from '@/components/dashboard/greeting'
 import { MoodQuickEntry } from '@/components/dashboard/mood-quick-entry'
@@ -19,30 +20,60 @@ export default async function TodayPage() {
   const t = await getTranslations('dashboard')
 
   return (
-    // Мягкий пастельный градиент — базовый атмосферный слой (дизайнер усилит).
-    <div className="bg-gradient-to-b from-background to-secondary/25">
+    // Атмосфера по фрейму Кая: тёплый крем + размытые пятна на фоне.
+    <div className="relative overflow-hidden">
+      {/* Фоновые пятна (эллипсы макета) — под стеклом карточек, чтобы blur
+          было что размывать. Тёплый беж снизу и в середине, белое свечение
+          сверху. style-blur вместо blur-3xl: в макете радиус ~100px. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-36 left-1/2 h-80 w-[480px] -translate-x-1/2 rounded-full bg-white/70"
+        style={{ filter: 'blur(90px)' }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute right-[-120px] top-[30%] h-72 w-96 rounded-full bg-[#EAE0D0]/80"
+        style={{ filter: 'blur(90px)' }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute bottom-[-60px] left-[-80px] h-80 w-[460px] rounded-full bg-[#EAE0D0]/80"
+        style={{ filter: 'blur(90px)' }}
+      />
+
       {/* Занавес первого входа — сам решает, показываться ли (клиент). */}
       <OnboardingCurtain />
-      <div className="mx-auto w-full max-w-2xl space-y-6 px-5 py-10 sm:py-14">
+      <div className="relative mx-auto w-full max-w-2xl space-y-6 px-5 py-6 sm:py-10">
         <FadeIn>
-          <div className="flex items-start justify-between gap-4">
-            <Greeting />
-            {/* Профиль — личное пространство; быстрый доступ с дашборда. */}
+          {/* Шапка по макету: ✦ по центру (дышит), профиль — тёмный кружок справа. */}
+          <div className="relative">
+            <div className="text-center text-2xl text-foreground">
+              <span className="star-breathe">✦</span>
+            </div>
+            {/* По фрейму: кольцо-обводка с тёмной иконкой, не залитый кружок. */}
             <Link
               href="/profile"
               aria-label={t('profileLink')}
-              className="mt-1 shrink-0 rounded-full p-2 text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+              className="absolute right-0 top-8 flex size-10 items-center justify-center rounded-full border-2 border-[#262626] text-[#262626] transition-colors hover:bg-[#262626]/5"
             >
               <UserIcon className="size-5" />
             </Link>
+          </div>
+          <div className="mt-6">
+            <Greeting />
           </div>
           {/* Вечерний мягкий заход на дневник — сам решает, показываться ли. */}
           <EveningNudge />
         </FadeIn>
 
-        {/* Быстрый вход настроения — один тап создаёт запись дневника. */}
+        {/* Ряд по макету: бейдж даты + быстрый вход настроения. */}
         <FadeIn delayMs={60}>
-          <MoodQuickEntry />
+          <div className="flex items-stretch gap-3">
+            <DateBadge />
+            <div className="min-w-0 flex-1">
+              <MoodQuickEntry />
+            </div>
+          </div>
         </FadeIn>
 
         {/* Квир-история дня. */}

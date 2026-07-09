@@ -1,5 +1,6 @@
 'use client'
 
+import { BookOpenIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 
@@ -17,15 +18,26 @@ export function QueerHistoryCard() {
   const [picked] = useState(() => pickQueerFact(new Date()))
 
   return (
+    // По заполненному фрейму Кая: мягкая жёлтая карточка (r:20, стекло),
+    // в шапке — иконка книжки + дата события жирным 13px, ниже текст 13px.
+    // Режим ротации помечаем мягким суффиксом (в макете его нет, но без него
+    // факт от чужой даты читается как ошибка — решение от 2026-07-06).
     <div
       suppressHydrationWarning
-      className="rounded-2xl bg-card p-5 ring-1 ring-border"
+      className="rounded-lg border border-chip-yellow-border/60 bg-chip-yellow/70 p-5 shadow-card backdrop-blur-[9px]"
     >
-      <p className="text-xs font-medium uppercase tracking-wide text-moss">
-        {picked.onThisDay ? t('historyToday') : t('historyTitle')}
+      <p className="flex items-center gap-2 text-[13px] font-medium text-[#1F1F1F]">
+        <BookOpenIcon className="size-4 shrink-0" aria-hidden />
+        {picked.fact.label}
+        {!picked.onThisDay && (
+          <span className="font-normal text-[#1F1F1F]/60">
+            · {t('historyTitle')}
+          </span>
+        )}
       </p>
-      <p className="mt-2 text-sm text-foreground/55">{picked.fact.label}</p>
-      <p className="mt-1 leading-relaxed text-foreground/90">{picked.fact.text}</p>
+      <p className="mt-2 text-[13px] leading-relaxed text-[#1F1F1F]">
+        {picked.fact.text}
+      </p>
     </div>
   )
 }

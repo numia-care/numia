@@ -1,15 +1,24 @@
 'use client'
 
+import { MicIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 
 import { getCryptoKey } from '@/lib/crypto/session'
-import { listEntries, type PathEntry } from '@/lib/path/entries'
-import { PathPreviewItem } from './path-preview-item'
+import {
+  decryptNote,
+  listEntries,
+  loadMediaUrl,
+  type MoodLevel,
+  type PathEntry,
+} from '@/lib/path/entries'
+import { MOOD_COLOR } from '@/lib/path/mood'
 
-// Превью «Пути» на дашборде: 1–2 последние записи с расшифровкой. Нет записей
-// (или нечем расшифровать) → тёплая заглушка. Вся карточка — ссылка в «Путь».
+// Превью «Пути» на дашборде — по фрейму Кая: стекло-карточка, заголовок
+// 14px/500, сетка из трёх квадратных тайлов (r:15, #F3F3F3): фото-миниатюра /
+// иконка голоса / ✦ дневника в цвете настроения. Расшифровка на устройстве,
+// как в ленте. Вся карточка — ссылка в «Путь».
 type State = { kind: 'loading' } | { kind: 'ready'; entries: PathEntry[] }
 
 export function PathPreview() {
@@ -19,19 +28,17 @@ export function PathPreview() {
   useEffect(() => {
     let cancelled = false
 
-    // Функция внутри эффекта, setState только после await (правило
-    // react-hooks/set-state-in-effect).
     async function run() {
       try {
         const entries = await listEntries()
         if (cancelled) return
-        // DEK нужен для расшифровки превью; нет в памяти → показываем заглушку
+        // DEK нужен для расшифровки миниатюр; нет в памяти → заглушка
         // (на дашборде PinGate его гарантирует, это страховка).
         if (!getCryptoKey()) {
           setState({ kind: 'ready', entries: [] })
           return
         }
-        setState({ kind: 'ready', entries: entries.slice(0, 2) })
+        setState({ kind: 'ready', entries: entries.slice(0, 3) })
       } catch {
         if (!cancelled) setState({ kind: 'ready', entries: [] })
       }
@@ -44,23 +51,96 @@ export function PathPreview() {
   }, [])
 
   return (
-    <Link
-      href="/path"
-      className="block rounded-2xl bg-card p-5 ring-1 ring-border transition-colors hover:ring-sage/50"
-    >
-      <h2 className="font-heading text-lg text-foreground">{t('pathTitle')}</h2>
+    <Link href="/path" className="card-glass block p-5 transition-shadow hover:shadow-md">
+      <h2 className="text-sm font-medium text-[#1F1F1F]">{t('pathTitle')}</h2>
 
       {state.kind === 'loading' ? (
-        <div className="mt-3 h-14 animate-pulse rounded-xl bg-muted/40" />
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="aspect-square animate-pulse rounded-md bg-muted/60" />
+          ))}
+        </div>
       ) : state.entries.length === 0 ? (
-        <p className="mt-1 text-sm text-foreground/70">{t('pathEmpty')}</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">{t('pathEmpty')}</p>
       ) : (
-        <div className="mt-3 space-y-3">
+        <div className="mt-3 grid grid-cols-3 gap-2">
           {state.entries.map((entry) => (
-            <PathPreviewItem key={entry.id} entry={entry} />
+            <PathTile key={entry.id} entry={entry} />
           ))}
         </div>
       )}
     </Link>
+  )
+}
+
+// Квадратный тайл записи (структура ряда — по фрейму Кая; контент реальный):
+// фото — расшифрованная миниатюра; голос — иконка; дневник — ✦ в цвете
+// настроения + первые слова расшифрованного текста. Object URL отзываем при
+// размонтировании.
+function PathTile({ entry }: { entry: PathEntry }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [note, setNote] = useState<string | null>(null)
+  const isPhoto = entry.entryType === 'photo'
+  const isDiary = entry.entryType === 'diary'
+
+  useEffect(() => {
+    let active = true
+    let objectUrl: string | null = null
+
+    async function load() {
+      try {
+        if (isPhoto) {
+          const u = await loadMediaUrl(entry)
+          objectUrl = u
+          if (active) setUrl(u)
+          else URL.revokeObjectURL(u)
+        } else if (isDiary && entry.noteCiphertext) {
+          const text = await decryptNote(entry)
+          if (active) setNote(text)
+        }
+      } catch {
+        // Контент тайла не критичен — останется иконка/✦ без текста.
+      }
+    }
+    load()
+
+    return () => {
+      active = false
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [entry, isPhoto, isDiary])
+
+  return (
+    <div className="flex aspect-square items-center justify-center overflow-hidden rounded-md bg-[#F3F3F3]">
+      {isPhoto ? (
+        url ? (
+          // object URL расшифрованного блоба — next/image не применим.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="" className="size-full object-cover" />
+        ) : (
+          <div className="size-full animate-pulse bg-muted/60" />
+        )
+      ) : entry.entryType === 'voice' ? (
+        <MicIcon className="size-5 text-[#8F8F8F]" />
+      ) : (
+        <div className="flex size-full flex-col items-center justify-center gap-1 p-1.5">
+          <span
+            aria-hidden
+            className="text-lg leading-none"
+            style={{
+              color:
+                entry.mood != null ? MOOD_COLOR[entry.mood as MoodLevel] : '#8F8F8F',
+            }}
+          >
+            ✦
+          </span>
+          {note && (
+            <span className="line-clamp-2 text-center text-[10px] leading-tight text-[#1F1F1F]/80">
+              {note}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   )
 }

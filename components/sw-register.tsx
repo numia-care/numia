@@ -70,7 +70,7 @@ export function SwRegister() {
   return (
     // Тонкий баннер внизу, в эстетике тостов: не модалка, не перекрывает
     // навигацию (выше BottomNav за счёт отступа), исчезает после обновления.
-    <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
+    <div className="fixed inset-x-0 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-50 flex justify-center px-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
       <div className="flex items-center gap-3 rounded-2xl bg-card px-4 py-2.5 shadow-lg ring-1 ring-border">
         <span className="text-sm text-foreground/85">{t('updateAvailable')}</span>
         <button

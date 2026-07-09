@@ -27,31 +27,40 @@ export async function TodayMeds() {
 
   const taken = slots.filter((s) => s.status === 'taken').length
   const pending = slots.filter((s) => s.status === 'upcoming')
-  const shown = pending.slice(0, 3)
+  const shown = pending.slice(0, 4)
   const extra = pending.length - shown.length
 
+  // Цвета чипов по фрейму Кая: первый — розовый, второй — голубой,
+  // остальные — нейтральные серые.
+  const chipClass = (i: number) =>
+    i === 0
+      ? 'border-chip-pink-border bg-chip-pink'
+      : i === 1
+        ? 'border-chip-blue-border bg-chip-blue'
+        : 'border-transparent bg-[#F5F5F5]'
+
   return (
-    <Link
-      href="/tracker"
-      className="block rounded-2xl bg-card p-5 ring-1 ring-border transition-colors hover:ring-sage/50"
-    >
-      <h2 className="font-heading text-lg text-foreground">{t('medsTitle')}</h2>
+    // Стекло-карточка по фрейму: заголовок 14px/500 + счётчик «(N из M)».
+    <Link href="/tracker" className="card-glass block p-5 transition-shadow hover:shadow-md">
+      <h2 className="text-sm font-medium text-[#1F1F1F]">{t('medsTitle')}</h2>
 
       {slots.length === 0 ? (
-        <p className="mt-1 text-sm text-foreground/70">{t('medsEmpty')}</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">{t('medsEmpty')}</p>
       ) : (
         <>
-          <p className="mt-1 text-sm text-foreground/70">
-            {t('medsProgress', { taken, total: slots.length })}
+          <p className="mt-0.5 text-[10px] text-[#A4A4A4]">
+            ({t('medsProgress', { taken, total: slots.length })})
           </p>
           {pending.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {shown.map((s) => (
+            // grid-flow-col + rows-2: цветные чипы (первые два ближайших)
+            // ложатся в ЛЕВУЮ колонку сверху вниз — как в фрейме Кая.
+            <div className="mt-3 grid grid-flow-col grid-cols-2 grid-rows-2 gap-1.5">
+              {shown.map((s, i) => (
                 <span
                   key={s.id}
-                  className="rounded-lg bg-muted/60 px-2.5 py-1 text-xs text-foreground/80"
+                  className={`truncate rounded-full border px-2.5 py-1 text-xs text-[#1F1F1F] ${chipClass(i)}`}
                 >
-                  {formatSlotTime(s.scheduled_at, tz)} · {s.medication?.name ?? '—'}
+                  {formatSlotTime(s.scheduled_at, tz)} • {s.medication?.name ?? '—'}
                 </span>
               ))}
               {extra > 0 && (

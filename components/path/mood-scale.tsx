@@ -3,16 +3,16 @@
 import { useTranslations } from 'next-intl'
 
 import type { MoodLevel } from '@/lib/path/entries'
-import { MOOD_COLOR, MOOD_LEVELS, moodRgba } from '@/lib/path/mood'
+import { MOOD_BORDER, MOOD_COLOR, MOOD_LEVELS, MOOD_TEXT, moodRgba } from '@/lib/path/mood'
 import { cn } from '@/lib/utils'
 
-// Шкала настроения 1–5 — переиспользуемая (форма дневника + быстрый вход с
-// дашборда). Пять крупных зон тапа. Каждая ступень:
-//   • ✦ в цвете пастельного перехода «тяжело → прекрасно» (см. lib/path/mood),
-//   • подпись под звёздочкой (нейтральная, path.mood.level.*).
-// Выбранная ступень — заливка + кольцо цвета ступени + сияние ✦; невыбранные
-// приглушены (звезда и подпись бледнее). Размером ничего не кодируем — только
-// цветом и состоянием выбора, чтобы шкала читалась однозначно.
+// Шкала настроения 1–5 — вёрстка по фрейму Кая «как ты?»: белые квадратные
+// ячейки (r:15) с обводкой цвета ступени, внутри ✦ цветом ступени и подпись
+// оттенком той же ступени. Переиспользуется формой дневника и быстрым входом
+// на дашборде (там она лежит на градиентной подложке).
+//
+// Выбранная ступень: заливка цветом ступени (мягкая) + сияние ✦.
+// Невыбранные при наличии выбора приглушаются.
 
 interface Props {
   value: MoodLevel | null
@@ -28,11 +28,11 @@ export function MoodScale({ value, onChange, disabled, className }: Props) {
     <div
       role="radiogroup"
       aria-label={t('groupLabel')}
-      className={cn('flex gap-2', className)}
+      className={cn('flex justify-between gap-1.5', className)}
     >
       {MOOD_LEVELS.map((lvl) => {
         const active = value === lvl
-        const color = MOOD_COLOR[lvl]
+        const dimmed = value !== null && !active
         return (
           <button
             key={lvl}
@@ -42,36 +42,29 @@ export function MoodScale({ value, onChange, disabled, className }: Props) {
             aria-label={t(`level.${lvl}`)}
             disabled={disabled}
             onClick={() => onChange(lvl)}
-            // Крупная зона тапа: звезда + подпись в колонку, min-h + вертикальный
-            // паддинг. border вместо ring — чтобы задать цвет ступени инлайном.
             className={cn(
-              'flex flex-1 flex-col items-center gap-1.5 rounded-2xl border px-1 py-3 transition-colors',
+              'flex aspect-square flex-1 flex-col items-center justify-center gap-1 rounded-md border bg-white/80 transition-all',
               'disabled:cursor-not-allowed disabled:opacity-60',
-              active ? 'border-transparent' : 'border-border bg-card hover:bg-muted',
+              dimmed && 'opacity-50',
             )}
-            style={
-              active
-                ? { backgroundColor: moodRgba(lvl, 0.16), borderColor: color }
-                : undefined
-            }
+            style={{
+              borderColor: MOOD_BORDER[lvl],
+              backgroundColor: active ? moodRgba(lvl, 0.25) : undefined,
+            }}
           >
             <span
               aria-hidden
-              className="text-2xl leading-none transition-opacity"
+              className="text-lg leading-none"
               style={{
-                color,
-                opacity: active ? 1 : 0.5,
-                // Сияние выбранной ✦ — мягкий ореол цветом ступени.
-                textShadow: active ? `0 0 10px ${moodRgba(lvl, 0.7)}` : 'none',
+                color: MOOD_COLOR[lvl],
+                textShadow: active ? `0 0 10px ${moodRgba(lvl, 0.8)}` : 'none',
               }}
             >
               ✦
             </span>
             <span
-              className={cn(
-                'text-center text-[11px] leading-tight',
-                active ? 'font-medium text-foreground' : 'text-muted-foreground',
-              )}
+              className="text-center text-[10px] font-medium leading-tight"
+              style={{ color: MOOD_TEXT[lvl] }}
             >
               {t(`level.${lvl}`)}
             </span>

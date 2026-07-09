@@ -14,14 +14,13 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 /**
- * Нижнее таб-меню, фиксированное на всех экранах (app).
+ * Нижнее таб-меню — тёмная плавающая пилюля (концепция Кая, фрейм «сегодня»):
+ * #1A1A1A, r:31, только иконки (подписи — в aria-label), активная вкладка
+ * подсвечена синеватой плашкой #375E70/20.
  *
- * Сейчас две вкладки. Массив TABS — задел под будущие (Путь, Дневник, Вики):
- * добавить пункт = одна строка, вёрстка (flex-1 на каждый) растянется сама.
- *
- * Активная вкладка — мох, неактивные — ink-soft. iOS safe-area снизу, чтобы
- * таб-бар не налезал на домашний индикатор (контент сверху не перекрывается —
- * за это отвечает padding-bottom обёртки в (app)/layout).
+ * Массив TABS — задел под будущие вкладки: добавить пункт = одна строка.
+ * iOS safe-area снизу; контент не перекрывается — за это отвечает
+ * padding-bottom обёртки в (app)/layout.
  */
 
 type Tab = {
@@ -46,8 +45,8 @@ export function BottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-      <ul className="mx-auto flex max-w-2xl">
+    <nav className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-6">
+      <ul className="flex h-[62px] w-full max-w-sm items-center justify-around rounded-full bg-nav px-3 shadow-lg">
         {TABS.map((tab) => {
           const active =
             pathname === tab.href ||
@@ -58,17 +57,20 @@ export function BottomNav() {
               false)
           const Icon = tab.icon
           return (
-            <li key={tab.href} className="flex-1">
+            <li key={tab.href}>
               <Link
                 href={tab.href}
                 aria-current={active ? 'page' : undefined}
+                aria-label={t(tab.key)}
                 className={cn(
-                  'flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition-colors',
-                  active ? 'text-moss' : 'text-ink-soft hover:text-moss/70',
+                  'flex size-12 items-center justify-center rounded-full transition-colors',
+                  // Активная — синеватая плашка из макета (#375E70 @20%).
+                  active
+                    ? 'bg-[#375E70]/20 text-nav-foreground'
+                    : 'text-nav-foreground/60 hover:text-nav-foreground',
                 )}
               >
-                <Icon className="size-5" />
-                {t(tab.key)}
+                <Icon className="size-6" />
               </Link>
             </li>
           )

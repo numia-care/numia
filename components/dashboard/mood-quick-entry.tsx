@@ -106,8 +106,10 @@ export function MoodQuickEntry() {
   }
 
   return (
-    <div className="rounded-2xl bg-card p-5 ring-1 ring-border">
-      <h2 className="font-heading text-lg text-foreground">{t('title')}</h2>
+    // Карточка по фрейму Кая «как ты?»: стекло r:30, заголовок 16px/400,
+    // шкала на градиентной подложке (голубой → лаванда → розовый, r:18).
+    <div className="card-glass rounded-2xl p-4">
+      <h2 className="text-center text-base text-[#242424]">{t('title')}</h2>
 
       {state.kind === 'loading' ? (
         <div className="mt-3 h-16 animate-pulse rounded-xl bg-muted/40" />
@@ -156,7 +158,14 @@ export function MoodQuickEntry() {
           </div>
         </div>
       ) : (
-        <div className="mt-3">
+        // Градиентная полоса-подложка из макета (Rectangle 56).
+        <div
+          className="mt-3 rounded-[18px] p-1.5"
+          style={{
+            background:
+              'linear-gradient(90deg, #B1D7E7 0%, #E6D7F6 50%, #FFB3D9 100%)',
+          }}
+        >
           <MoodScale value={null} onChange={onPick} disabled={busy} />
         </div>
       )}
