@@ -80,9 +80,15 @@ export function PathPreviewItem({ entry }: { entry: PathEntry }) {
             <MicIcon className="size-5" />
           </div>
         ) : url ? (
-          // object URL расшифрованного блоба — next/image не применим.
+          // ПРИВАТНОСТЬ: компонент живёт на дашборде (ретро-карточка) — фото
+          // блюрим от взгляда через плечо, полный вид только внутри «Пути».
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className="size-full object-cover" />
+          <img
+            src={url}
+            alt=""
+            className="size-full scale-110 object-cover"
+            style={{ filter: 'blur(10px)' }}
+          />
         ) : (
           <div className="size-full animate-pulse" />
         )}

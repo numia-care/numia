@@ -27,26 +27,31 @@ export async function TodaySection() {
   // Сколько приёмов ещё ждёт действия. Нужно для двух вещей:
   //   • isLast (===1) — отметка этого слота закроет день → щедрее вспышка ✦;
   //   • ===0 при непустом дне — показать «На сегодня всё ✦».
-  const upcomingCount = slots.filter((s) => s.status === 'upcoming').length
+  const upcoming = slots.filter((s) => s.status === 'upcoming')
+  const upcomingCount = upcoming.length
+  // Два ближайших приёма — голубая и розовая пилюли (по фрейму Кая).
+  const colorIndexById = new Map(upcoming.slice(0, 2).map((s, i) => [s.id, i]))
 
   return (
-    <section className="mb-10">
-      <h2 className="mb-4 font-heading text-2xl text-foreground">
+    <section className="mb-8">
+      {/* Ярлык-пилюля секции — по фрейму (белая, r:25, тонкая обводка). */}
+      <span className="inline-block rounded-full border border-border bg-white/90 px-4 py-1.5 text-sm text-[#242424] shadow-card">
         {t('title')}
-      </h2>
+      </span>
 
       {slots.length === 0 ? (
         <EmptyToday />
       ) : (
         <>
           {upcomingCount === 0 && <AllDoneToday />}
-          <div className="grid gap-3">
+          <div className="mt-3 grid gap-2.5">
             {slots.map((slot) => (
               <SlotCardForSlot
                 key={slot.id}
                 slot={slot}
                 timezone={tz}
                 isLast={upcomingCount === 1}
+                colorIndex={colorIndexById.get(slot.id)}
                 formStr={
                   slot.medication ? tMedForm(slot.medication.form) : ''
                 }
@@ -63,7 +68,7 @@ export async function TodaySection() {
 async function AllDoneToday() {
   const t = await getTranslations('tracker.today')
   return (
-    <div className="mb-3 rounded-2xl bg-sage/15 p-4 text-center text-foreground/80 ring-1 ring-sage/25">
+    <div className="mt-3 rounded-full border border-chip-yellow-border/60 bg-chip-yellow/50 p-3 text-center text-sm text-[#1F1F1F]/80">
       {t('allDone')}
     </div>
   )
@@ -83,11 +88,13 @@ function SlotCardForSlot({
   timezone,
   formStr,
   isLast,
+  colorIndex,
 }: {
   slot: TodaySlot
   timezone: string
   formStr: string
   isLast: boolean
+  colorIndex?: number
 }) {
   const med = slot.medication
   const timeStr = formatSlotTime(slot.scheduled_at, timezone)
@@ -110,6 +117,7 @@ function SlotCardForSlot({
       status={slot.status}
       timezone={timezone}
       isLast={isLast}
+      colorIndex={colorIndex}
     />
   )
 }

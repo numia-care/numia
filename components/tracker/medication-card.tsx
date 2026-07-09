@@ -1,67 +1,96 @@
-import { getTranslations } from 'next-intl/server'
+'use client'
+
+import { ChevronDownIcon } from 'lucide-react'
+import { useTranslations } from 'next-intl'
+import { useState } from 'react'
 import Link from 'next/link'
 
-import { Card } from '@/components/ui/card'
 import type { MedicationRow } from '@/lib/tracker/queries'
 import type { Schedule } from '@/lib/tracker/schedule'
 import { formatDoseWithUnit } from '@/lib/tracker/units'
+import { cn } from '@/lib/utils'
 
 import { MedicationDeleteButton } from './medication-delete-button'
 
-export async function MedicationCard({ med }: { med: MedicationRow }) {
-  const t = await getTranslations('tracker')
+// Препарат в списке — строка-пилюля по фрейму Кая (серая, r:40 свёрнутая):
+//   имя … «доза • форма» [шеврон]
+// Разворот: расписание + бейдж типа + действия (Изменить / Убрать).
+// Клиентский: разворот — локальный state.
+export function MedicationCard({ med }: { med: MedicationRow }) {
+  const t = useTranslations('tracker')
+  const [expanded, setExpanded] = useState(false)
 
   return (
-    <Card className="flex flex-col gap-3 p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h3 className="font-heading text-lg leading-tight text-foreground">
-            {med.name}
-          </h3>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {formatDoseWithUnit(med.dose_amount, med.dose_unit)} ·{' '}
-            {t(`medForm.${med.form}`)}
-          </p>
+    <div
+      className={cn(
+        'border border-[#D4D4D4] bg-[#EDEBE9] shadow-card transition-[border-radius] duration-200',
+        expanded ? 'rounded-[25px]' : 'rounded-full',
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className="flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-left"
+      >
+        <span className="min-w-0 flex-1 truncate text-sm text-[#1F1F1F]">
+          {med.name}
+        </span>
+        <span className="shrink-0 text-xs text-[#1F1F1F]/80">
+          {formatDoseWithUnit(med.dose_amount, med.dose_unit)} •{' '}
+          {t(`medForm.${med.form}`)}
+        </span>
+        <ChevronDownIcon
+          className={cn(
+            'size-4 shrink-0 text-[#1F1F1F]/70 transition-transform',
+            expanded && 'rotate-180',
+          )}
+        />
+      </button>
+
+      {expanded && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3">
+          <div className="min-w-0">
+            <p className="text-[11px] leading-snug text-[#1F1F1F]/70">
+              {formatSchedule(med.schedule, t)}
+            </p>
+            <KindBadge kind={med.kind} />
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Link
+              href={`/tracker/${med.id}/edit`}
+              className="rounded-full px-3 py-1.5 text-xs text-[#1F1F1F]/70 transition-colors hover:bg-white/50 hover:text-[#1F1F1F]"
+            >
+              {t('card.editButton')}
+            </Link>
+            <MedicationDeleteButton id={med.id} name={med.name} />
+          </div>
         </div>
-        <KindBadge kind={med.kind} />
-      </div>
-
-      <p className="text-sm text-foreground/80">
-        {formatSchedule(med.schedule, t)}
-      </p>
-
-      <div className="-mb-1 -mr-1 flex justify-end gap-1 pt-1">
-        <Link
-          href={`/tracker/${med.id}/edit`}
-          className="rounded-md px-2.5 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {t('card.editButton')}
-        </Link>
-        <MedicationDeleteButton id={med.id} name={med.name} />
-      </div>
-    </Card>
+      )}
+    </div>
   )
 }
 
-type TranslateFunc = Awaited<ReturnType<typeof getTranslations<'tracker'>>>
-
-async function KindBadge({ kind }: { kind: MedicationRow['kind'] }) {
-  const t = await getTranslations('tracker')
+// Бейдж типа — пастельные пары концепции.
+function KindBadge({ kind }: { kind: MedicationRow['kind'] }) {
+  const t = useTranslations('tracker')
   const palette: Record<MedicationRow['kind'], string> = {
-    estrogen: 'bg-fairy/30 text-[#5A4A6B]',
-    antiandrogen: 'bg-sage/25 text-moss',
-    progesterone: 'bg-lavender/30 text-[#5A4A6B]',
-    testosterone: 'bg-[#E5DCC5] text-[#7A6438]',
-    other: 'bg-muted text-muted-foreground',
+    estrogen: 'border-chip-pink-border bg-chip-pink text-[#542E42]',
+    antiandrogen: 'border-chip-yellow-border bg-chip-yellow text-[#6B5A1E]',
+    progesterone: 'border-[#EBCEFF] bg-[#E8BAF7]/60 text-[#5A3A6B]',
+    testosterone: 'border-chip-blue-border bg-chip-blue text-[#2E4A5A]',
+    other: 'border-[#D4D4D4] bg-white/60 text-[#5A5A5A]',
   }
   return (
     <span
-      className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${palette[kind]}`}
+      className={`mt-1.5 inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-medium ${palette[kind]}`}
     >
       {t(`kind.${kind}`)}
     </span>
   )
 }
+
+type TranslateFunc = ReturnType<typeof useTranslations<'tracker'>>
 
 function formatSchedule(schedule: Schedule, t: TranslateFunc): string {
   if (schedule.kind === 'daily') {

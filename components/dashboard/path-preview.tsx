@@ -114,9 +114,16 @@ function PathTile({ entry }: { entry: PathEntry }) {
     <div className="flex aspect-square items-center justify-center overflow-hidden rounded-md bg-[#F3F3F3]">
       {isPhoto ? (
         url ? (
-          // object URL расшифрованного блоба — next/image не применим.
+          // ПРИВАТНОСТЬ: дашборд часто открыт (PIN-грейс) и виден через плечо —
+          // миниатюру блюрим так, чтобы содержимое не читалось чужим взглядом.
+          // Полное фото — только внутри «Пути». scale гасит светящиеся края.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt="" className="size-full object-cover" />
+          <img
+            src={url}
+            alt=""
+            className="size-full scale-110 object-cover"
+            style={{ filter: 'blur(10px)' }}
+          />
         ) : (
           <div className="size-full animate-pulse bg-muted/60" />
         )

@@ -1,13 +1,28 @@
 'use client'
 
-import { CheckIcon, MinusIcon } from 'lucide-react'
+import { ChevronDownIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import { useRouter } from 'next/navigation'
+import { useState, useTransition } from 'react'
+import { toast } from 'sonner'
 
-import { Card } from '@/components/ui/card'
+import { markSkipped, markTaken, undoIntake } from '@/lib/tracker/intake'
+import { playIntakeSparks } from '@/lib/tracker/spark'
 import { cn } from '@/lib/utils'
 
-import { SlotActions } from './slot-actions'
 import { SlotBackfillDialog } from './slot-backfill-dialog'
+
+// Слот приёма — строка-пилюля по фрейму Кая «препараты»:
+//   [чекбокс] имя … «HH:MM • доза» [шеврон]
+//
+// Чекбокс слева — и есть «Принято»: белый кружок, по тапу — ТЁМНАЯ ТОЧКА
+// #262626 (цвет строго по фрейму, не «зелёная галочка по логике») + вспышка ✦.
+// Цвет пилюли: два ближайших приёма — голубая и розовая (как чипы дашборда),
+// остальные — тёплый серый. Шеврон разворачивает детали (форма, «Пропустить» —
+// нейтрально, без негативной окраски).
+//
+// Прошлые слоты (taken/skipped/missed) — строка целиком открывает backfill-
+// диалог (поменять время / передумать), как и раньше.
 
 export interface SlotCardProps {
   id: string
@@ -21,70 +36,163 @@ export interface SlotCardProps {
   timezone: string
   // true, если это последний upcoming-слот дня → щедрее вспышка при отметке.
   isLast?: boolean
+  // Порядковый номер среди upcoming (0 → голубая, 1 → розовая, прочие серые).
+  colorIndex?: number
 }
 
-/**
- * Карточка одного слота приёма. Поведение зависит от status:
- *   upcoming → action-кнопки (Принято / Пропустить)
- *   taken    → галочка + время приёма, клик открывает backfill (изменить время)
- *   skipped  → прочерк, клик открывает backfill (передумать, отметить taken)
- *   missed   → как skipped, клик открывает backfill
- *
- * Карточка client, потому что:
- *   - для taken/skipped нужен onClick → Dialog (client)
- *   - useTranslations работает только в client/server-with-config; здесь
- *     удобнее client т.к. интерактив всё равно нужен.
- */
+// Классы пилюли по цветовому индексу — пары заливка+обводка из фрейма.
+function pillClass(colorIndex: number | undefined, isUpcoming: boolean): string {
+  if (!isUpcoming) return 'border-[#D4D4D4] bg-[#EDEBE9]'
+  if (colorIndex === 0) return 'border-chip-blue-border bg-chip-blue'
+  if (colorIndex === 1) return 'border-chip-pink-border bg-chip-pink'
+  return 'border-[#D4D4D4] bg-[#EDEBE9]'
+}
+
 export function SlotCard(props: SlotCardProps) {
   const t = useTranslations('tracker.slot')
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [expanded, setExpanded] = useState(false)
 
-  const { status, id, scheduledIso, timeStr, takenTimeStr, medName, doseStr, formStr, timezone, isLast } = props
+  const {
+    status, id, scheduledIso, timeStr, takenTimeStr,
+    medName, doseStr, formStr, timezone, isLast, colorIndex,
+  } = props
 
   const isUpcoming = status === 'upcoming'
   const isTaken = status === 'taken'
 
-  // Для прошлых слотов — карточка кликабельна (открывает backfill).
-  // Для upcoming — нет, там только кнопки.
-  const wrapInBackfill = !isUpcoming
+  const onUndo = () => {
+    startTransition(async () => {
+      await undoIntake(id)
+      router.refresh()
+      toast.message(t('undone'))
+    })
+  }
 
-  const content = (
-    <Card
-      data-slot-card=""
-      className={cn(
-        'flex flex-col gap-3 p-4',
-        wrapInBackfill && 'cursor-pointer transition-colors hover:bg-muted/30',
-        !isUpcoming && 'opacity-70',
-      )}
-    >
-      <div className="flex items-center gap-3">
-        <StatusIcon status={status} />
-        <div className="min-w-0 flex-1">
-          <p className="font-medium text-foreground">
-            <span className="tabular-nums">{timeStr}</span>
-            <span className="mx-1.5 text-muted-foreground">·</span>
-            <span>{medName}</span>
-          </p>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {doseStr} · {formStr}
-            {isTaken && takenTimeStr && takenTimeStr !== timeStr && (
-              <>
-                {' '}
-                <span className="text-foreground/70">
-                  ({t('takenAtBadge', { time: takenTimeStr })})
-                </span>
-              </>
-            )}
-          </p>
-        </div>
-      </div>
+  const act = (action: typeof markTaken, successText: string) => {
+    startTransition(async () => {
+      const result = await action(id)
+      if (!result.ok) return
+      router.refresh()
+      toast.success(successText, {
+        description: `${timeStr} · ${medName}`,
+        action: { label: t('undo'), onClick: onUndo },
+        duration: 5000,
+      })
+    })
+  }
 
-      {isUpcoming && (
-        <SlotActions id={id} medName={medName} timeStr={timeStr} isLast={isLast} />
+  // Тап по чекбоксу: вспышка ✦ из точки тапа (мгновенно) + отметка.
+  const onCheck = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (isPending) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX || rect.left + rect.width / 2
+    const y = e.clientY || rect.top + rect.height / 2
+    playIntakeSparks(x, y, isLast)
+
+    if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      const card = e.currentTarget.closest('[data-slot-card]')
+      if (card) {
+        card.classList.add('slot-pulse')
+        window.setTimeout(() => card.classList.remove('slot-pulse'), 600)
+      }
+    }
+    act(markTaken, t('takenBadge'))
+  }
+
+  const checkbox = (
+    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#FEFEFD] shadow-sm">
+      {/* Принято — тёмная точка (цвет из фрейма); пропуск — приглушённая. */}
+      {isTaken && <span className="size-3 rounded-full bg-[#262626]" />}
+      {(status === 'skipped' || status === 'missed') && (
+        <span className="size-3 rounded-full bg-[#8F8F8F]/50" />
       )}
-    </Card>
+    </span>
   )
 
-  if (wrapInBackfill) {
+  const row = (
+    <div className="flex min-h-[52px] items-center gap-3 px-4 py-2">
+      {isUpcoming ? (
+        // Тач-зона больше видимого кружка (size-9 вокруг size-5).
+        <button
+          type="button"
+          onClick={onCheck}
+          disabled={isPending}
+          aria-label={t('markTaken')}
+          className="-m-2 flex size-9 shrink-0 items-center justify-center disabled:opacity-60"
+        >
+          {checkbox}
+        </button>
+      ) : (
+        checkbox
+      )}
+
+      <span className="min-w-0 flex-1 truncate text-sm text-[#1F1F1F]">
+        {medName}
+      </span>
+
+      <span className="shrink-0 text-xs text-[#1F1F1F]/80">
+        {timeStr} • {doseStr}
+      </span>
+
+      {isUpcoming && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-label={expanded ? t('collapse') : t('expand')}
+          aria-expanded={expanded}
+          className="-m-1.5 flex size-8 shrink-0 items-center justify-center"
+        >
+          <ChevronDownIcon
+            className={cn('size-4 text-[#1F1F1F]/70 transition-transform', expanded && 'rotate-180')}
+          />
+        </button>
+      )}
+    </div>
+  )
+
+  const pill = (
+    <div
+      data-slot-card=""
+      className={cn(
+        'border shadow-card transition-[border-radius] duration-200',
+        expanded ? 'rounded-[25px]' : 'rounded-full',
+        pillClass(colorIndex, isUpcoming),
+        !isUpcoming && 'cursor-pointer opacity-80 transition-opacity hover:opacity-100',
+      )}
+    >
+      {row}
+
+      {/* Разворот (только upcoming): детали + нейтральное «Пропустить». */}
+      {isUpcoming && expanded && (
+        <div className="flex items-center justify-between gap-3 px-4 pb-3 pl-12">
+          <span className="text-[11px] leading-snug text-[#1F1F1F]/70">
+            {doseStr} · {formStr}
+          </span>
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => act(markSkipped, t('skippedBadge'))}
+            className="shrink-0 rounded-full px-3 py-1.5 text-xs text-[#1F1F1F]/70 transition-colors hover:bg-white/50 hover:text-[#1F1F1F] disabled:opacity-60"
+          >
+            {t('markSkipped')}
+          </button>
+        </div>
+      )}
+
+      {/* Принято в другое время — тихая пометка в строке разворота нет,
+          показываем в самой строке подсказкой через title. */}
+      {isTaken && takenTimeStr && takenTimeStr !== timeStr && (
+        <div className="px-4 pb-2 pl-12 text-[11px] text-[#1F1F1F]/60">
+          {t('takenAtBadge', { time: takenTimeStr })}
+        </div>
+      )}
+    </div>
+  )
+
+  // Прошлые слоты — вся пилюля открывает backfill (изменить время/передумать).
+  if (!isUpcoming) {
     return (
       <SlotBackfillDialog
         id={id}
@@ -93,31 +201,10 @@ export function SlotCard(props: SlotCardProps) {
         timezone={timezone}
         currentStatus={status}
       >
-        {content}
+        {pill}
       </SlotBackfillDialog>
     )
   }
 
-  return content
-}
-
-function StatusIcon({ status }: { status: SlotCardProps['status'] }) {
-  if (status === 'taken') {
-    return (
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-sage/30 text-moss">
-        <CheckIcon className="size-4" />
-      </span>
-    )
-  }
-  if (status === 'skipped' || status === 'missed') {
-    return (
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-        <MinusIcon className="size-4" />
-      </span>
-    )
-  }
-  // upcoming — пустой круг (placeholder), сигнал что слот ждёт действия
-  return (
-    <span className="flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-sage/40" />
-  )
+  return pill
 }
