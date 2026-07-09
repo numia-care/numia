@@ -1,7 +1,12 @@
 import type { Metadata, Viewport } from 'next'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
-import { Geist, Geist_Mono } from 'next/font/google'
+import {
+  Bitcount_Prop_Single,
+  Boldonse,
+  Instrument_Sans,
+  Inter,
+} from 'next/font/google'
 
 import { KeyboardScrollAssist } from '@/components/keyboard-scroll-assist'
 import { SwRegister } from '@/components/sw-register'
@@ -9,13 +14,35 @@ import { Toaster } from '@/components/ui/sonner'
 
 import './globals.css'
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+// Шрифты концепции Кая (шаг сведения дизайна, 2026-07-09). Всё через
+// next/font — скачиваются на билде и раздаются с нашего origin (требование
+// безопасности: никаких сторонних CDN). Cormorant/DM Sans похоронены решением.
+//
+// Inter — весь UI (в макете SF/Google Sans — «шрифты мака Кая», сведено к
+// Inter как основному шрифту самого проработанного экрана «сегодня»).
+const inter = Inter({
+  variable: '--font-inter',
+  subsets: ['latin', 'cyrillic'],
+})
+
+// Boldonse — display-акцент, ТОЛЬКО «welcome!» на онбординге.
+const boldonse = Boldonse({
+  variable: '--font-boldonse',
+  weight: '400',
   subsets: ['latin'],
 })
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+// Bitcount — крупная дата на дашборде (фан-элемент концепции).
+const bitcount = Bitcount_Prop_Single({
+  variable: '--font-bitcount',
+  weight: '400',
+  subsets: ['latin'],
+})
+
+// Instrument Sans — логотип-леттеринг «✦ numia» на auth-экранах.
+const instrument = Instrument_Sans({
+  variable: '--font-instrument',
+  weight: ['400', '500'],
   subsets: ['latin'],
 })
 
@@ -54,7 +81,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${boldonse.variable} ${bitcount.variable} ${instrument.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <NextIntlClientProvider messages={messages}>
