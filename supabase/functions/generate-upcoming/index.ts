@@ -152,11 +152,17 @@ Deno.serve(async (req) => {
     scheduled_at: string
     status: 'upcoming'
   }[] = []
+  // Для сверки (reconcile) ниже: ожидаемые пары "medication_id|isoUtc" по
+  // юзерам. У юзера с битым schedule сверку пропускаем — не зная ожидаемого
+  // набора, нельзя решать, что лишнее.
+  const expectedByUser = new Map<string, Set<string>>()
+  const usersWithInvalid = new Set<string>()
 
   for (const med of meds) {
     const schedule = parseSchedule(med.schedule)
     if (!schedule) {
       skippedInvalid += 1
+      usersWithInvalid.add(med.user_id as string)
       console.error(`medication ${med.id}: invalid schedule json, skipped`)
       continue
     }
@@ -170,13 +176,75 @@ Deno.serve(async (req) => {
         continue
       }
       for (const utc of computeSlotsForDay(schedule, day, timezone)) {
+        const iso = utc.toISOString()
         slots.push({
           medication_id: med.id as string,
           user_id: med.user_id as string,
-          scheduled_at: utc.toISOString(),
+          scheduled_at: iso,
           status: 'upcoming',
         })
+        let expected = expectedByUser.get(med.user_id as string)
+        if (!expected) {
+          expected = new Set()
+          expectedByUser.set(med.user_id as string, expected)
+        }
+        expected.add(`${med.id}|${iso}`)
       }
+    }
+  }
+
+  // --- Сверка: снести upcoming-слоты, не соответствующие расписаниям ---
+  // Та же логика и инвариант, что в lib/tracker/slot-generator.ts (см.
+  // комментарий там): сироты от смены tz / гонок / старых багов иначе
+  // живут вечно — upsert с другим scheduled_at их не перезаписывает.
+  // История (не-upcoming статусы) не трогается.
+  let deletedStale = 0
+  for (const userId of userIds) {
+    if (usersWithInvalid.has(userId)) continue
+    const timezone = tzByUser.get(userId) ?? 'UTC'
+    const windowStart = fromZonedTime(
+      `${formatInTimeZone(today, timezone, 'yyyy-MM-dd')}T00:00:00`,
+      timezone,
+    )
+    const windowEnd = fromZonedTime(
+      `${formatInTimeZone(addDays(today, DAYS_AHEAD), timezone, 'yyyy-MM-dd')}T00:00:00`,
+      timezone,
+    )
+
+    const { data: existing, error: existingError } = await supabase
+      .from('intake_events')
+      .select('id, medication_id, scheduled_at')
+      .eq('user_id', userId)
+      .eq('status', 'upcoming')
+      .gte('scheduled_at', windowStart.toISOString())
+      .lt('scheduled_at', windowEnd.toISOString())
+
+    if (existingError) {
+      console.error(`reconcile select failed for user ${userId}:`, existingError.message)
+      continue
+    }
+
+    const expected = expectedByUser.get(userId) ?? new Set<string>()
+    // Формат timestamptz от PostgREST нормализуем через Date перед сравнением.
+    const staleIds = (existing ?? [])
+      .filter(
+        (e) =>
+          !expected.has(
+            `${e.medication_id}|${new Date(e.scheduled_at as string).toISOString()}`,
+          ),
+      )
+      .map((e) => e.id as string)
+
+    if (staleIds.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('intake_events')
+        .delete()
+        .in('id', staleIds)
+      if (deleteError) {
+        console.error(`reconcile delete failed for user ${userId}:`, deleteError.message)
+        continue
+      }
+      deletedStale += staleIds.length
     }
   }
 
@@ -202,6 +270,7 @@ Deno.serve(async (req) => {
     medications: meds.length,
     slotsComputed: slots.length,
     inserted, // меньше slotsComputed = остальные уже существовали, это норма
+    deletedStale, // снесённые сироты (несоответствие расписанию/tz)
     skippedInvalid,
   })
 })

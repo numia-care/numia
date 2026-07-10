@@ -5,12 +5,7 @@ import { z } from 'zod'
 
 import { createClient } from '@/lib/supabase/server'
 import { MedicationInputSchema } from './medication-schema'
-import { generateSlotsForActiveMeds } from './slot-generator'
-
-// Сколько дней вперёд генерим слоты при создании/редактировании препарата.
-// 3 календарных дня гарантируют покрытие ≥48ч независимо от таймзоны юзера.
-// То же значение, что у суточного cron generate-upcoming.
-const SLOT_GEN_DAYS = 3
+import { SLOT_GEN_DAYS, generateSlotsForActiveMeds } from './slot-generator'
 
 /**
  * CRUD-server actions для medications.

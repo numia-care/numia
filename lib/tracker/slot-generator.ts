@@ -1,8 +1,13 @@
 import { addDays, startOfDay } from 'date-fns'
-import { formatInTimeZone } from 'date-fns-tz'
+import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { computeSlotsForDay, parseSchedule } from './schedule'
+
+// Сколько дней вперёд генерим слоты при создании/редактировании препарата
+// и при смене таймзоны. 3 календарных дня гарантируют покрытие ≥48ч
+// независимо от tz юзера. То же значение у суточного cron generate-upcoming.
+export const SLOT_GEN_DAYS = 3
 
 /**
  * Чистая (без 'use server') функция генерации слотов.
@@ -11,6 +16,14 @@ import { computeSlotsForDay, parseSchedule } from './schedule'
  * клиента, но дёргать его из Server Component — антипаттерн (лишняя
  * сериализация). Здесь — обычный async helper, который и action,
  * и серверный код могут вызвать напрямую.
+ *
+ * Генерация СВЕРЯЮЩАЯ (reconcile), не только доливающая: внутри окна
+ * генерации upcoming-слоты, не совпадающие с текущим расписанием+tz,
+ * удаляются. Иначе сирота живёт вечно: unique-индекс (medication_id,
+ * scheduled_at) не склеивает один и тот же wall-clock, посчитанный в
+ * разных tz (баг 22:00/23:00 — profiles.timezone
+ * флипался между таймзонами разных устройств, каждый флип рождал пару).
+ * История (taken/skipped/missed) не трогается никогда.
  */
 export async function generateSlotsForActiveMeds(
   supabase: SupabaseClient,
@@ -25,8 +38,6 @@ export async function generateSlotsForActiveMeds(
     .is('deleted_at', null)
     .is('end_date', null)
 
-  if (!meds || meds.length === 0) return 0
-
   const today = startOfDay(new Date())
   const slots: {
     medication_id: string
@@ -35,7 +46,9 @@ export async function generateSlotsForActiveMeds(
     status: 'upcoming'
   }[] = []
 
-  for (const med of meds) {
+  // Даже без активных препаратов идём дальше: сверка ниже подчистит
+  // осиротевшие upcoming (например, слоты hard-deleted препарата).
+  for (const med of meds ?? []) {
     const schedule = parseSchedule(med.schedule)
 
     for (let i = 0; i < days; i += 1) {
@@ -58,6 +71,42 @@ export async function generateSlotsForActiveMeds(
         })
       }
     }
+  }
+
+  // --- Сверка: снести upcoming-слоты окна, которых нет в ожидаемом наборе ---
+  // Границы окна в UTC — те же календарные дни в tz юзера, по которым шёл
+  // цикл выше: [сегодня 00:00 tz, сегодня+days 00:00 tz).
+  const windowStart = fromZonedTime(
+    `${formatInTimeZone(today, timezone, 'yyyy-MM-dd')}T00:00:00`,
+    timezone,
+  )
+  const windowEnd = fromZonedTime(
+    `${formatInTimeZone(addDays(today, days), timezone, 'yyyy-MM-dd')}T00:00:00`,
+    timezone,
+  )
+
+  const expected = new Set(slots.map((s) => `${s.medication_id}|${s.scheduled_at}`))
+  const { data: existing } = await supabase
+    .from('intake_events')
+    .select('id, medication_id, scheduled_at')
+    .eq('user_id', userId)
+    .eq('status', 'upcoming')
+    .gte('scheduled_at', windowStart.toISOString())
+    .lt('scheduled_at', windowEnd.toISOString())
+
+  // PostgREST отдаёт timestamptz в своём формате — нормализуем через Date,
+  // чтобы строковое сравнение с нашим toISOString() было честным.
+  const staleIds = (existing ?? [])
+    .filter(
+      (e) =>
+        !expected.has(
+          `${e.medication_id}|${new Date(e.scheduled_at as string).toISOString()}`,
+        ),
+    )
+    .map((e) => e.id as string)
+
+  if (staleIds.length > 0) {
+    await supabase.from('intake_events').delete().in('id', staleIds)
   }
 
   if (slots.length === 0) return 0

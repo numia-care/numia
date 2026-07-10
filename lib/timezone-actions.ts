@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { isValidIanaTimezone } from '@/lib/timezone'
+import { SLOT_GEN_DAYS, generateSlotsForActiveMeds } from '@/lib/tracker/slot-generator'
 
 /**
  * Server actions для работы с profiles.timezone.
@@ -82,6 +83,29 @@ export async function syncUserTimezone(
     .eq('id', user.id)
 
   if (error) return { changed: false, tz: current }
+
+  // Слоты расписаний хранятся UTC-инстантами, посчитанными в СТАРОЙ tz.
+  // После смены tz они «уезжают» на разницу зон и висят дублями рядом с
+  // новыми: unique-индекс (medication_id, scheduled_at) такие пары не
+  // склеивает (баг 22:00/23:00 — профиль флипался
+  // между таймзонами разных устройств). Поэтому сносим все upcoming и
+  // генерим заново в новой tz. История (taken/skipped/missed) не трогается.
+  // Best-effort: сбой не валит sync — сверка в генераторах добьёт позже.
+  try {
+    const { error: delError } = await supabase
+      .from('intake_events')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('status', 'upcoming')
+    if (delError) {
+      console.error('upcoming cleanup after tz change failed:', delError.message)
+    } else {
+      await generateSlotsForActiveMeds(supabase, user.id, detected, SLOT_GEN_DAYS)
+    }
+  } catch (e) {
+    console.error('slot regen after tz change failed:', e)
+  }
+
   return { changed: true, tz: detected }
 }
 
