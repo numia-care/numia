@@ -116,14 +116,15 @@ function PathTile({ entry }: { entry: PathEntry }) {
         url ? (
           // ПРИВАТНОСТЬ: дашборд часто открыт (PIN-грейс) и виден через плечо —
           // миниатюру блюрим так, чтобы содержимое не читалось чужим взглядом.
-          // Полное фото — только внутри «Пути». scale гасит светящиеся края.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={url}
-            alt=""
-            className="size-full scale-110 object-cover"
-            style={{ filter: 'blur(10px)' }}
-          />
+          // Полное фото — только внутри «Пути».
+          // Блюр — ОТДЕЛЬНЫМ слоем (backdrop-blur), не filter на <img>:
+          // filter на картинке в скруглённом overflow-контейнере iOS Safari
+          // рендерит белым (compositing-баг).
+          <div className="relative size-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt="" className="size-full object-cover" />
+            <div className="absolute inset-0 backdrop-blur-[10px]" aria-hidden />
+          </div>
         ) : (
           <div className="size-full animate-pulse bg-muted/60" />
         )

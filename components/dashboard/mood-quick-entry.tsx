@@ -108,8 +108,9 @@ export function MoodQuickEntry() {
   return (
     // Карточка по фрейму Кая «как ты?»: стекло r:30, заголовок 16px/400,
     // шкала на градиентной подложке (голубой → лаванда → розовый, r:18).
-    <div className="card-glass rounded-2xl p-4">
-      <h2 className="text-center text-base text-[#242424]">{t('title')}</h2>
+    // p-3.5: на 390px рядом бейдж даты — каждому пикселю ширины счёт.
+    <div className="card-glass rounded-2xl p-3.5">
+      <h2 className="text-center text-[15px] text-[#242424]">{t('title')}</h2>
 
       {state.kind === 'loading' ? (
         <div className="mt-3 h-16 animate-pulse rounded-xl bg-muted/40" />
@@ -160,7 +161,7 @@ export function MoodQuickEntry() {
       ) : (
         // Градиентная полоса-подложка из макета (Rectangle 56).
         <div
-          className="mt-3 rounded-[18px] p-1.5"
+          className="mt-2.5 rounded-[18px] p-1"
           style={{
             background:
               'linear-gradient(90deg, #B1D7E7 0%, #E6D7F6 50%, #FFB3D9 100%)',

@@ -82,13 +82,12 @@ export function PathPreviewItem({ entry }: { entry: PathEntry }) {
         ) : url ? (
           // ПРИВАТНОСТЬ: компонент живёт на дашборде (ретро-карточка) — фото
           // блюрим от взгляда через плечо, полный вид только внутри «Пути».
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={url}
-            alt=""
-            className="size-full scale-110 object-cover"
-            style={{ filter: 'blur(10px)' }}
-          />
+          // Блюр слоем backdrop-blur, не filter на <img>: iOS-баг (белый рендер).
+          <div className="relative size-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={url} alt="" className="size-full object-cover" />
+            <div className="absolute inset-0 backdrop-blur-[10px]" aria-hidden />
+          </div>
         ) : (
           <div className="size-full animate-pulse" />
         )}

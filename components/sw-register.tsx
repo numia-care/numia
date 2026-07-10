@@ -17,6 +17,7 @@ import { useTranslations } from 'next-intl'
 export function SwRegister() {
   const t = useTranslations('common')
   const [waiting, setWaiting] = useState<ServiceWorker | null>(null)
+  const [applying, setApplying] = useState(false)
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production') return
@@ -51,12 +52,7 @@ export function SwRegister() {
 
     // Новый SW взял контроль (после SKIP_WAITING) → перезагружаемся на новую
     // версию. Гвард от двойного reload (событие может стрельнуть повторно).
-    let reloaded = false
-    const onControllerChange = () => {
-      if (reloaded) return
-      reloaded = true
-      window.location.reload()
-    }
+    const onControllerChange = () => reloadOnce()
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
 
     return () => {
@@ -64,6 +60,24 @@ export function SwRegister() {
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange)
     }
   }, [])
+
+  // Тап «Обновить». iOS PWA капризен (controllerchange может не дойти),
+  // поэтому три канала до reload:
+  //   1) controllerchange (обычный путь, слушатель выше);
+  //   2) statechange самого waiting-воркера → 'activated';
+  //   3) страховка-таймаут: через 2.5с перезагружаемся безусловно — к этому
+  //      моменту skipWaiting почти наверняка прошёл, а в худшем случае юзер
+  //      просто получит текущую версию и живой баннер снова.
+  function applyUpdate() {
+    if (!waiting || applying) return
+    setApplying(true)
+
+    waiting.addEventListener('statechange', () => {
+      if (waiting.state === 'activated') reloadOnce()
+    })
+    waiting.postMessage('SKIP_WAITING')
+    window.setTimeout(reloadOnce, 2500)
+  }
 
   if (!waiting) return null
 
@@ -75,12 +89,21 @@ export function SwRegister() {
         <span className="text-sm text-foreground/85">{t('updateAvailable')}</span>
         <button
           type="button"
-          onClick={() => waiting.postMessage('SKIP_WAITING')}
-          className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          onClick={applyUpdate}
+          disabled={applying}
+          className="rounded-full bg-primary px-3.5 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70"
         >
-          {t('updateAction')}
+          {applying ? '…' : t('updateAction')}
         </button>
       </div>
     </div>
   )
+}
+
+// Один reload на все каналы (controllerchange / statechange / таймаут).
+let reloadedOnce = false
+function reloadOnce() {
+  if (reloadedOnce) return
+  reloadedOnce = true
+  window.location.reload()
 }

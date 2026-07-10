@@ -21,7 +21,9 @@ export function DateBadge() {
     <div
       suppressHydrationWarning
       aria-hidden
-      className="flex h-[105px] w-[103px] shrink-0 flex-col items-center justify-center rounded-3xl text-white"
+      // w-24 (96px): на 390px-экранах карточке «Как ты?» рядом нужен каждый
+      // пиксель — 103px из макета (402px) ужаты пропорционально.
+      className="flex h-[105px] w-24 shrink-0 flex-col items-center justify-center rounded-3xl text-white"
       style={{
         background:
           'radial-gradient(120% 120% at 20% 15%, #FF6600 10%, #FF66B0 55%, #00CDF6 100%)',

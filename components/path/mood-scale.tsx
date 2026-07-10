@@ -28,7 +28,7 @@ export function MoodScale({ value, onChange, disabled, className }: Props) {
     <div
       role="radiogroup"
       aria-label={t('groupLabel')}
-      className={cn('flex justify-between gap-1.5', className)}
+      className={cn('flex justify-between gap-1', className)}
     >
       {MOOD_LEVELS.map((lvl) => {
         const active = value === lvl
@@ -42,8 +42,10 @@ export function MoodScale({ value, onChange, disabled, className }: Props) {
             aria-label={t(`level.${lvl}`)}
             disabled={disabled}
             onClick={() => onChange(lvl)}
+            // min-w-0 + фиксированная высота вместо aspect-square: на 390px
+            // ячейки ~38px, квадрат зажимал бы подпись под ✦ (баг «налезает»).
             className={cn(
-              'flex aspect-square flex-1 flex-col items-center justify-center gap-1 rounded-md border bg-white/80 transition-all',
+              'flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md border bg-white/80 px-0.5 transition-all',
               'disabled:cursor-not-allowed disabled:opacity-60',
               dimmed && 'opacity-50',
             )}
@@ -54,7 +56,7 @@ export function MoodScale({ value, onChange, disabled, className }: Props) {
           >
             <span
               aria-hidden
-              className="text-lg leading-none"
+              className="text-base leading-none"
               style={{
                 color: MOOD_COLOR[lvl],
                 textShadow: active ? `0 0 10px ${moodRgba(lvl, 0.8)}` : 'none',
@@ -63,7 +65,7 @@ export function MoodScale({ value, onChange, disabled, className }: Props) {
               ✦
             </span>
             <span
-              className="text-center text-[10px] font-medium leading-tight"
+              className="w-full text-center text-[9px] font-medium leading-none tracking-tight"
               style={{ color: MOOD_TEXT[lvl] }}
             >
               {t(`level.${lvl}`)}

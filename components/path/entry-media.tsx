@@ -74,7 +74,9 @@ export function EntryMedia({
           // Размонтировались, пока шла расшифровка — освобождаем сразу.
           URL.revokeObjectURL(mediaUrl)
         }
-      } catch {
+      } catch (e) {
+        // Лог без контента (только тип ошибки) — для диагностики с устройства.
+        console.error('path media load failed:', e instanceof Error ? e.message : e)
         if (active) setFailed(true)
       }
     }
@@ -127,7 +129,9 @@ export function EntryMedia({
               className="block max-h-[70vh] w-full object-cover"
             />
           ) : (
-            <div className="aspect-[4/3] w-full animate-pulse" />
+            // bg обязателен: пульс без фона на белой карточке невидим и
+            // выглядит «пустой белой карточкой», если загрузка затянулась.
+            <div className="aspect-[4/3] w-full animate-pulse bg-muted/70" />
           )}
         </div>
       )}
