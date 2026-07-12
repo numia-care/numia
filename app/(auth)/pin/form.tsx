@@ -12,22 +12,17 @@ import {
   hashPin,
   LEGACY_KDF_ITERATIONS,
 } from '@/lib/crypto/pin'
+// Механика lockout общая с диалогом биометрии — см. lib/crypto/lockout.ts.
+// После SOFT_LOCKOUT_AFTER неверных попыток выделяем "Не помню PIN" красным
+// (сигналим что есть выход).
+import {
+  SOFT_LOCKOUT_AFTER,
+  readLockoutSeconds,
+  registerFailedPinAttempt,
+} from '@/lib/crypto/lockout'
 import { PinStorage } from '@/lib/crypto/storage'
 import { hasRemoteVault, setupVault, unlockWithPin } from '@/lib/crypto/vault'
 import { lock } from '@/lib/crypto/session'
-
-// Soft-lockout: после этого числа неверных попыток подряд — нарастающая пауза
-// перед следующей, и выделяем "Не помню PIN" красным (сигналим что есть выход).
-// Это часть модели «защита от чужих рук на 30 секунд»: без паузы онлайн-перебор
-// по клавиатуре ничем не ограничен. Обход очисткой IndexedDB атакующему не
-// помогает: вместе с паузой сотрётся обёртка DEK — данные не расшифровать
-// без ключа восстановления.
-const SOFT_LOCKOUT_AFTER = 5
-
-// Пауза после n-й неверной попытки: 30с → 1м → 2м → 4м → потолок 5 минут.
-function lockoutMs(attempts: number): number {
-  return Math.min(30_000 * 2 ** (attempts - SOFT_LOCKOUT_AFTER), 300_000)
-}
 
 export function PinUnlockForm() {
   const router = useRouter()
@@ -61,8 +56,7 @@ export function PinUnlockForm() {
       }
       setAttempts(await PinStorage.getFailedAttempts())
       // Пауза переживает reload — восстанавливаем отсчёт из IndexedDB.
-      const until = await PinStorage.getLockoutUntil()
-      if (until) setLockoutLeft(Math.max(0, Math.ceil((until - Date.now()) / 1000)))
+      setLockoutLeft(await readLockoutSeconds())
       setChecked(true)
     })()
     return () => {
@@ -88,9 +82,9 @@ export function PinUnlockForm() {
     // Пауза активна (state — и подстраховка из IDB, вдруг state обошли) → не
     // проверяем PIN вообще, PBKDF2 не гоняем.
     if (lockoutLeft > 0) return
-    const until = await PinStorage.getLockoutUntil()
-    if (until && until > Date.now()) {
-      setLockoutLeft(Math.ceil((until - Date.now()) / 1000))
+    const left = await readLockoutSeconds()
+    if (left > 0) {
+      setLockoutLeft(left)
       return
     }
 
@@ -108,14 +102,10 @@ export function PinUnlockForm() {
       const got = await hashPin(pin, salt, stored.iterations ?? LEGACY_KDF_ITERATIONS)
 
       if (!constantTimeEqual(got, expected)) {
-        const n = await PinStorage.incrementFailedAttempts()
-        setAttempts(n)
         // С пятой неверной попытки — нарастающая пауза перед следующей.
-        if (n >= SOFT_LOCKOUT_AFTER) {
-          const ms = lockoutMs(n)
-          await PinStorage.setLockoutUntil(Date.now() + ms)
-          setLockoutLeft(Math.ceil(ms / 1000))
-        }
+        const failed = await registerFailedPinAttempt()
+        setAttempts(failed.attempts)
+        if (failed.lockoutSeconds > 0) setLockoutLeft(failed.lockoutSeconds)
         setError('Неверный PIN')
         setPin('')
         setBusy(false)

@@ -1,10 +1,11 @@
 import { getTranslations } from 'next-intl/server'
 
+import { BiometricToggle } from '@/components/settings/biometric-toggle'
 import { SignOutButton } from '@/components/settings/sign-out-button'
 
 /**
- * Заглушка настроек. Сейчас — только выход + список будущих разделов.
- * Реальные настройки (напоминания, PIN, язык) подключим позже.
+ * Настройки: секция безопасности (биометрия) + выход + список будущих
+ * разделов. Остальные (напоминания, смена PIN, язык) подключим позже.
  */
 export default async function SettingsPage() {
   const t = await getTranslations('settings')
@@ -22,6 +23,15 @@ export default async function SettingsPage() {
           {t('title')}
         </h1>
       </header>
+
+      <section className="mb-8">
+        <p className="mb-3 text-sm text-muted-foreground">
+          {t('securityTitle')}
+        </p>
+        <div className="overflow-hidden rounded-2xl bg-card ring-1 ring-border">
+          <BiometricToggle />
+        </div>
+      </section>
 
       {/* Будущие разделы — видны, но неактивны, с пометкой «скоро». */}
       <section className="mb-8">
