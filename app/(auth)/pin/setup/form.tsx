@@ -170,19 +170,9 @@ export function PinSetupForm() {
           </>
         )}
 
-        {/* TODO (этап позже): биометрия Face ID / Touch ID для ежедневного входа.
-            Теперь архитектура это вмещает легко — envelope encryption (envelope.ts)
-            позволяет добавить ЕЩЁ ОДНУ обёртку DEK, помимо PIN и recovery-фразы:
-
-              dek_wrapped_bio = AES-GCM(KEK_bio, DEK)
-
-            KEK_bio берём из WebAuthn PRF-расширения (navigator.credentials.get
-            с extensions.prf) — платформенный аутентификатор (Face/Touch ID)
-            отдаёт стабильный секрет ТОЛЬКО после биопроверки. Из него деривируем
-            KEK_bio и оборачиваем DEK. Хранить обёртку — локально (как PIN), не на
-            сервере: биопривязка к устройству. На unlock: PRF → KEK_bio → unwrapDek
-            → DEK, без ввода PIN. PIN и фраза остаются как fallback. Отдельная
-            задача (WebAuthn PRF поддержан не везде — нужен graceful fallback). */}
+        {/* Биометрия для ежедневного входа реализована ровно по этой схеме —
+            см. lib/crypto/biometric.ts (обёртка dek_wrapped_bio из WebAuthn
+            PRF). Включается в настройках после setup, не здесь. */}
       </main>
     </div>
   )
