@@ -3,9 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { NewPinForm } from '@/components/new-pin-form'
 import { PinInput } from '@/components/pin-input'
 import { RecoveryKeyCard } from '@/components/recovery-key-card'
 import { RecoveryEntryForm } from '@/components/recovery-entry-form'
+import { isBiometricEnrolled, unlockWithBiometric } from '@/lib/crypto/biometric'
+import type { Dek } from '@/lib/crypto/envelope'
 import {
   base64ToBytes,
   constantTimeEqual,
@@ -32,17 +35,25 @@ export function PinUnlockForm() {
   const [attempts, setAttempts] = useState(0)
   const [checked, setChecked] = useState(false)
   // Шаги:
-  //   unlock   — обычный ввод PIN
-  //   forgot   — промежуточный экран «не помнишь PIN?» (ключ vs сброс)
-  //   recover  — ввод ключа восстановления (RecoveryEntryForm)
-  //   recovery — показ ключа после ленивого бэкфилла (старый PIN без envelope
-  //              получает DEK+фразу на первом unlock)
-  const [step, setStep] = useState<'unlock' | 'forgot' | 'recover' | 'recovery'>(
-    'unlock',
-  )
+  //   unlock     — обычный ввод PIN (+ кнопка биометрии, если включена)
+  //   forgot     — промежуточный экран «не помнишь PIN?» (биометрия / ключ / сброс)
+  //   recover    — ввод ключа восстановления (RecoveryEntryForm)
+  //   recovery   — показ ключа после ленивого бэкфилла (старый PIN без envelope
+  //                получает DEK+фразу на первом unlock)
+  //   bio-newpin — «не помню PIN, но биометрия работает»: DEK развёрнут
+  //                Face ID → задаём новый PIN без фразы (NewPinForm)
+  //   bio-done   — новый PIN сохранён
+  const [step, setStep] = useState<
+    'unlock' | 'forgot' | 'recover' | 'recovery' | 'bio-newpin' | 'bio-done'
+  >('unlock')
   const [phrase, setPhrase] = useState('')
   // Секунд до конца паузы ввода (0 = паузы нет). Тикает в эффекте ниже.
   const [lockoutLeft, setLockoutLeft] = useState(0)
+  // Биометрия: включена ли на этом устройстве (кнопка), ошибка последней
+  // попытки и DEK, развёрнутый биометрией для шага bio-newpin.
+  const [bioAvailable, setBioAvailable] = useState(false)
+  const [bioError, setBioError] = useState<string | null>(null)
+  const [bioDek, setBioDek] = useState<Dek | null>(null)
 
   // На случай "PIN был удалён из IDB между переходами" — отправляем на setup.
   useEffect(() => {
@@ -57,6 +68,7 @@ export function PinUnlockForm() {
       setAttempts(await PinStorage.getFailedAttempts())
       // Пауза переживает reload — восстанавливаем отсчёт из IndexedDB.
       setLockoutLeft(await readLockoutSeconds())
+      setBioAvailable(await isBiometricEnrolled())
       setChecked(true)
     })()
     return () => {
@@ -150,6 +162,47 @@ export function PinUnlockForm() {
     }
   }
 
+  /**
+   * Кнопка биометрии. Вызывается строго из обработчика тапа (user gesture —
+   * требование WebAuthn). forNewPin=true — режим «не помню PIN»: вместо входа
+   * оставляем развёрнутый DEK и ведём задавать новый PIN.
+   */
+  async function onBioUnlock(forNewPin: boolean) {
+    setBioError(null)
+    setBusy(true)
+    try {
+      const result = await unlockWithBiometric()
+      if (result.status === 'ok') {
+        if (forNewPin) {
+          setBioDek(result.dek)
+          setBusy(false)
+          setStep('bio-newpin')
+          return
+        }
+        // Владелец подтверждён биометрией — счётчик неверных PIN обнуляем,
+        // как при успешном входе по PIN.
+        await PinStorage.resetFailedAttempts()
+        router.replace('/')
+        return
+      }
+      setBusy(false)
+      if (result.status === 'failed') {
+        // Например, passkey удалили из системных настроек. PIN всегда есть.
+        setBioError(
+          'Не получилось по биометрии. Войди по PIN — и загляни в настройки безопасности: возможно, биометрию нужно включить заново.',
+        )
+      } else if (result.status === 'no_bio') {
+        // Набор пропал между рендером и тапом — прячем кнопку.
+        setBioAvailable(false)
+      }
+      // 'cancelled' — юзер закрыл системный шит, молчим.
+    } catch (e) {
+      console.error('biometric unlock failed:', e)
+      setBusy(false)
+      setBioError('Что-то пошло не так. Войди по PIN.')
+    }
+  }
+
   async function finishRecovery(acknowledged: boolean) {
     await PinStorage.setRecoveryAck(acknowledged)
     router.replace('/')
@@ -191,7 +244,25 @@ export function PinUnlockForm() {
           <span className="text-sm uppercase tracking-widest">Numia</span>
         </div>
 
-        {step === 'recovery' ? (
+        {step === 'bio-newpin' && bioDek ? (
+          <NewPinForm dek={bioDek} onSaved={() => setStep('bio-done')} />
+        ) : step === 'bio-done' ? (
+          <>
+            <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
+              Новый PIN сохранён ✦
+            </h1>
+            <p className="mb-6 text-sm leading-relaxed text-[#7A7A7A]">
+              Записи на месте. Дальше входи по биометрии или новому PIN.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.replace('/')}
+              className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+            >
+              Войти
+            </button>
+          </>
+        ) : step === 'recovery' ? (
           <RecoveryKeyCard
             phrase={phrase}
             onDone={() => finishRecovery(true)}
@@ -208,14 +279,37 @@ export function PinUnlockForm() {
               Не помнишь PIN?
             </h1>
             <p className="mb-6 text-sm leading-relaxed text-[#7A7A7A]">
-              Ничего страшного. Если сохранён ключ восстановления — вернём доступ
-              к записям без потерь.
+              Ничего страшного.{' '}
+              {bioAvailable
+                ? 'Биометрия открывает те же записи — войди по ней и задай новый PIN.'
+                : 'Если сохранён ключ восстановления — вернём доступ к записям без потерь.'}
             </p>
+
+            {/* Биометрия — самый лёгкий путь: без фразы, данные целы. */}
+            {bioAvailable && (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onBioUnlock(true)}
+                  className="mb-3 w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+                >
+                  Войти по Face ID и задать новый PIN
+                </button>
+                {bioError && (
+                  <p className="mb-3 text-sm text-rose-600">{bioError}</p>
+                )}
+              </>
+            )}
 
             <button
               type="button"
               onClick={() => setStep('recover')}
-              className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+              className={
+                bioAvailable
+                  ? 'w-full rounded-xl border border-[#5A6B4A] bg-white px-4 py-3 text-sm font-medium text-[#5A6B4A] transition-colors hover:bg-[#5A6B4A]/5 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60'
+                  : 'w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60'
+              }
             >
               Ввести ключ восстановления
             </button>
@@ -238,7 +332,10 @@ export function PinUnlockForm() {
 
             <button
               type="button"
-              onClick={() => setStep('unlock')}
+              onClick={() => {
+                setBioError(null)
+                setStep('unlock')
+              }}
               className="mt-6 block w-full text-center text-sm text-[#7A7A7A] underline-offset-4 hover:text-[#5A6B4A] hover:underline"
             >
               ← Назад
@@ -246,10 +343,35 @@ export function PinUnlockForm() {
           </>
         ) : (
           <>
-        <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">Введи PIN</h1>
+        <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
+          {bioAvailable ? 'С возвращением ✦' : 'Введи PIN'}
+        </h1>
         <p className="mb-6 text-sm text-[#7A7A7A]">
-          Те же 6 цифр, что и при первом входе.
+          {bioAvailable
+            ? 'Войди по биометрии или введи PIN.'
+            : 'Те же 6 цифр, что и при первом входе.'}
         </p>
+
+        {/* Кнопка, не авто-вызов: WebAuthn требует user gesture, а внезапный
+            системный шит при каждом развороте приложения раздражал бы. */}
+        {bioAvailable && (
+          <div className="mb-5">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onBioUnlock(false)}
+              className="w-full rounded-xl border border-[#5A6B4A] bg-white px-4 py-3 text-sm font-medium text-[#5A6B4A] transition-colors hover:bg-[#5A6B4A]/5 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+            >
+              Войти по Face ID / Touch ID
+            </button>
+            {bioError && <p className="mt-2 text-sm text-rose-600">{bioError}</p>}
+            <div className="mt-5 flex items-center gap-3 text-xs text-[#B8B0A4]">
+              <span className="h-px flex-1 bg-[#E8E2D8]" />
+              или PIN
+              <span className="h-px flex-1 bg-[#E8E2D8]" />
+            </div>
+          </div>
+        )}
 
         <form
           className="space-y-4"
@@ -293,7 +415,10 @@ export function PinUnlockForm() {
           <button
             type="button"
             disabled={busy}
-            onClick={() => setStep('forgot')}
+            onClick={() => {
+              setBioError(null)
+              setStep('forgot')
+            }}
             className={
               attempts >= SOFT_LOCKOUT_AFTER
                 ? 'text-rose-600 underline-offset-4 hover:underline disabled:opacity-50'
@@ -307,7 +432,6 @@ export function PinUnlockForm() {
           </>
         )}
 
-        {/* TODO (этап позже): биометрия через WebAuthn — см. комментарий в setup/form.tsx */}
       </main>
     </div>
   )

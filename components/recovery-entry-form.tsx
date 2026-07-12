@@ -2,20 +2,19 @@
 
 import { useState } from 'react'
 
-import { PinInput } from '@/components/pin-input'
+import { NewPinForm } from '@/components/new-pin-form'
 import type { Dek } from '@/lib/crypto/envelope'
 import { isValidRecoveryPhrase } from '@/lib/crypto/recovery'
 import { PinStorage } from '@/lib/crypto/storage'
-import { recoverWithPhrase, setLocalPin } from '@/lib/crypto/vault'
+import { recoverWithPhrase } from '@/lib/crypto/vault'
 
 // Экран восстановления доступа по ключу (12 слов). Завершает recovery-фичу:
 // делает правдой обещание «забыл PIN → вернёшь ключом».
 //
-// Поток: ввод фразы → новый PIN → успех.
+// Поток: ввод фразы → новый PIN (общий NewPinForm) → успех.
 //   1. Фраза проверяется BIP39-checksum'ом ДО сети (ловит опечатки), затем
 //      recoverWithPhrase разворачивает ТОТ ЖЕ DEK из серверного якоря.
-//   2. Новый локальный PIN: setLocalPin пишет весь набор (verify-хэш +
-//      envelope-обёртка, атомарно) поверх того же DEK → контент читаем.
+//   2. Новый локальный PIN — NewPinForm (setLocalPin поверх того же DEK).
 //
 // Тон тёплый: аудитория тревожная, момент «забыл PIN» — стрессовый.
 
@@ -35,9 +34,6 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
   const [phrase, setPhrase] = useState('')
   // Развёрнутый DEK живёт между шагами «фраза» и «новый PIN».
   const [dek, setDek] = useState<Dek | null>(null)
-
-  const [newPin, setNewPin] = useState('')
-  const [confirmPin, setConfirmPin] = useState('')
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,41 +66,6 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
     }
   }
 
-  async function onSubmitPin() {
-    setError(null)
-    if (newPin.length !== 6) {
-      setError('Введи 6 цифр')
-      return
-    }
-    if (newPin !== confirmPin) {
-      setError('PIN-коды не совпадают')
-      setConfirmPin('')
-      return
-    }
-    if (!dek) {
-      // Подстраховка: без DEK сюда попасть нельзя, но если вдруг — назад к фразе.
-      setStep('phrase')
-      return
-    }
-
-    setBusy(true)
-    try {
-      // Весь локальный набор (verify-хэш + envelope-обёртка под новым PIN)
-      // поверх ТОГО ЖЕ DEK — одной атомарной записью, контент цел.
-      await setLocalPin(dek, newPin)
-
-      // Ключ заведомо у юзера (только что вошёл им) — баннер-напоминание не нужен.
-      await PinStorage.setRecoveryAck(true)
-
-      setBusy(false)
-      setStep('done')
-    } catch (e) {
-      console.error('recovery setLocalPin failed:', e)
-      setBusy(false)
-      setError('Не получилось сохранить новый PIN. Попробуй ещё раз.')
-    }
-  }
-
   // ── Успех ──────────────────────────────────────────────────────────────────
   if (step === 'done') {
     return (
@@ -127,42 +88,17 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
     )
   }
 
-  // ── Новый PIN ────────────────────────────────────────────────────────────────
-  if (step === 'pin') {
+  // ── Новый PIN (общий шаг, см. components/new-pin-form.tsx) ──────────────────
+  if (step === 'pin' && dek) {
     return (
-      <>
-        <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">Новый PIN</h1>
-        <p className="mb-6 text-sm text-[#7A7A7A]">
-          Придумай новый 6-значный PIN для входа на этом устройстве.
-        </p>
-
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault()
-            onSubmitPin()
-          }}
-        >
-          <div className="space-y-2">
-            <span className="block text-sm text-[#3A3A3A]">Новый PIN</span>
-            <PinInput value={newPin} onChange={setNewPin} autoFocus disabled={busy} />
-          </div>
-          <div className="space-y-2">
-            <span className="block text-sm text-[#3A3A3A]">Повтори PIN</span>
-            <PinInput value={confirmPin} onChange={setConfirmPin} disabled={busy} />
-          </div>
-
-          {error && <p className="text-sm text-rose-600">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={newPin.length !== 6 || confirmPin.length !== 6 || busy}
-            className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
-          >
-            {busy ? 'Сохраняем…' : 'Сохранить'}
-          </button>
-        </form>
-      </>
+      <NewPinForm
+        dek={dek}
+        onSaved={async () => {
+          // Ключ заведомо у юзера (только что вошёл им) — баннер не нужен.
+          await PinStorage.setRecoveryAck(true)
+          setStep('done')
+        }}
+      />
     )
   }
 
