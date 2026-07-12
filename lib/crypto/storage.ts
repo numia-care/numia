@@ -18,6 +18,11 @@
 //   failed_attempts  — счётчик неудачных попыток unlock (для soft-lockout)
 //   lockout_until    — timestamp (ms): до этого момента ввод PIN на паузе
 //                      (нарастающий backoff после серии неверных попыток)
+//   bio_credential_id — base64 rawId passkey для биометрии (WebAuthn)
+//   bio_prf_salt      — base64 соли для PRF-eval этого passkey
+//   dek_wrapped_bio   — base64(iv‖ct): DEK под ключом из PRF-вывода passkey
+//                       (см. lib/crypto/biometric.ts — третья обёртка DEK,
+//                       живёт ТОЛЬКО локально, как и PIN-обёртка)
 //
 // ВАЖНО про envelope (см. lib/crypto/envelope.ts): обёртка DEK под PIN
 // (dek_wrapped_pin) и соль PIN живут ТОЛЬКО здесь, локально. На сервере их
@@ -148,6 +153,46 @@ export const PinStorage = {
     await removeItem('recovery_ack')
     await removeItem('failed_attempts')
     await removeItem('lockout_until')
+    // Биометрию сносим вместе с PIN-набором: её обёртка разворачивает ТОТ ЖЕ
+    // DEK, и после «Сбросить всё» она открывала бы контент, который юзер
+    // считает сброшенным. Новый vault → биометрию включают заново в настройках.
+    await PinStorage.clearBio()
+  },
+
+  // ── Биометрия (passkey + PRF, см. lib/crypto/biometric.ts) ────────────────
+
+  /**
+   * Записать bio-набор целиком и атомарно (одна транзакция): credential id,
+   * PRF-соль и обёртку DEK. Частичный набор бесполезен и ломал бы unlock.
+   */
+  async writeBioVault(v: {
+    credentialIdB64: string
+    prfSaltB64: string
+    wrappedDekB64: string
+  }): Promise<void> {
+    await setItems({
+      bio_credential_id: v.credentialIdB64,
+      bio_prf_salt: v.prfSaltB64,
+      dek_wrapped_bio: v.wrappedDekB64,
+    })
+  },
+
+  async readBioVault(): Promise<{
+    credentialIdB64: string
+    prfSaltB64: string
+    wrappedDekB64: string
+  } | null> {
+    const credentialIdB64 = await getItem<string>('bio_credential_id')
+    const prfSaltB64 = await getItem<string>('bio_prf_salt')
+    const wrappedDekB64 = await getItem<string>('dek_wrapped_bio')
+    if (!credentialIdB64 || !prfSaltB64 || !wrappedDekB64) return null
+    return { credentialIdB64, prfSaltB64, wrappedDekB64 }
+  },
+
+  async clearBio(): Promise<void> {
+    await removeItem('bio_credential_id')
+    await removeItem('bio_prf_salt')
+    await removeItem('dek_wrapped_bio')
   },
 
   async readCryptoSalt(): Promise<string | null> {

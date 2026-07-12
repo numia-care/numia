@@ -90,14 +90,17 @@ export async function setupVault(pin: string): Promise<string> {
 }
 
 /**
- * Разблокировка на ЭТОМ устройстве: PIN → локальная обёртка → DEK в память.
- * Возвращает true при успехе. Неверный PIN → unwrap бросит (ловим, false).
+ * PIN → сырые байты DEK, без побочных эффектов (сессию не трогает).
  *
- * null-возврат (не bool) если локальной обёртки нет вовсе — значит на этом
- * устройстве envelope ещё не настроен (старый PIN с этапа 0): вызывающий
- * должен запустить ленивый бэкфилл (setupVault) после верификации PIN.
+ * ОСТОРОЖНО с raw: этот экспорт — для потоков, которым нужно ПЕРЕобернуть
+ * DEK новым секретом (unlockWithPin с ленивым KDF-апгрейдом, регистрация
+ * биометрии в biometric.ts). Для обычного «проверить и войти» используй
+ * unlockWithPin. iterations в ответе — какими итерациями был создан набор
+ * (нужно вызывающему, чтобы решить, пора ли апгрейдить).
  */
-export async function unlockWithPin(pin: string): Promise<'ok' | 'wrong' | 'no_vault'> {
+export async function unwrapDekRawWithPin(
+  pin: string,
+): Promise<{ raw: Uint8Array; iterations: number } | 'wrong' | 'no_vault'> {
   const saltB64 = await PinStorage.readCryptoSalt()
   const wrappedPin = await PinStorage.readWrappedDek()
   if (!saltB64 || !wrappedPin) return 'no_vault'
@@ -106,25 +109,34 @@ export async function unlockWithPin(pin: string): Promise<'ok' | 'wrong' | 'no_v
   // версионирования). Разворачиваем строго ими — не текущей константой.
   const iterations = (await PinStorage.readKdfIterations()) ?? LEGACY_KDF_ITERATIONS
 
-  let dekRaw: Uint8Array
   try {
     const kekPin = await deriveKek(pin, base64ToBytes(saltB64), iterations)
-    // raw (не сразу CryptoKey): если набор на старых итерациях, DEK нужно
-    // будет перевернуть под новыми — для wrap нужны сырые байты.
-    dekRaw = await unwrapDekRaw(kekPin, wrappedPin)
+    return { raw: await unwrapDekRaw(kekPin, wrappedPin), iterations }
   } catch {
     // AES-GCM не сошёлся по тегу → неверный PIN.
     return 'wrong'
   }
+}
 
-  markUnlocked(await importDek(dekRaw))
+/**
+ * Разблокировка на ЭТОМ устройстве: PIN → локальная обёртка → DEK в память.
+ *
+ * 'no_vault' — локальной обёртки нет вовсе: на этом устройстве envelope ещё
+ * не настроен (старый PIN с этапа 0), вызывающий должен запустить ленивый
+ * бэкфилл (setupVault) после верификации PIN.
+ */
+export async function unlockWithPin(pin: string): Promise<'ok' | 'wrong' | 'no_vault'> {
+  const unwrapped = await unwrapDekRawWithPin(pin)
+  if (unwrapped === 'wrong' || unwrapped === 'no_vault') return unwrapped
+
+  markUnlocked(await importDek(unwrapped.raw))
 
   // Ленивый апгрейд KDF-параметров: PIN верный, DEK в руках → переворачиваем
   // весь локальный набор на текущие итерации (атомарно). Ошибка апгрейда не
   // мешает входу — попробуем в следующий раз.
-  if (iterations !== KDF_ITERATIONS) {
+  if (unwrapped.iterations !== KDF_ITERATIONS) {
     try {
-      await writeLocalPinArtifacts(pin, dekRaw)
+      await writeLocalPinArtifacts(pin, unwrapped.raw)
     } catch (e) {
       console.error('kdf upgrade failed (will retry on next unlock):', e)
     }
