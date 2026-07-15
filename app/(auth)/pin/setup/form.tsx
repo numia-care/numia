@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { PinInput } from '@/components/pin-input'
 import { RecoveryKeyCard } from '@/components/recovery-key-card'
@@ -20,6 +20,33 @@ export function PinSetupForm() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [phrase, setPhrase] = useState('')
+  // Пока не проверили серверный якорь — держим сплеш (см. эффект ниже).
+  const [checked, setChecked] = useState(false)
+
+  // Кросс-девайс / переустановка PWA: якорь восстановления проверяем СРАЗУ,
+  // до показа «Придумай PIN». Иначе юзер дважды вводит новый PIN, а форма
+  // потом всё равно уводит на ввод фразы, выбросив введённое (баг с живого
+  // прогона 2026-07-15). Есть якорь → сразу recovery-флоу: фраза → новый PIN,
+  // один раз.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const remote = await hasRemoteVault()
+        if (cancelled) return
+        if (remote) setStep('recover')
+      } catch (e) {
+        // Сеть/сервер недоступны — не блокируем setup вечным сплешем.
+        // Страховка от осиротения контента остаётся: onCreate перед
+        // setupVault проверяет якорь ещё раз, и там ошибка = стоп.
+        console.error('recovery anchor pre-check failed:', e)
+      }
+      if (!cancelled) setChecked(true)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function onCreate() {
     setError(null)
@@ -65,6 +92,15 @@ export function PinSetupForm() {
   async function finishRecovery(acknowledged: boolean) {
     await PinStorage.setRecoveryAck(acknowledged)
     router.replace('/')
+  }
+
+  if (!checked) {
+    // Сплеш на время проверки якоря — тот же, что на экране разблокировки.
+    return (
+      <div className="flex flex-1 items-center justify-center bg-[#FAF6F0]">
+        <span className="text-2xl text-[#5A6B4A]">✦</span>
+      </div>
+    )
   }
 
   return (

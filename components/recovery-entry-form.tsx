@@ -60,6 +60,9 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
       const msg = e instanceof Error ? e.message : ''
       if (msg.includes('no_recovery_anchor')) {
         setError('Для этого аккаунта ключ восстановления не найден.')
+      } else if (msg.includes('recovery_anchor_read_failed')) {
+        // Сбой сети/сервера — ключ тут ни при чём, не сбиваем с толку.
+        setError('Не получилось связаться с сервером. Проверь интернет и попробуй ещё раз.')
       } else {
         setError('Не получилось открыть этим ключом. Проверь слова и попробуй ещё раз.')
       }

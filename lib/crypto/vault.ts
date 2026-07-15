@@ -185,6 +185,10 @@ export async function setLocalPin(dek: Dek, newPin: string): Promise<void> {
  * (хотя бы на одном устройстве), значит НЕЛЬЗЯ генерить новый DEK через
  * setupVault — он осиротит существующий E2E-контент и повторно покажет ключ.
  * В таком случае доступ возвращают по recovery-фразе (recoverWithPhrase).
+ *
+ * БРОСАЕТ при сбое запроса (сеть/сервер): «не смогли проверить» нельзя
+ * выдавать за «якоря нет» — на этом ответе вызывающие решают, можно ли
+ * генерить новый DEK, и ложное «нет» перезаписало бы живой якорь.
  */
 export async function hasRemoteVault(): Promise<boolean> {
   return (await readRecoveryAnchor()) !== null
@@ -230,7 +234,11 @@ async function readRecoveryAnchor(): Promise<{
     .eq('id', user.id)
     .maybeSingle()
 
-  if (error || !data || !data.recovery_salt || !data.dek_wrapped_recovery) return null
+  // Сбой запроса ≠ «якоря нет»: null здесь разрешает setupVault генерить
+  // новый DEK, и сетевая ошибка, прикинувшаяся «нет», перезаписала бы живой
+  // якорь (безвозвратное осиротение E2E-контента). Поэтому бросаем.
+  if (error) throw new Error(`recovery_anchor_read_failed: ${error.message}`)
+  if (!data || !data.recovery_salt || !data.dek_wrapped_recovery) return null
   return {
     recoverySalt: data.recovery_salt,
     wrappedRecovery: data.dek_wrapped_recovery,
