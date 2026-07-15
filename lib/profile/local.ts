@@ -1,5 +1,9 @@
-// Минимальный профиль — ТОЛЬКО локально на устройстве (localStorage), не на
-// сервере. Имя для приветствия и форма обращения для словаря приветствий.
+// Локальный КЭШ профиля (localStorage): имя для приветствия и форма обращения
+// для словаря приветствий. Источник правды — зашифрованная серверная копия
+// (profiles.profile_ciphertext, см. lib/profile/sync.ts): кэш даёт мгновенное
+// приветствие без ожидания сети/расшифровки, синк — переживание переустановки
+// PWA и кросс-девайс. Писать профиль через saveProfileLocal + flushProfile
+// (sync.ts), не напрямую сюда — иначе изменение не доедет до сервера.
 //
 // Форма обращения влияет ИСКЛЮЧИТЕЛЬНО на приветствия (lib/dashboard/greetings).
 // Это НЕ система местоимений: весь остальной UI остаётся гендерно-нейтральным.
@@ -37,4 +41,13 @@ export function getAddressForm(): AddressForm {
 export function setAddressForm(f: AddressForm): void {
   if (typeof window === 'undefined') return
   localStorage.setItem(FORM_KEY, f)
+}
+
+// Есть ли на устройстве хоть что-то, что стоит поднять на сервер (мягкая
+// миграция со времён «профиль только в localStorage»). Форму проверяем по
+// наличию ключа, не через getAddressForm: та возвращает 'neutral' и для
+// «не задано», а сознательно выбранный neutral мигрировать тоже надо.
+export function hasLocalProfile(): boolean {
+  if (typeof window === 'undefined') return false
+  return getDisplayName() !== null || localStorage.getItem(FORM_KEY) !== null
 }

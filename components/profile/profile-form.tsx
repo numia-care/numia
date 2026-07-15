@@ -9,20 +9,35 @@ import { Label } from '@/components/ui/label'
 import {
   getAddressForm,
   getDisplayName,
-  setAddressForm,
-  setDisplayName,
   type AddressForm,
 } from '@/lib/profile/local'
+import { flushProfile, saveProfileLocal } from '@/lib/profile/sync'
 import { cn } from '@/lib/utils'
 
-// Профиль — имя и форма обращения, ТОЛЬКО локально (localStorage). Пишем сразу
-// на изменение. Начальные значения читаем в инициализаторе useState (на SSR —
-// пусто/нейтрально), несовпадение гидрации на полях гасим suppressHydrationWarning.
+// Профиль — имя и форма обращения. Локальный кэш пишем сразу на изменение
+// (через saveProfileLocal), зашифрованную серверную копию пушим с дебаунсом:
+// имя печатается по букве, гонять шифрование+сеть на каждый keystroke незачем.
+// Даже если пуш не успеет (ушли с экрана/закрыли вкладку) — правка не теряется:
+// dirty-флаг допушит её при следующем syncProfile. Начальные значения читаем в
+// инициализаторе useState (на SSR — пусто/нейтрально), несовпадение гидрации
+// на полях гасим suppressHydrationWarning.
+const PUSH_DEBOUNCE_MS = 800
+
 export function ProfileForm() {
   const t = useTranslations('profile')
 
   const [name, setName] = useState(() => getDisplayName() ?? '')
   const [form, setForm] = useState<AddressForm>(() => getAddressForm())
+
+  // Дебаунс шифрованного пуша на сервер (кэш при этом уже обновлён).
+  const pushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function save(next: { name: string; addressForm: AddressForm }) {
+    saveProfileLocal(next)
+    if (pushTimerRef.current) clearTimeout(pushTimerRef.current)
+    pushTimerRef.current = setTimeout(() => void flushProfile(), PUSH_DEBOUNCE_MS)
+    flashSaved()
+  }
 
   // Сохранение идёт на лету (localStorage), поэтому даём явный фидбек: коротко
   // показываем «Сохранено ✦». Таймер сбрасывается при каждом изменении, так что
@@ -39,6 +54,10 @@ export function ProfileForm() {
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
+      // Уходим с экрана, не дожидаясь дебаунса — допушиваем сразу (no-op,
+      // если пуш уже успел и dirty снят).
+      if (pushTimerRef.current) clearTimeout(pushTimerRef.current)
+      void flushProfile()
     }
   }, [])
 
@@ -69,8 +88,7 @@ export function ProfileForm() {
           suppressHydrationWarning
           onChange={(e) => {
             setName(e.target.value)
-            setDisplayName(e.target.value)
-            flashSaved()
+            save({ name: e.target.value, addressForm: form })
           }}
           placeholder={t('namePlaceholder')}
           maxLength={40}
@@ -87,8 +105,7 @@ export function ProfileForm() {
               type="button"
               onClick={() => {
                 setForm(o.value)
-                setAddressForm(o.value)
-                flashSaved()
+                save({ name, addressForm: o.value })
               }}
               aria-pressed={form === o.value}
               className={cn(
