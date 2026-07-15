@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { noteBioOfferPending } from '@/components/biometric-offer'
 import { NewPinForm } from '@/components/new-pin-form'
 import { PinInput } from '@/components/pin-input'
 import { RecoveryKeyCard } from '@/components/recovery-key-card'
@@ -129,6 +130,9 @@ export function PinUnlockForm() {
       // PIN верен — разворачиваем DEK из локальной обёртки (envelope).
       const result = await unlockWithPin(pin)
       if (result === 'ok') {
+        // Удачный момент один раз предложить биометрию — тост покажет
+        // BiometricOffer в layout'е приложения, если условия сойдутся.
+        noteBioOfferPending()
         router.replace('/')
         return
       }

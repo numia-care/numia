@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 
+import { BiometricOffer } from '@/components/biometric-offer'
 import { BottomNav } from '@/components/nav/bottom-nav'
 import { PinGate } from '@/components/pin-gate'
 import { PushSelfHeal } from '@/components/push/push-self-heal'
@@ -26,6 +27,7 @@ export default async function AppLayout({
     <PinGate>
       <TimezoneSync />
       <PushSelfHeal />
+      <BiometricOffer />
       {/* padding-bottom = плавающая пилюля (62px) + её отступ + запас + iOS
           safe-area, чтобы BottomNav не перекрывал контент в самом низу. */}
       <div className="min-h-dvh pb-[calc(6.5rem+env(safe-area-inset-bottom))]">
