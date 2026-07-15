@@ -23,8 +23,6 @@
 //   dek_wrapped_bio   — base64(iv‖ct): DEK под ключом из PRF-вывода passkey
 //                       (см. lib/crypto/biometric.ts — третья обёртка DEK,
 //                       живёт ТОЛЬКО локально, как и PIN-обёртка)
-//   bio_offer_shown   — boolean: однократное предложение включить биометрию
-//                       после входа уже показывали (components/biometric-offer)
 //
 // ВАЖНО про envelope (см. lib/crypto/envelope.ts): обёртка DEK под PIN
 // (dek_wrapped_pin) и соль PIN живут ТОЛЬКО здесь, локально. На сервере их
@@ -155,8 +153,6 @@ export const PinStorage = {
     await removeItem('recovery_ack')
     await removeItem('failed_attempts')
     await removeItem('lockout_until')
-    // Новый vault → предложить биометрию можно будет заново.
-    await removeItem('bio_offer_shown')
     // Биометрию сносим вместе с PIN-набором: её обёртка разворачивает ТОТ ЖЕ
     // DEK, и после «Сбросить всё» она открывала бы контент, который юзер
     // считает сброшенным. Новый vault → биометрию включают заново в настройках.
@@ -197,16 +193,6 @@ export const PinStorage = {
     await removeItem('bio_credential_id')
     await removeItem('bio_prf_salt')
     await removeItem('dek_wrapped_bio')
-  },
-
-  // Однократное предложение «входить по биометрии?» после PIN-входа.
-  // Показали один раз — больше не показываем (даже если проигнорили).
-  async getBioOfferShown(): Promise<boolean> {
-    return (await getItem<boolean>('bio_offer_shown')) ?? false
-  },
-
-  async setBioOfferShown(): Promise<void> {
-    await setItem('bio_offer_shown', true)
   },
 
   async readCryptoSalt(): Promise<string | null> {

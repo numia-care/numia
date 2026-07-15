@@ -3,12 +3,16 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { noteBioOfferPending } from '@/components/biometric-offer'
 import { NewPinForm } from '@/components/new-pin-form'
+import { BiometricEnrollDialog } from '@/components/settings/biometric-enroll-dialog'
 import { PinInput } from '@/components/pin-input'
 import { RecoveryKeyCard } from '@/components/recovery-key-card'
 import { RecoveryEntryForm } from '@/components/recovery-entry-form'
-import { isBiometricEnrolled, unlockWithBiometric } from '@/lib/crypto/biometric'
+import {
+  detectBiometricSupport,
+  isBiometricEnrolled,
+  unlockWithBiometric,
+} from '@/lib/crypto/biometric'
 import type { Dek } from '@/lib/crypto/envelope'
 import {
   base64ToBytes,
@@ -55,6 +59,10 @@ export function PinUnlockForm() {
   const [bioAvailable, setBioAvailable] = useState(false)
   const [bioError, setBioError] = useState<string | null>(null)
   const [bioDek, setBioDek] = useState<Dek | null>(null)
+  // Умеет ли устройство биометрию вообще (для тихого предложения включить —
+  // строчка под PIN-падом, видна пока биометрия не включена) + сам диалог.
+  const [bioSupport, setBioSupport] = useState<'pending' | 'yes' | 'no' | 'unknown'>('pending')
+  const [enrollOpen, setEnrollOpen] = useState(false)
 
   // На случай "PIN был удалён из IDB между переходами" — отправляем на setup.
   useEffect(() => {
@@ -70,6 +78,7 @@ export function PinUnlockForm() {
       // Пауза переживает reload — восстанавливаем отсчёт из IndexedDB.
       setLockoutLeft(await readLockoutSeconds())
       setBioAvailable(await isBiometricEnrolled())
+      setBioSupport(await detectBiometricSupport())
       setChecked(true)
     })()
     return () => {
@@ -130,9 +139,6 @@ export function PinUnlockForm() {
       // PIN верен — разворачиваем DEK из локальной обёртки (envelope).
       const result = await unlockWithPin(pin)
       if (result === 'ok') {
-        // Удачный момент один раз предложить биометрию — тост покажет
-        // BiometricOffer в layout'е приложения, если условия сойдутся.
-        noteBioOfferPending()
         router.replace('/')
         return
       }
@@ -415,7 +421,7 @@ export function PinUnlockForm() {
           </button>
         </form>
 
-        <div className="mt-6 text-sm">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
           <button
             type="button"
             disabled={busy}
@@ -431,10 +437,35 @@ export function PinUnlockForm() {
           >
             Не помню PIN
           </button>
+
+          {/* Тихое предложение включить биометрию — живёт там, где боль:
+              прямо у ввода PIN. Видно, пока биометрия не включена (после
+              включения его место занимает кнопка «Войти по Face ID» выше).
+              Только уверенное 'yes': предложение, которое упрётся в «не
+              поддерживается», хуже чем никакого. */}
+          {!bioAvailable && bioSupport === 'yes' && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setEnrollOpen(true)}
+              className="text-[#7A7A7A] underline-offset-4 hover:text-[#5A6B4A] hover:underline disabled:opacity-50"
+            >
+              Хочешь входить по Face ID? ✦
+            </button>
+          )}
         </div>
 
           </>
         )}
+
+        {/* Тот же enroll-флоу с PIN-диалогом, что у тумблера в настройках.
+            Работает и на запертом экране: enrollBiometric разворачивает DEK
+            введённым в диалоге PIN, сессия ему не нужна. */}
+        <BiometricEnrollDialog
+          open={enrollOpen}
+          onClose={() => setEnrollOpen(false)}
+          onEnrolled={() => setBioAvailable(true)}
+        />
 
       </main>
     </div>
