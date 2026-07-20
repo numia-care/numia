@@ -17,13 +17,42 @@ import { cn } from '@/lib/utils'
 
 const SEEN_KEY = 'numia_onboarding_seen'
 
-type Step = 0 | 1 | 2
+// 0 приветствие → 1 приватность → 2 «установи на главный экран» (только из
+// браузера на мобильном, в standalone/на десктопе пропускается) → 3 выбор.
+type Step = 0 | 1 | 2 | 3
+
+// Уже стоит на главном экране? (display-mode из manifest + легаси-флаг Safari)
+function isStandalone(): boolean {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as { standalone?: boolean }).standalone === true
+  )
+}
+
+// Платформа для инструкции установки — шаги iOS и Android различаются.
+function detectPlatform(): 'ios' | 'android' | 'other' {
+  const ua = navigator.userAgent
+  if (/iPhone|iPad|iPod/.test(ua)) return 'ios'
+  // iPadOS 13+ прикидывается маком — выдаёт себя тач-экраном.
+  if (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return 'ios'
+  if (/Android/.test(ua)) return 'android'
+  return 'other'
+}
 
 export function OnboardingCurtain() {
   const t = useTranslations('onboarding')
   const router = useRouter()
   const [visible, setVisible] = useState(false)
   const [step, setStep] = useState<Step>(0)
+  // Инструкция установки: null = шаг пропускаем (standalone или десктоп).
+  // Считаем в инициализаторе: компонент рендерится только на клиенте
+  // (visible до эффекта false), но SSR-ветку всё равно страхуем.
+  const [installPlatform] = useState<'ios' | 'android' | null>(() => {
+    if (typeof window === 'undefined') return null
+    if (isStandalone()) return null
+    const p = detectPlatform()
+    return p === 'other' ? null : p
+  })
 
   useEffect(() => {
     // Флаг локальный: онбординг — свойство устройства, не аккаунта. На новом
@@ -115,11 +144,30 @@ export function OnboardingCurtain() {
             <p className="mt-3 max-w-sm leading-relaxed text-foreground/80">
               {t('step2Text')}
             </p>
-            <NextButton onClick={() => setStep(2)} label={t('next')} />
+            <NextButton
+              onClick={() => setStep(installPlatform ? 2 : 3)}
+              label={t('next')}
+            />
           </>
         )}
 
-        {step === 2 && (
+        {step === 2 && installPlatform && (
+          <>
+            <h2 className="font-heading text-3xl text-foreground">
+              {t('installTitle')}
+            </h2>
+            <p className="mt-3 max-w-sm leading-relaxed text-foreground/80">
+              {t('installText')}
+            </p>
+            {/* Пошаговая инструкция — своя для iOS и Android (по user agent). */}
+            <p className="mt-4 max-w-sm rounded-2xl bg-card px-5 py-4 text-sm leading-relaxed text-foreground ring-1 ring-border">
+              {installPlatform === 'ios' ? t('installIos') : t('installAndroid')}
+            </p>
+            <NextButton onClick={() => setStep(3)} label={t('next')} />
+          </>
+        )}
+
+        {step === 3 && (
           <>
             <h2 className="font-heading text-3xl text-foreground">
               {t('step3Title')}

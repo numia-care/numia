@@ -42,7 +42,7 @@ export type MedicationForm =
   | 'spray'
   | 'other'
 
-export type DoseUnit = 'mg' | 'mcg' | 'ml' | 'iu' | 'drop' | 'puff'
+export type DoseUnit = 'mg' | 'mcg' | 'ml' | 'iu' | 'drop' | 'puff' | 'tablet'
 
 export type IntakeStatus = 'upcoming' | 'taken' | 'skipped' | 'missed'
 

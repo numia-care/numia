@@ -15,6 +15,7 @@ type PluralForms = [one: string, few: string, many: string]
 const UNIT_PLURALS: Partial<Record<DoseUnit, PluralForms>> = {
   puff: ['пшик', 'пшика', 'пшиков'],
   drop: ['капля', 'капли', 'капель'],
+  tablet: ['таблетка', 'таблетки', 'таблеток'],
 }
 
 /**

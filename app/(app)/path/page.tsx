@@ -1,8 +1,7 @@
 import { getTranslations } from 'next-intl/server'
-import Link from 'next/link'
 
 import { PathFeed } from '@/components/path/path-feed'
-import { buttonVariants } from '@/components/ui/button'
+import { AddLink } from '@/components/ui/add-link'
 
 // Серверная оболочка: заголовок + кнопка добавления. Сама лента — клиентская
 // (PathFeed): расшифровка идёт на устройстве ключом из PIN-сессии, на сервере
@@ -16,9 +15,7 @@ export default async function PathPage() {
         <h1 className="font-heading text-3xl text-foreground sm:text-4xl">
           {t('title')}
         </h1>
-        <Link href="/path/new" className={buttonVariants({ size: 'lg' })}>
-          {t('addButton')}
-        </Link>
+        <AddLink href="/path/new" label={t('addButton')} />
       </header>
 
       <PathFeed />

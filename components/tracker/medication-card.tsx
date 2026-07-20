@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import Link from 'next/link'
 
+import { formatNextIntake, nextIntakeLocal } from '@/lib/tracker/next-intake'
 import type { MedicationRow } from '@/lib/tracker/queries'
 import type { Schedule } from '@/lib/tracker/schedule'
 import { formatDoseWithUnit } from '@/lib/tracker/units'
@@ -54,6 +55,7 @@ export function MedicationCard({ med }: { med: MedicationRow }) {
             <p className="text-[11px] leading-snug text-[#1F1F1F]/70">
               {formatSchedule(med.schedule, t)}
             </p>
+            <NextIntakeLine med={med} />
             <KindBadge kind={med.kind} />
           </div>
           <div className="flex shrink-0 items-center gap-1">
@@ -68,6 +70,28 @@ export function MedicationCard({ med }: { med: MedicationRow }) {
         </div>
       )}
     </div>
+  )
+}
+
+// «следующий: чт, 23:00» — избавляет от счёта в уме, когда следующий приём
+// у интервального расписания (фидбек беты). Считается в момент разворота
+// карточки (компонент рендерится только в expanded), локальным временем
+// устройства — SSR его не трогает, гидрации нечему расходиться.
+function NextIntakeLine({ med }: { med: MedicationRow }) {
+  const t = useTranslations('tracker')
+  const slot = nextIntakeLocal(med.schedule, {
+    startDate: med.start_date,
+    endDate: med.end_date,
+  })
+  if (!slot) return null
+  const when = formatNextIntake(slot, {
+    today: t('card.nextToday'),
+    tomorrow: t('card.nextTomorrow'),
+  })
+  return (
+    <p className="mt-0.5 text-[11px] font-medium leading-snug text-[#1F1F1F]">
+      {t('card.next', { when })}
+    </p>
   )
 }
 

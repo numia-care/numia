@@ -1,8 +1,8 @@
-import { PlusIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 
 import { PushPromptCard } from '@/components/push/push-prompt-card'
+import { AddLink } from '@/components/ui/add-link'
 import { MedicationCard } from '@/components/tracker/medication-card'
 import { TodaySection } from '@/components/tracker/today-section'
 import { listActiveMedications } from '@/lib/tracker/queries'
@@ -36,14 +36,7 @@ export default async function TrackerPage() {
           <h1 className="text-3xl tracking-[-0.02em] text-foreground">
             {t('title')}
           </h1>
-          {/* Тёмная круглая «+» — по фрейму. */}
-          <Link
-            href="/tracker/new"
-            aria-label={t('addButton')}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#262626] text-white transition-opacity hover:opacity-85"
-          >
-            <PlusIcon className="size-5" />
-          </Link>
+          <AddLink href="/tracker/new" label={t('addButton')} />
         </header>
 
         {meds.length > 0 && <PushPromptCard />}

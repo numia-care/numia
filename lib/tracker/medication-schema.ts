@@ -43,7 +43,7 @@ export const MedicationInputSchema = z.object({
     .number({ message: 'число' })
     .positive('больше нуля')
     .finite(),
-  dose_unit: z.enum(['mg', 'mcg', 'ml', 'iu', 'drop', 'puff']),
+  dose_unit: z.enum(['mg', 'mcg', 'ml', 'iu', 'drop', 'puff', 'tablet']),
   schedule: ScheduleSchema,
   start_date: z.string().regex(DATE_REGEX, 'формат YYYY-MM-DD'),
   // Без .transform() — иначе z.input != z.output, и RHF resolver двоит

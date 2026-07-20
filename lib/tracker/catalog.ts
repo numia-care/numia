@@ -27,6 +27,8 @@ export const MEDICATION_CATALOG: readonly MedicationCatalogEntry[] = [
   { name: 'Эстрадиол гемигидрат', kind: 'estrogen', form: 'tablet', dose_unit: 'mg', dose_default: 2 },
   { name: 'Эстрадиола ципионат', kind: 'estrogen', form: 'injection', dose_unit: 'mg', dose_default: 5 },
   { name: 'Эстрадиола энантат', kind: 'estrogen', form: 'injection', dose_unit: 'mg', dose_default: 5 },
+  // Длинный эфир: колют раз в 2-4 недели, отсюда дефолт выше энантата/ципионата.
+  { name: 'Эстрадиола ундецилат', kind: 'estrogen', form: 'injection', dose_unit: 'mg', dose_default: 40 },
   { name: 'Эстрадиол (гель)', kind: 'estrogen', form: 'gel', dose_unit: 'mg', dose_default: 1.5 },
   { name: 'Эстрадиол (пластырь)', kind: 'estrogen', form: 'patch', dose_unit: 'mcg', dose_default: 100 },
   { name: 'Эстрадиол (спрей)', kind: 'estrogen', form: 'spray', dose_unit: 'puff', dose_default: 3 },
@@ -85,6 +87,7 @@ export const UNIT_LABELS_RU: Record<DoseUnit, string> = {
   iu: 'МЕ',
   drop: 'кап.',
   puff: 'пшик',
+  tablet: 'таб.',
 }
 
 export const KINDS_ORDERED: MedicationKind[] = [
@@ -111,6 +114,7 @@ export const UNITS_ORDERED: DoseUnit[] = [
   'mcg',
   'ml',
   'iu',
+  'tablet',
   'drop',
   'puff',
 ]

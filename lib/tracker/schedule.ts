@@ -134,7 +134,7 @@ export function computeSlotsForDay(
  * что в общем случае работает, но через Date.UTC оно явно и не зависит
  * от того где запустилось.
  */
-function daysBetweenCalendarDates(fromYmd: string, toYmd: string): number {
+export function daysBetweenCalendarDates(fromYmd: string, toYmd: string): number {
   const [fy, fm, fd] = fromYmd.split('-').map(Number)
   const [ty, tm, td] = toYmd.split('-').map(Number)
   const fromUtc = Date.UTC(fy, fm - 1, fd)
