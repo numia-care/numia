@@ -108,26 +108,3 @@ export async function syncUserTimezone(
 
   return { changed: true, tz: detected }
 }
-
-/**
- * Прочитать tz юзера из profiles. Дефолт 'UTC' если ряда нет
- * (триггер handle_new_user должен был создать профиль на signup,
- * но на всякий случай fallback есть).
- *
- * Используется при генерации слотов расписания на сервере.
- */
-export async function getUserTimezone(): Promise<string> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return 'UTC'
-
-  const { data } = await supabase
-    .from('profiles')
-    .select('timezone')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  return data?.timezone ?? 'UTC'
-}

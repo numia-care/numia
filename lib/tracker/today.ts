@@ -1,6 +1,6 @@
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getAuthUser } from '@/lib/supabase/server'
 
 import type { IntakeEventRow, MedicationRow } from './queries'
 import { parseSchedule } from './schedule'
@@ -47,11 +47,9 @@ export interface TodaySlot extends IntakeEventRow {
  * Слоты на сегодня в tz юзера, отсортированные по scheduled_at ASC.
  */
 export async function getTodaySlots(timezone: string): Promise<TodaySlot[]> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getAuthUser() // кэширован на запрос
   if (!user) return []
+  const supabase = await createClient()
 
   const { start, end } = getTodayRange(timezone)
 

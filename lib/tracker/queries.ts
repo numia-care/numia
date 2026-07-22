@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getAuthUser } from '@/lib/supabase/server'
 import { parseSchedule, type Schedule } from './schedule'
 
 const ID_SCHEMA = z.string().uuid()
@@ -96,11 +96,9 @@ export interface IntakeEventRow {
  * Schedule, реально провалидированную, а не приведённую через as.
  */
 export async function listActiveMedications(): Promise<MedicationRow[]> {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getAuthUser() // кэширован на запрос — без лишнего похода в Auth
   if (!user) return []
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('medications')
@@ -127,11 +125,9 @@ export async function getMedicationForEdit(
 ): Promise<MedicationRow | null> {
   if (!ID_SCHEMA.safeParse(id).success) return null
 
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getAuthUser()
   if (!user) return null
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('medications')

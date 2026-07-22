@@ -1,17 +1,32 @@
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
+import { after } from 'next/server'
+import { Suspense } from 'react'
 
 import { PushPromptCard } from '@/components/push/push-prompt-card'
-import { AddLink } from '@/components/ui/add-link'
 import { MedicationCard } from '@/components/tracker/medication-card'
 import { TodaySection } from '@/components/tracker/today-section'
+import { AddLink } from '@/components/ui/add-link'
+import { createClient, getAuthUser } from '@/lib/supabase/server'
+import { getUserTimezoneServer } from '@/lib/timezone-server'
 import { listActiveMedications } from '@/lib/tracker/queries'
+import { generateSlotsForActiveMeds } from '@/lib/tracker/slot-generator'
+import { getTodaySlots } from '@/lib/tracker/today'
 
 // Экран «Препараты» по фрейму Кая (288:357 / 306:34): ✦ по центру сверху,
 // заголовок 30px, тёмная круглая «+» справа, слоты и препараты — строки-пилюли.
+//
+// Перф (репорт беты 2026-07-22: переход на вкладку занимал 2-3с):
+//   • Каркас (шапка, фон) отдаётся МГНОВЕННО — данные стримятся следом за
+//     Suspense со скелетоном. Ни одного похода в БД до первого байта.
+//   • Внутри TrackerData критический путь ужат до трёх шагов:
+//     auth (кэширован на запрос) → препараты ∥ таймзона → слоты дня.
+//   • Генерация/сверка слотов ушла в after() — исполняется ПОСЛЕ отправки
+//     ответа. Слоты на сегодня и так уже есть (суточный cron + генерация при
+//     создании/правке препарата и смене tz); on-demand здесь — страховка
+//     самолечения, её результат нужен к следующему визиту, не к этому.
 export default async function TrackerPage() {
   const t = await getTranslations('tracker')
-  const meds = await listActiveMedications()
 
   return (
     <div className="relative overflow-hidden">
@@ -39,10 +54,67 @@ export default async function TrackerPage() {
           <AddLink href="/tracker/new" label={t('addButton')} />
         </header>
 
-        {meds.length > 0 && <PushPromptCard />}
-        {meds.length > 0 && <TodaySection />}
+        <Suspense fallback={<TrackerSkeleton />}>
+          <TrackerData />
+        </Suspense>
+      </div>
+    </div>
+  )
+}
 
-        {meds.length === 0 ? <EmptyState /> : <List meds={meds} label={t('allLabel')} />}
+// Вся работа с данными — за Suspense-границей, чтобы не задерживать каркас.
+async function TrackerData() {
+  const t = await getTranslations('tracker')
+  const user = await getAuthUser()
+  if (!user) return null
+
+  // Параллельно: список препаратов и таймзона (раньше — последовательно,
+  // с двумя лишними походами в Auth между ними).
+  const [meds, tz] = await Promise.all([
+    listActiveMedications(),
+    getUserTimezoneServer(),
+  ])
+
+  // Клиент создаём ДО after(): внутри after cookies() из Server Component
+  // недоступны, а замыкание на готовый клиент — ок.
+  const supabase = await createClient()
+  after(async () => {
+    try {
+      await generateSlotsForActiveMeds(supabase, user.id, tz, 1)
+    } catch (e) {
+      console.error('slot generation after tracker render failed:', e)
+    }
+  })
+
+  const slots = meds.length > 0 ? await getTodaySlots(tz) : []
+
+  return (
+    <>
+      {meds.length > 0 && <PushPromptCard />}
+      {meds.length > 0 && <TodaySection slots={slots} timezone={tz} />}
+      {meds.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <List meds={meds} label={t('allLabel')} />
+      )}
+    </>
+  )
+}
+
+// Скелетон на время загрузки данных: пилюля-ярлык + строки-пилюли — та же
+// геометрия, что у настоящих секций, чтобы контент не прыгал при появлении.
+function TrackerSkeleton() {
+  return (
+    <div aria-hidden className="animate-pulse">
+      <div className="h-8 w-24 rounded-full bg-black/[0.06]" />
+      <div className="mt-3 grid gap-2.5">
+        <div className="h-[52px] rounded-full bg-black/[0.06]" />
+        <div className="h-[52px] rounded-full bg-black/[0.06]" />
+      </div>
+      <div className="mt-8 h-8 w-32 rounded-full bg-black/[0.06]" />
+      <div className="mt-3 grid gap-2.5">
+        <div className="h-[52px] rounded-full bg-black/[0.06]" />
+        <div className="h-[52px] rounded-full bg-black/[0.06]" />
       </div>
     </div>
   )

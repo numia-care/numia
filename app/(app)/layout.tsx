@@ -5,7 +5,7 @@ import { PinGate } from '@/components/pin-gate'
 import { ProfileSync } from '@/components/profile-sync'
 import { PushSelfHeal } from '@/components/push/push-self-heal'
 import { TimezoneSync } from '@/components/timezone-sync'
-import { createClient } from '@/lib/supabase/server'
+import { getAuthUser } from '@/lib/supabase/server'
 
 // Layout для защищённых страниц приложения. Два слоя защиты:
 //   1. СЕРВЕР: Supabase auth (этот файл). Без cookie сессии → /login.
@@ -18,10 +18,9 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // getAuthUser кэширован на запрос — страницы под layout'ом переиспользуют
+  // этот же результат, не бегая в Supabase Auth ещё раз.
+  const user = await getAuthUser()
   if (!user) redirect('/login')
 
   return (

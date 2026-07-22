@@ -1,6 +1,7 @@
 import { UserIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
+import { Suspense } from 'react'
 
 import { DateBadge } from '@/components/dashboard/date-badge'
 import { EveningNudge } from '@/components/dashboard/evening-nudge'
@@ -86,15 +87,32 @@ export default async function TodayPage() {
             внутри, поэтому без FadeIn-обёртки. */}
         <RetroCard />
 
-        {/* Сегодняшние приёмы — реальная сводка (заглушка внутри, если пусто). */}
+        {/* Сегодняшние приёмы — реальная сводка (заглушка внутри, если пусто).
+            Единственный серверный компонент с данными на этой странице —
+            за Suspense, чтобы каркас дашборда не ждал БД (перф-репорт беты). */}
         <FadeIn delayMs={160}>
-          <TodayMeds />
+          <Suspense fallback={<TodayMedsSkeleton />}>
+            <TodayMeds />
+          </Suspense>
         </FadeIn>
 
         {/* Последнее из «Пути» — превью 1–2 записей (заглушка, если пусто). */}
         <FadeIn delayMs={240}>
           <PathPreview />
         </FadeIn>
+      </div>
+    </div>
+  )
+}
+
+// Скелетон сводки приёмов — та же стекло-карточка, чтобы не прыгала вёрстка.
+function TodayMedsSkeleton() {
+  return (
+    <div aria-hidden className="card-glass animate-pulse p-5">
+      <div className="h-4 w-40 rounded-full bg-black/[0.06]" />
+      <div className="mt-3 grid grid-cols-2 gap-1.5">
+        <div className="h-7 rounded-full bg-black/[0.06]" />
+        <div className="h-7 rounded-full bg-black/[0.06]" />
       </div>
     </div>
   )

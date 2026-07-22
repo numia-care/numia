@@ -1,27 +1,23 @@
 import { getTranslations } from 'next-intl/server'
 
-import { createClient } from '@/lib/supabase/server'
-import { generateSlotsForActiveMeds } from '@/lib/tracker/slot-generator'
-import { formatSlotTime, getTodaySlots, type TodaySlot } from '@/lib/tracker/today'
+import { formatSlotTime, type TodaySlot } from '@/lib/tracker/today'
 import { formatDoseWithUnit } from '@/lib/tracker/units'
-import { getUserTimezone } from '@/lib/timezone-actions'
 
 import { SlotCard } from './slot-card'
 
-export async function TodaySection() {
+// Секция «Сегодня» на /tracker — ПРЕЗЕНТАЦИОННАЯ: slots и tz приходят
+// сверху (TrackerData в page.tsx), сама она в БД не ходит. Раньше секция
+// сама читала tz, гоняла генерацию слотов и select — это был второй
+// последовательный водопад запросов на критическом пути рендера, и переход
+// на вкладку занимал 2-3 секунды (перф-репорт беты, 2026-07-22).
+export async function TodaySection({
+  slots,
+  timezone,
+}: {
+  slots: TodaySlot[]
+  timezone: string
+}) {
   const t = await getTranslations('tracker.today')
-
-  const tz = await getUserTimezone()
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
-
-  // On-demand генерация на сегодня. Дёшево (1 upsert с conflict ignore).
-  await generateSlotsForActiveMeds(supabase, user.id, tz, 1)
-
-  const slots = await getTodaySlots(tz)
   const tMedForm = await getTranslations('tracker.medForm')
 
   // Сколько приёмов ещё ждёт действия. Нужно для двух вещей:
@@ -49,7 +45,7 @@ export async function TodaySection() {
               <SlotCardForSlot
                 key={slot.id}
                 slot={slot}
-                timezone={tz}
+                timezone={timezone}
                 isLast={upcomingCount === 1}
                 colorIndex={colorIndexById.get(slot.id)}
                 formStr={

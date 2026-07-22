@@ -1,27 +1,35 @@
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
+import { after } from 'next/server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getAuthUser } from '@/lib/supabase/server'
 import { generateSlotsForActiveMeds } from '@/lib/tracker/slot-generator'
 import { formatSlotTime, getTodaySlots, type TodaySlot } from '@/lib/tracker/today'
-import { getUserTimezone } from '@/lib/timezone-actions'
+import { getUserTimezoneServer } from '@/lib/timezone-server'
 
 // Компактная сводка сегодняшних приёмов на дашборде. Открытые данные под RLS
 // (числа/статусы, не E2E), поэтому считаем на сервере. Нет приёмов на сегодня →
 // тёплая заглушка. Вся карточка — ссылка в Трекер.
+//
+// Перф: auth/tz кэшированы на запрос, генерация слотов — в after() (после
+// ответа, страховка самолечения), критический путь — один select слотов.
+// Та же схема, что на /tracker (перф-репорт беты, 2026-07-22).
 export async function TodayMeds() {
   const t = await getTranslations('dashboard')
-  const tz = await getUserTimezone()
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getAuthUser()
 
   let slots: TodaySlot[] = []
+  let tz = 'UTC'
   if (user) {
-    // On-demand генерация на сегодня (дёшево, idempotent) — чтобы сводка была
-    // точной, даже если юзер ещё не открывал Трекер. Как в TodaySection.
-    await generateSlotsForActiveMeds(supabase, user.id, tz, 1)
+    tz = await getUserTimezoneServer()
+    const supabase = await createClient() // до after(): cookies в нём недоступны
+    after(async () => {
+      try {
+        await generateSlotsForActiveMeds(supabase, user.id, tz, 1)
+      } catch (e) {
+        console.error('slot generation after dashboard render failed:', e)
+      }
+    })
     slots = await getTodaySlots(tz)
   }
 
