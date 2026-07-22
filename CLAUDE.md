@@ -61,6 +61,8 @@ I (Isabel) am a data analyst. Strong in Python, SQL, PySpark. Frontend and TypeS
 
 6. **Before non-trivial code for Next.js 16, read `node_modules/next/dist/docs/`.** Next.js 16 has breaking changes relative to the models' training data (routing, server actions, configuration). Don't rely on memory — check against the local docs (which Next.js itself asks you to read via `AGENTS.md` when scaffolding). The same goes for **React 19** (new hooks, Actions API) and **Tailwind 4** (CSS config instead of JS).
 
+7. **Commit messages — no co-authorship trailer lines.** Format: subject + body to the point. Don't add service trailers (`Co-Authored-By`, `Generated with …`) — neither in commits nor in PR descriptions. Backed up by the `includeCoAuthoredBy: false` setting in `.claude/settings.json`.
+
 ---
 
 ## Security — critical for this project
