@@ -103,14 +103,26 @@ export function OnboardingCurtain() {
   if (!visible) return null
 
   return (
+    // Подложка: почти непрозрачный фон + блюр — дашборд за занавесом лишь
+    // угадывается, контент шагов на него не налезает. Раньше тут был градиент
+    // с альфой (via-secondary/50 to-accent/40) — на новой палитре он
+    // просвечивал, и текст шагов ложился прямо на карточки дашборда (баг с
+    // живого iPhone). Декоративный градиент остался, но ПОВЕРХ непрозрачной
+    // подложки и с малой альфой.
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-gradient-to-b from-background via-secondary/50 to-accent/40"
+      className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-xl"
       role="dialog"
       aria-modal="true"
       aria-label={t('step1Title')}
     >
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-secondary/30 to-accent/25"
+      />
+
       {/* «Позже» — всегда доступный выход, без чувства вины. */}
-      <div className="flex justify-end p-5">
+      {/* relative — чтобы контент лежал над декоративным градиентом. */}
+      <div className="relative flex justify-end p-5">
         <button
           type="button"
           onClick={dismiss}
@@ -123,7 +135,7 @@ export function OnboardingCurtain() {
       {/* key={step} перезапускает CSS-анимацию появления на каждом шаге. */}
       <div
         key={step}
-        className="flex flex-1 flex-col items-center justify-center px-8 pb-24 text-center animate-in fade-in slide-in-from-bottom-3 duration-500"
+        className="relative flex flex-1 flex-col items-center justify-center px-8 pb-24 text-center animate-in fade-in slide-in-from-bottom-3 duration-500"
       >
         <div className="mb-6 text-4xl text-moss">✦</div>
 

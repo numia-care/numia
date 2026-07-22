@@ -1,10 +1,10 @@
 'use client'
 
 import {
-  EllipsisIcon,
   LeafIcon,
   RouteIcon,
   SparklesIcon,
+  UserRoundIcon,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslations } from 'next-intl'
@@ -26,9 +26,9 @@ import { cn } from '@/lib/utils'
 type Tab = {
   href: string
   /** ключ в messages.nav */
-  key: 'today' | 'tracker' | 'path' | 'more'
+  key: 'today' | 'tracker' | 'path' | 'profile'
   icon: LucideIcon
-  /** доп. пути, при которых таб считается активным (для «Ещё»: его разделы) */
+  /** доп. пути, при которых таб считается активным (для Профиля: его разделы) */
   match?: string[]
 }
 
@@ -36,8 +36,15 @@ const TABS: Tab[] = [
   { href: '/', key: 'today', icon: SparklesIcon },
   { href: '/tracker', key: 'tracker', icon: LeafIcon },
   { href: '/path', key: 'path', icon: RouteIcon },
-  // «Ещё» подсвечивается и на своих разделах (Анализы, Вики, Настройки).
-  { href: '/more', key: 'more', icon: EllipsisIcon, match: ['/labs', '/wiki', '/settings'] },
+  // Профиль — дом для личного и служебного (бывшее «Ещё»): подсвечивается
+  // и на своих разделах. /more оставлен в match на переходный период —
+  // старый бандл в открытой PWA может ещё навигировать туда (редирект).
+  {
+    href: '/profile',
+    key: 'profile',
+    icon: UserRoundIcon,
+    match: ['/labs', '/wiki', '/settings', '/safety', '/more'],
+  },
 ]
 
 export function BottomNav() {
