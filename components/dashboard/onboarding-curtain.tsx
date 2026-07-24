@@ -1,25 +1,43 @@
 'use client'
 
+import {
+  ArrowDownIcon,
+  ArrowRightIcon,
+  CopyIcon,
+  DownloadIcon,
+  EllipsisVerticalIcon,
+  FlaskConicalIcon,
+  LeafIcon,
+  PlusSquareIcon,
+  RouteIcon,
+  ShareIcon,
+  type LucideIcon,
+} from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
+import { toast } from 'sonner'
 
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 
-// Онбординг-занавес: 2–3 экрана поверх дашборда при САМОМ первом входе.
-// Показывается один раз (флаг в localStorage) и только если у юзера ещё
-// совсем пусто (нет ни препаратов, ни записей «Пути») — иначе человек уже
-// освоился и занавес будет только мешать.
+// Онбординг-занавес поверх дашборда при САМОМ первом входе. Показывается один
+// раз (флаг в localStorage) и только если у юзера ещё совсем пусто (нет ни
+// препаратов, ни записей «Пути») — иначе человек уже освоился.
 //
-// Лёгкий: две head-count-выборки (RLS сам ограничит своим), CSS-анимации из
-// tw-animate-css, никаких таймеров/жестов. Пропускаем «позже» в любой момент.
+// Шаги (переделаны по фидбеку тестеров):
+//   0 обзор разделов (что делает трекер / Путь / анализы) — вместо абстракции
+//   1 приватность (коротко, ключевое жирным)
+//   2 установка на главный экран (иллюстрация, куда нажимать; iOS/Android).
+//     Если открыто во ВНУТРЕННЕМ браузере (Telegram и т.п.) — «Открой в Safari»
+//     с копированием ссылки: из webview на главный экран не поставить.
+//   3 выбор, с чего начать
+// Шаг 2 пропускается в standalone (уже установлено) и на десктопе.
 
 const SEEN_KEY = 'numia_onboarding_seen'
 
-// 0 приветствие → 1 приватность → 2 «установи на главный экран» (только из
-// браузера на мобильном, в standalone/на десктопе пропускается) → 3 выбор.
 type Step = 0 | 1 | 2 | 3
+type Platform = 'ios' | 'android'
 
 // Уже стоит на главном экране? (display-mode из manifest + легаси-флаг Safari)
 function isStandalone(): boolean {
@@ -30,7 +48,7 @@ function isStandalone(): boolean {
 }
 
 // Платформа для инструкции установки — шаги iOS и Android различаются.
-function detectPlatform(): 'ios' | 'android' | 'other' {
+function detectPlatform(): Platform | 'other' {
   const ua = navigator.userAgent
   if (/iPhone|iPad|iPod/.test(ua)) return 'ios'
   // iPadOS 13+ прикидывается маком — выдаёт себя тач-экраном.
@@ -39,24 +57,55 @@ function detectPlatform(): 'ios' | 'android' | 'other' {
   return 'other'
 }
 
+// Открыто во встроенном браузере приложения (Telegram, Instagram, и т.п.)?
+// В таком webview «на главный экран» недоступно — надо открыть в Safari/Chrome.
+function detectInAppBrowser(): boolean {
+  const ua = navigator.userAgent || ''
+  if (
+    /Telegram|Instagram|FBAN|FBAV|FB_IAB|Line\/|WhatsApp|Snapchat|Twitter|MicroMessenger/i.test(
+      ua,
+    )
+  ) {
+    return true
+  }
+  if ('TelegramWebviewProxy' in window || 'TelegramWebviewProxyProto' in window) {
+    return true
+  }
+  // iOS: WKWebView вне Safari (и не Chrome/Firefox/Edge) обычно без «Safari» в UA.
+  const isIos = /iPhone|iPad|iPod/i.test(ua)
+  if (
+    isIos &&
+    /AppleWebKit/i.test(ua) &&
+    !/Safari/i.test(ua) &&
+    !/CriOS|FxiOS|EdgiOS/i.test(ua)
+  ) {
+    return true
+  }
+  return false
+}
+
 export function OnboardingCurtain() {
   const t = useTranslations('onboarding')
   const router = useRouter()
   const [visible, setVisible] = useState(false)
   const [step, setStep] = useState<Step>(0)
-  // Инструкция установки: null = шаг пропускаем (standalone или десктоп).
-  // Считаем в инициализаторе: компонент рендерится только на клиенте
-  // (visible до эффекта false), но SSR-ветку всё равно страхуем.
-  const [installPlatform] = useState<'ios' | 'android' | null>(() => {
-    if (typeof window === 'undefined') return null
-    if (isStandalone()) return null
+
+  // Среду считаем в инициализаторе (клиент-only; visible до эффекта false).
+  //   install — платформа для шага установки, null = шаг пропускаем.
+  //   inApp   — встроенный браузер: показываем «Открой в Safari» вместо инструкции.
+  const [env] = useState<{ install: Platform | null; inApp: boolean }>(() => {
+    if (typeof window === 'undefined') return { install: null, inApp: false }
+    if (isStandalone()) return { install: null, inApp: false }
     const p = detectPlatform()
-    return p === 'other' ? null : p
+    return {
+      install: p === 'other' ? null : p,
+      inApp: detectInAppBrowser(),
+    }
   })
 
   useEffect(() => {
     // Флаг локальный: онбординг — свойство устройства, не аккаунта. На новом
-    // устройстве покажется снова — и это ок (там та же ситуация «всё в новинку»).
+    // устройстве покажется снова — там та же ситуация «всё в новинку».
     if (localStorage.getItem(SEEN_KEY)) return
 
     let cancelled = false
@@ -100,20 +149,43 @@ export function OnboardingCurtain() {
     router.push(href)
   }
 
+  async function copyLink() {
+    const url = window.location.href
+    try {
+      await navigator.clipboard.writeText(url)
+      toast.success(t('copied'))
+      return
+    } catch {
+      // Во встроенных браузерах clipboard API бывает недоступен — фолбэк.
+    }
+    try {
+      const el = document.createElement('textarea')
+      el.value = url
+      el.style.position = 'fixed'
+      el.style.opacity = '0'
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      toast.success(t('copied'))
+    } catch {
+      // Совсем не вышло — молчим, ссылка всё равно видна в адресной строке.
+    }
+  }
+
   if (!visible) return null
 
+  // После приватности: на установку (если есть) или сразу к выбору.
+  const afterPrivacy: Step = env.install ? 2 : 3
+
   return (
-    // Подложка: почти непрозрачный фон + блюр — дашборд за занавесом лишь
-    // угадывается, контент шагов на него не налезает. Раньше тут был градиент
-    // с альфой (via-secondary/50 to-accent/40) — на новой палитре он
-    // просвечивал, и текст шагов ложился прямо на карточки дашборда (баг с
-    // живого iPhone). Декоративный градиент остался, но ПОВЕРХ непрозрачной
-    // подложки и с малой альфой.
+    // Подложка: почти непрозрачный фон + блюр, дашборд лишь угадывается.
+    // Декоративный градиент — поверх, с малой альфой.
     <div
       className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-xl"
       role="dialog"
       aria-modal="true"
-      aria-label={t('step1Title')}
+      aria-label={t('tourTitle')}
     >
       <div
         aria-hidden
@@ -121,7 +193,6 @@ export function OnboardingCurtain() {
       />
 
       {/* «Позже» — всегда доступный выход, без чувства вины. */}
-      {/* relative — чтобы контент лежал над декоративным градиентом. */}
       <div className="relative flex justify-end p-5">
         <button
           type="button"
@@ -132,7 +203,7 @@ export function OnboardingCurtain() {
         </button>
       </div>
 
-      {/* key={step} перезапускает CSS-анимацию появления на каждом шаге. */}
+      {/* key={step} перезапускает анимацию появления на каждом шаге. */}
       <div
         key={step}
         className="relative flex flex-1 flex-col items-center justify-center px-8 pb-24 text-center animate-in fade-in slide-in-from-bottom-3 duration-500"
@@ -141,9 +212,26 @@ export function OnboardingCurtain() {
 
         {step === 0 && (
           <>
-            <h2 className="font-heading text-3xl text-foreground">
-              {t('step1Title')}
+            <h2 className="mb-6 font-heading text-3xl text-foreground">
+              {t('tourTitle')}
             </h2>
+            <div className="flex w-full max-w-xs flex-col gap-3">
+              <TourItem
+                icon={LeafIcon}
+                name={t('tourTrackerName')}
+                desc={t('tourTracker')}
+              />
+              <TourItem
+                icon={RouteIcon}
+                name={t('tourPathName')}
+                desc={t('tourPath')}
+              />
+              <TourItem
+                icon={FlaskConicalIcon}
+                name={t('tourLabsName')}
+                desc={t('tourLabs')}
+              />
+            </div>
             <NextButton onClick={() => setStep(1)} label={t('next')} />
           </>
         )}
@@ -151,30 +239,38 @@ export function OnboardingCurtain() {
         {step === 1 && (
           <>
             <h2 className="font-heading text-3xl text-foreground">
-              {t('step2Title')}
+              {t('privacyTitle')}
             </h2>
-            <p className="mt-3 max-w-sm leading-relaxed text-foreground/80">
-              {t('step2Text')}
+            <p className="mt-3 max-w-sm text-lg leading-relaxed text-foreground/80">
+              {t.rich('privacyText', {
+                b: (c) => <b className="font-semibold text-moss">{c}</b>,
+              })}
             </p>
-            <NextButton
-              onClick={() => setStep(installPlatform ? 2 : 3)}
-              label={t('next')}
-            />
+            <NextButton onClick={() => setStep(afterPrivacy)} label={t('next')} />
           </>
         )}
 
-        {step === 2 && installPlatform && (
+        {step === 2 && env.install && (
           <>
-            <h2 className="font-heading text-3xl text-foreground">
-              {t('installTitle')}
-            </h2>
-            <p className="mt-3 max-w-sm leading-relaxed text-foreground/80">
-              {t('installText')}
-            </p>
-            {/* Пошаговая инструкция — своя для iOS и Android (по user agent). */}
-            <p className="mt-4 max-w-sm rounded-2xl bg-card px-5 py-4 text-sm leading-relaxed text-foreground ring-1 ring-border">
-              {installPlatform === 'ios' ? t('installIos') : t('installAndroid')}
-            </p>
+            {env.inApp ? (
+              <InAppPanel platform={env.install} t={t} onCopy={copyLink} />
+            ) : (
+              <>
+                <h2 className="font-heading text-3xl text-foreground">
+                  {t('installTitle')}
+                </h2>
+                <p className="mt-3 max-w-sm leading-relaxed text-foreground/80">
+                  {t('installText')}
+                </p>
+                <InstallGuide
+                  platform={env.install}
+                  step1={env.install === 'ios' ? t('installShare') : t('installMenu')}
+                  step2={
+                    env.install === 'ios' ? t('installAddHome') : t('installApp')
+                  }
+                />
+              </>
+            )}
             <NextButton onClick={() => setStep(3)} label={t('next')} />
           </>
         )}
@@ -182,7 +278,7 @@ export function OnboardingCurtain() {
         {step === 3 && (
           <>
             <h2 className="font-heading text-3xl text-foreground">
-              {t('step3Title')}
+              {t('startTitle')}
             </h2>
             <div className="mt-8 flex w-full max-w-xs flex-col gap-3">
               <ChoiceButton onClick={() => go('/tracker')} primary>
@@ -197,6 +293,95 @@ export function OnboardingCurtain() {
         )}
       </div>
     </div>
+  )
+}
+
+// Строка обзора раздела: иконка → стрелка → название + одна фраза.
+function TourItem({
+  icon: Icon,
+  name,
+  desc,
+}: {
+  icon: LucideIcon
+  name: string
+  desc: string
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-card ring-1 ring-border">
+        <Icon className="size-5 text-moss" />
+      </div>
+      <ArrowRightIcon className="size-4 shrink-0 text-moss/50" />
+      <div className="min-w-0 text-left">
+        <p className="font-semibold leading-tight text-foreground">{name}</p>
+        <p className="text-sm leading-tight text-muted-foreground">{desc}</p>
+      </div>
+    </div>
+  )
+}
+
+// Иллюстрация установки: два выделенных «нажимаемых» элемента реальными
+// иконками платформы, между ними стрелка вниз — «сначала это, потом это».
+function InstallGuide({
+  platform,
+  step1,
+  step2,
+}: {
+  platform: Platform
+  step1: string
+  step2: string
+}) {
+  const isIos = platform === 'ios'
+  return (
+    <div className="mt-6 flex w-full max-w-[15rem] flex-col items-stretch gap-2">
+      <GuideRow icon={isIos ? ShareIcon : EllipsisVerticalIcon} label={step1} />
+      <ArrowDownIcon className="mx-auto size-5 text-moss/60" />
+      <GuideRow icon={isIos ? PlusSquareIcon : DownloadIcon} label={step2} />
+    </div>
+  )
+}
+
+function GuideRow({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl bg-card px-4 py-3 ring-1 ring-fairy/60">
+      <Icon className="size-5 shrink-0 text-moss" />
+      <span className="text-sm font-medium text-foreground">{label}</span>
+    </div>
+  )
+}
+
+// Встроенный браузер: на главный экран не поставить, зовём открыть в Safari/
+// Chrome и даём кнопку копирования ссылки.
+function InAppPanel({
+  platform,
+  t,
+  onCopy,
+}: {
+  platform: Platform
+  t: ReturnType<typeof useTranslations<'onboarding'>>
+  onCopy: () => void
+}) {
+  const isIos = platform === 'ios'
+  return (
+    <>
+      <h2 className="font-heading text-3xl text-foreground">
+        {isIos ? t('safariTitleIos') : t('safariTitleAndroid')}
+      </h2>
+      <p className="mt-3 max-w-sm leading-relaxed text-foreground/80">
+        {t('safariText')}
+      </p>
+      <p className="mt-4 w-full max-w-xs rounded-2xl bg-card px-4 py-3 text-sm text-foreground ring-1 ring-border">
+        {isIos ? t('safariHintIos') : t('safariHintAndroid')}
+      </p>
+      <button
+        type="button"
+        onClick={onCopy}
+        className="mt-4 inline-flex items-center gap-2 rounded-full bg-card px-5 py-3 text-sm font-medium text-foreground ring-1 ring-border transition-colors hover:ring-sage/60"
+      >
+        <CopyIcon className="size-4 text-moss" />
+        {t('copyLink')}
+      </button>
+    </>
   )
 }
 

@@ -5,7 +5,7 @@ import { format } from 'date-fns'
 import { ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 
@@ -43,6 +43,7 @@ import type { MedicationFormValues } from './medication-form-schema'
 import { MedicationNameInput } from './medication-name-input'
 import { ScheduleInput } from './schedule-input'
 import { TimeSelect } from './time-select'
+import { useMedicationDraft } from './use-medication-draft'
 
 interface MedicationFormProps {
   /** edit: pre-fill из initialValues, submit → updateMedication */
@@ -69,9 +70,10 @@ export function MedicationForm({
   const [detailsOpen, setDetailsOpen] = useState(mode === 'edit')
   const [fromCatalog, setFromCatalog] = useState(false)
 
-  const form = useForm<MedicationFormValues>({
-    resolver: zodResolver(MedicationInputSchema),
-    defaultValues: initialValues ?? {
+  // Исходные значения фиксируем один раз (ref): база для формы, для сброса
+  // «грязноты» и для кнопки «Очистить» (вернуть к серверным/пустым значениям).
+  const initialRef = useRef<MedicationFormValues>(
+    initialValues ?? {
       name: '',
       kind: 'estrogen',
       form: 'tablet',
@@ -81,7 +83,21 @@ export function MedicationForm({
       start_date: format(new Date(), 'yyyy-MM-dd'),
       notes: '',
     },
+  )
+
+  const form = useForm<MedicationFormValues>({
+    resolver: zodResolver(MedicationInputSchema),
+    defaultValues: initialRef.current,
   })
+
+  // Черновик формы в localStorage — переживает увод на экран PIN во время
+  // редактирования (см. use-medication-draft.ts).
+  const { restored, clearDraft, dismissRestored } = useMedicationDraft(
+    form,
+    mode,
+    editId,
+    () => setDetailsOpen(true),
+  )
 
   const handleCatalogSelect = (entry: MedicationCatalogEntry) => {
     form.setValue('kind', entry.kind, { shouldDirty: true })
@@ -147,6 +163,7 @@ export function MedicationForm({
           ? await updateMedication(editId, values)
           : await createMedication(values)
       if (result.ok) {
+        clearDraft() // сохранено на сервер — черновик больше не нужен
         toast.success(
           mode === 'edit' ? t('updateSuccess') : t('submitSuccess'),
         )
@@ -164,6 +181,24 @@ export function MedicationForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* Черновик восстановлен после того как приложение уводило на PIN. */}
+        {restored && (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-[#EEF2E9] px-4 py-3 text-sm text-[#5A6B4A]">
+            <span>{t('draftRestored')}</span>
+            <button
+              type="button"
+              onClick={() => {
+                form.reset(initialRef.current)
+                clearDraft()
+                dismissRestored()
+              }}
+              className="shrink-0 underline underline-offset-4 hover:text-foreground"
+            >
+              {t('draftClear')}
+            </button>
+          </div>
+        )}
+
         <FormField
           control={form.control}
           name="name"

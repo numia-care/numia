@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+import { StickyBackBar } from '@/components/nav/sticky-back-bar'
+
 // Страница про безопасность данных — обещание CLAUDE.md («Прозрачность»).
 // Не маркетинг, а честное описание: что шифруется, что нет и почему, где
 // границы защиты. Аудитория читает такое внимательно — не приукрашиваем.
@@ -18,7 +20,9 @@ export const metadata: Metadata = {
 
 export default function SafetyPage() {
   return (
-    <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
+    <div>
+      <StickyBackBar />
+      <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
       <header className="mb-10">
         <div className="mb-6 flex items-center gap-2 text-moss">
           <span className="text-2xl">✦</span>
@@ -191,6 +195,7 @@ export default function SafetyPage() {
           ← в Numia
         </Link>
       </footer>
+      </div>
     </div>
   )
 }
