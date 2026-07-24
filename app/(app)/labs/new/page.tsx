@@ -3,10 +3,17 @@ import Link from 'next/link'
 
 import { LabForm } from '@/components/labs/lab-form'
 
-// Добавление лабораторного показателя. Оболочка серверная (заголовок), форма
-// клиентская: шифрование заметки/фото идёт на устройстве (lib/labs/records).
-export default async function NewLabResultPage() {
+// Добавление анализа. Оболочка серверная (заголовок), форма клиентская:
+// шифрование заметки/фото идёт на устройстве (lib/labs/records).
+// ?mode=photo открывает форму сразу в режиме «фото бланка» (из пустого экрана).
+export default async function NewLabResultPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mode?: string }>
+}) {
   const t = await getTranslations('labs.new')
+  const { mode } = await searchParams
+  const initialMode = mode === 'photo' ? 'photo' : 'values'
 
   return (
     <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
@@ -23,7 +30,7 @@ export default async function NewLabResultPage() {
         <p className="mt-2 text-sm text-muted-foreground">{t('subtitle')}</p>
       </header>
 
-      <LabForm />
+      <LabForm initialMode={initialMode} />
     </div>
   )
 }

@@ -16,20 +16,22 @@ import { PinRequiredError } from '@/lib/path/entries'
 const BUCKET = 'path-media'
 
 export interface NewLabResult {
-  analyte: string
+  analyte?: string // опускается для записи «только фото»
   analyteCustomName?: string // только для analyte='other'
-  value: number
-  unit: string
-  measuredAt: string // 'yyyy-MM-dd'
+  value?: number // опускается для записи «только фото»
+  unit?: string
+  measuredAt?: string | null // null/undefined = дата не указана
   note?: string // E2E
   photo?: File // E2E (фото бланка)
 }
 
 /**
- * Сохранить показатель. Если есть заметка или фото — нужен DEK в памяти
- * (иначе PinRequiredError, форма попросит PIN). Фото сжимается (как в «Пути»),
- * шифруется и грузится в path-media ДО вставки ряда; при сбое вставки
- * осиротевший блоб удаляем.
+ * Сохранить показатель. Гибкий ввод (миграция 20260723): ряд может быть
+ * «числовым» (value+unit+analyte, дата опциональна) ИЛИ «только фото бланка»
+ * (числа не заданы — снимок на потом). Пустой ряд (ни чисел, ни фото)
+ * отклоняем. Если есть заметка или фото — нужен DEK в памяти (иначе
+ * PinRequiredError, форма попросит PIN). Фото сжимается, шифруется и грузится
+ * в path-media ДО вставки ряда; при сбое вставки осиротевший блоб удаляем.
  */
 export async function addLabResult(input: NewLabResult): Promise<string> {
   const supabase = createClient()
@@ -37,6 +39,9 @@ export async function addLabResult(input: NewLabResult): Promise<string> {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) throw new Error('not_authenticated')
+
+  const hasValue = typeof input.value === 'number' && isFinite(input.value)
+  if (!hasValue && !input.photo) throw new Error('empty_record')
 
   const note = input.note?.trim()
   const needsDek = Boolean(note || input.photo)
@@ -71,12 +76,16 @@ export async function addLabResult(input: NewLabResult): Promise<string> {
   const { error: insErr } = await supabase.from('lab_results').insert({
     id,
     user_id: user.id,
-    analyte: input.analyte,
+    // Числовые поля — только у числового ряда; у «только фото» они NULL.
+    analyte: hasValue ? (input.analyte ?? null) : null,
     analyte_custom_name:
-      input.analyte === 'other' ? input.analyteCustomName?.trim() || null : null,
-    value: input.value,
-    unit: input.unit,
-    measured_at: input.measuredAt,
+      hasValue && input.analyte === 'other'
+        ? input.analyteCustomName?.trim() || null
+        : null,
+    value: hasValue ? input.value : null,
+    unit: hasValue ? (input.unit ?? null) : null,
+    // Дата опциональна: не помнит — NULL.
+    measured_at: input.measuredAt ?? null,
     note_ciphertext: noteCiphertext,
     blank_photo_path: blankPhotoPath,
     blank_photo_iv: blankPhotoIv,
