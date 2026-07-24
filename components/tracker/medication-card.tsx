@@ -25,7 +25,12 @@ export function MedicationCard({ med }: { med: MedicationRow }) {
     <div
       className={cn(
         'border border-[#D4D4D4] bg-[#EDEBE9] shadow-card transition-[border-radius] duration-200',
-        expanded ? 'rounded-[25px]' : 'rounded-full',
+        // Свёрнуто — фиксированные 26px (= половина высоты 52px, выглядит как
+        // пилюля), НЕ rounded-full. rounded-full = 9999px: при развороте карточка
+        // мгновенно становится высокой, и пока transition тянет радиус вниз, на
+        // высоком элементе он читается как «капсула» с радиусом в полвысоты —
+        // отсюда эффект «сдавливается, потом расправляется». 26px→25px незаметно.
+        expanded ? 'rounded-[25px]' : 'rounded-[26px]',
       )}
     >
       <button
