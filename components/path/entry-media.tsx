@@ -103,9 +103,8 @@ export function EntryMedia({
       )}
     >
       {isVoice ? (
-        // Голос: контейнер не нужно прятать за фиксированным аспектом — плеер
-        // компактный. Скелетон до готовности URL.
-        <div className="rounded-2xl bg-card p-4 ring-1 ring-border">
+        // Голос: стекло-карточка Кая (r:20). Скелетон до готовности URL.
+        <div className="shadow-soft rounded-[20px] border border-border bg-white/80 p-4 backdrop-blur-[4px]">
           {failed ? (
             <p className="text-sm text-foreground/50">{t('thumbError')}</p>
           ) : url ? (
@@ -115,7 +114,11 @@ export function EntryMedia({
           )}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl bg-card ring-1 ring-border">
+        // Фото — скруглённый снимок r:15 (по фрейму) с мягким белым свечением.
+        <div
+          className="overflow-hidden rounded-[15px] bg-white/80"
+          style={{ boxShadow: 'var(--kai-glow)' }}
+        >
           {failed ? (
             <div className="flex aspect-[4/3] items-center justify-center px-4 text-center text-sm text-foreground/50">
               {t('thumbError')}
@@ -126,24 +129,24 @@ export function EntryMedia({
             <img
               src={url}
               alt={caption ?? date}
-              className="block max-h-[70vh] w-full object-cover"
+              className="block max-h-[60vh] w-full object-cover"
             />
           ) : (
-            // bg обязателен: пульс без фона на белой карточке невидим и
-            // выглядит «пустой белой карточкой», если загрузка затянулась.
+            // bg обязателен: пульс без фона на белой карточке невидим.
             <div className="aspect-[4/3] w-full animate-pulse bg-muted/70" />
           )}
         </div>
       )}
 
-      <figcaption className="px-1">
+      {/* Подпись/дата — компактная стеклянная пилюля под снимком (по фрейму). */}
+      <figcaption className="shadow-soft rounded-[10px] border border-border bg-white/80 px-3 py-1.5 backdrop-blur-[4px]">
         <div className="flex items-center justify-between gap-2">
-          <time className="text-sm text-foreground/60" dateTime={entry.occurredAt}>
+          <time className="text-[11px] text-foreground/60" dateTime={entry.occurredAt}>
             {date}
           </time>
           <EntryDeleteButton entry={entry} onDelete={onDelete} />
         </div>
-        {caption && <p className="mt-0.5 text-foreground/90">{caption}</p>}
+        {caption && <p className="mt-0.5 text-xs text-foreground/90">{caption}</p>}
       </figcaption>
     </figure>
   )

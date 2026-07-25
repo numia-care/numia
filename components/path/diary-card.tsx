@@ -73,9 +73,8 @@ export function DiaryCard({
     <div
       ref={containerRef}
       className={cn(
-        // r:20 (не 30): после перехода на шкалу радиусов Кая rounded-2xl стал
-        // 30px и съедал поля карточки — на 390px было тесно.
-        'rounded-lg bg-card p-5 ring-1 ring-border transition-all duration-500 motion-reduce:transition-none',
+        // Стекло-карточка Кая r:20, компактнее (лента извилистая, карточки узкие).
+        'shadow-soft rounded-[20px] border border-border bg-white/80 p-4 backdrop-blur-[4px] transition-all duration-500 motion-reduce:transition-none',
         visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
       )}
     >

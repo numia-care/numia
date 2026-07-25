@@ -10,6 +10,7 @@ import { deleteEntry, listEntries, type PathEntry } from '@/lib/path/entries'
 import { buttonVariants } from '@/components/ui/button'
 import { DiaryCard } from './diary-card'
 import { EntryMedia } from './entry-media'
+import { PathTimeline } from './path-timeline'
 
 // Окно «Отменить» после подтверждения удаления: запись уже скрыта из ленты,
 // но реально удаляется только по истечении. Совпадает с duration тоста.
@@ -185,64 +186,21 @@ export function PathFeed() {
 
   if (state.entries.length === 0) return <EmptyState />
 
-  return <Timeline entries={state.entries} onDelete={scheduleDelete} />
-}
-
-// ── Лента, сгруппированная по месяцам (новые сверху) ─────────────────────────
-
-function Timeline({
-  entries,
-  onDelete,
-}: {
-  entries: PathEntry[]
-  onDelete: (entry: PathEntry) => void
-}) {
-  const groups = groupByMonth(entries)
-
+  // Непрерывная извилистая дорожка (макет Кая): записи попеременно лево/право,
+  // между ними вьётся пунктирная линия. Помесячную группировку убрали —
+  // дорожка непрерывна; дата видна на каждой карточке.
   return (
-    <div className="space-y-10">
-      {groups.map((group) => (
-        <section key={group.key}>
-          <h2 className="mb-4 font-heading text-xl capitalize text-foreground/70">
-            {group.label}
-          </h2>
-          <div className="space-y-5">
-            {group.items.map((entry) =>
-              entry.entryType === 'diary' ? (
-                <DiaryCard key={entry.id} entry={entry} onDelete={onDelete} />
-              ) : (
-                <EntryMedia key={entry.id} entry={entry} onDelete={onDelete} />
-              ),
-            )}
-          </div>
-        </section>
-      ))}
-    </div>
+    <PathTimeline
+      entries={state.entries}
+      renderEntry={(entry) =>
+        entry.entryType === 'diary' ? (
+          <DiaryCard entry={entry} onDelete={scheduleDelete} />
+        ) : (
+          <EntryMedia entry={entry} onDelete={scheduleDelete} />
+        )
+      }
+    />
   )
-}
-
-// Группировка по «год-месяц». entries уже отсортированы occurred_at desc
-// (listEntries), поэтому группы и записи внутри идут от новых к старым.
-function groupByMonth(
-  entries: PathEntry[],
-): { key: string; label: string; items: PathEntry[] }[] {
-  const monthLabel = new Intl.DateTimeFormat('ru-RU', {
-    month: 'long',
-    year: 'numeric',
-  })
-  const groups: { key: string; label: string; items: PathEntry[] }[] = []
-
-  for (const entry of entries) {
-    const d = new Date(entry.occurredAt)
-    const key = `${d.getFullYear()}-${d.getMonth()}`
-    const last = groups[groups.length - 1]
-    if (last && last.key === key) {
-      last.items.push(entry)
-    } else {
-      groups.push({ key, label: monthLabel.format(d), items: [entry] })
-    }
-  }
-  return groups
 }
 
 // ── Вспомогательные состояния экрана ─────────────────────────────────────────
