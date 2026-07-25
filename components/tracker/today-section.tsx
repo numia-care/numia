@@ -31,7 +31,7 @@ export async function TodaySection({
   return (
     <section className="mb-8">
       {/* Ярлык-пилюля секции — по фрейму (белая, r:25, тонкая обводка). */}
-      <span className="inline-block rounded-full border border-border bg-white/90 px-4 py-1.5 text-sm text-[#242424] shadow-card">
+      <span className="inline-block rounded-full border border-border bg-white/90 px-4 py-1.5 text-sm text-foreground shadow-card">
         {t('title')}
       </span>
 
@@ -64,7 +64,7 @@ export async function TodaySection({
 async function AllDoneToday() {
   const t = await getTranslations('tracker.today')
   return (
-    <div className="mt-3 rounded-full border border-chip-yellow-border/60 bg-chip-yellow/50 p-3 text-center text-sm text-[#1F1F1F]/80">
+    <div className="mt-3 rounded-full border border-chip-yellow-border/60 bg-chip-yellow/50 p-3 text-center text-sm text-foreground/80">
       {t('allDone')}
     </div>
   )

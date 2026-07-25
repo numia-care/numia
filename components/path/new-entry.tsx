@@ -38,7 +38,7 @@ export function NewEntry({ initialMode = 'photo' }: { initialMode?: Mode }) {
             className={cn(
               'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
               mode === m
-                ? 'bg-[#5A6B4A] text-white'
+                ? 'bg-primary text-primary-foreground'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >

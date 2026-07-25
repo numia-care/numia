@@ -5,48 +5,63 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ----------------------------------------------------------------------------
-   Палитра Numia — концепция Кая (сведение 2026-07-09): тёплая пастель,
-   «матовое стекло» карточек, розовые CTA, тёмная пилюля навигации ✦
+   Дизайн-система Кая — финальная (Page 1 в Figma «✦ numia», 2026-07-25).
    ----------------------------------------------------------------------------
-   Семантические токены shadcn (--background, --primary, и т.д.) мапятся на
-   наши настоящие цвета. Внутри компонентов всегда используем семантические
-   классы (bg-primary, text-muted-foreground), не сырые токены напрямую —
-   так если палитра поедет, чинить надо в одном месте.
+   ТРИ СЛОЯ, чтобы позже подключать «рисованные темы» подменой набора:
 
-   Значения вытащены из Figma «✦ numia» через REST API (точные hex из
-   фреймов «сегодня»/«препараты»/«путь»). Старая палитра (шалфей/мох) живёт
-   ниже как LEGACY-алиасы до конца поэкранной миграции.
+     Слой 1  ПРИМИТИВЫ (--kai-*)  — «набор красок» Кая, точные значения из
+             Figma. ТЕМА подменяет ТОЛЬКО этот блок (см. :root ниже).
+     Слой 2  СЕМАНТИКА (--background, --primary, …) — ссылается на примитивы.
+             Компоненты читают ТОЛЬКО это.
+     Слой 3  @theme inline — маппинг семантики в Tailwind-утилиты.
+
+   Правило: в компонентах — ТОЛЬКО семантические классы (bg-background,
+   text-foreground, bg-primary, border-border…). Ни одного сырого #hex.
+   Значения — точь-в-точь Figma (get_design_context), не приглушены.
    ---------------------------------------------------------------------------- */
 
 @theme inline {
-  /* ── Акцентные пары Кая (заливка + обводка) — чипы и тёплые моменты ── */
-  --color-chip-pink: #FFD5EF;
-  --color-chip-pink-border: #FFBFDE;
-  --color-chip-blue: #BCEBFF;
-  --color-chip-blue-border: #8FDAFF;
-  --color-chip-yellow: #FFEF97;
-  --color-chip-yellow-border: #F3D87F;
+  /* ── Акцентные пары (чипы) — точные из макета ── */
+  --color-chip-pink: var(--kai-chip-pink);
+  --color-chip-pink-border: var(--kai-chip-pink-bd);
+  --color-chip-blue: var(--kai-chip-blue);
+  --color-chip-blue-border: var(--kai-chip-blue-bd);
+  --color-chip-yellow: var(--kai-chip-yellow);
+  --color-chip-yellow-border: var(--kai-chip-yellow-bd);
 
-  /* CTA: яркая (welcome) и мягкая (auth) розовые + тёмно-зелёные чернила
-     для текста/обводки поверх розового — фирменный ход макета. */
-  --color-cta: #E76CBA;
-  --color-cta-soft: #FFBCE6;
-  --color-cta-ink: #293A32;
+  /* Лаванда — основное действие Кая («Сохранить»): заливка + мягкая/глубокая. */
+  --color-lavender-action: var(--kai-lavender);
+  --color-lavender-soft: var(--kai-lavender-soft);
+  --color-lavender-deep: var(--kai-lavender-deep);
 
-  /* Тёмная пилюля нижней навигации. */
+  /* Розовый — АКЦЕНТ (муд-хало, таб «Анализы», точки «new»), не CTA. */
+  --color-cta: var(--kai-pink);
+  --color-pink-soft: var(--kai-pink-soft);
+  --color-rose: var(--kai-rose);
+
+  /* Голубой — препараты/активные табы. */
+  --color-cyan: var(--kai-cyan);
+  --color-cyan-tab: var(--kai-cyan-tab);
+
+  /* Навигация (в дроби 1 остаётся тёмной пилюлей; светлое стекло — дробь 4). */
   --color-nav: #1A1A1A;
   --color-nav-foreground: #F5F5F5;
 
-  /* ── LEGACY (старая палитра «пастельный лес») ──────────────────────────
-     Используются в ещё не мигрированных экранах (bg-sage, text-moss…).
-     Удалить, когда все экраны переедут на концепцию Кая. */
-  --color-cream: #FAF6F0;
-  --color-sage: #9CAF88;
-  --color-moss: #5A6B4A;
-  --color-lavender: #B8A5C4;
-  --color-fairy: #C9B6E4;
-  --color-ink: #3A3A3A;
-  --color-ink-soft: #7A7A7A;
+  /* ── LEGACY-алиасы (bg-sage/text-moss в ещё не переверстанных экранах) —
+     ПЕРЕнаправлены на ближайшие примитивы Кая, чтобы старые экраны сдвигались
+     в новую палитру, а не оставались «лесными». Удалить по мере переверстки. */
+  --color-cream: var(--kai-bg);
+  --color-sage: var(--kai-lavender-deep);
+  --color-moss: var(--kai-ink);
+  --color-lavender: var(--kai-lavender-deep);
+  --color-fairy: var(--kai-lavender-deep);
+  --color-ink: var(--kai-ink-body);
+  --color-ink-soft: var(--kai-ink-quiet);
+
+  /* Материал Кая — тени/стекло как утилиты (shadow-card/soft/chip). */
+  --shadow-card: var(--kai-shadow-card);
+  --shadow-soft: var(--kai-shadow-soft);
+  --shadow-chip: var(--kai-shadow-chip);
 
   /* Семантические токены shadcn — мапятся на CSS-переменные в :root ниже. */
   --color-background: var(--background);
@@ -93,58 +108,107 @@
   --radius-2xl: 30px;
   --radius-3xl: 40px;
   --radius-4xl: 43px;
+  --radius-5xl: 54px; /* муд-стрип «Как ты сейчас?» */
 
-  /* Тень карточки — единственная в системе, очень тихая (глубина в макете
-     достигается «стеклом», не тенью). */
-  --shadow-card: 0 2px 11px rgb(0 0 0 / 0.04);
+  /* Материал — тени/стекло из макета. Значения в примитивах (--kai-*),
+     сюда проброшены как Tailwind-утилиты shadow-card / shadow-soft / shadow-chip.
+     (определены выше в этом же @theme-блоке) */
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   СЛОЙ 1 — ПРИМИТИВЫ КАЯ. Точные значения из Figma (get_design_context).
+   Рисованная тема = переопределить ЭТОТ блок (напр. :root[data-theme="forest"]).
+   ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-  /* Фон/текст — тёплый крем Кая (#FCFBF4 — канон, решение 2026-07-09). */
-  --background: #FCFBF4;
-  --foreground: #181818;
+  /* поверхности */
+  --kai-bg: #F5F6F0;               /* фон приложения (BG-прямоугольник всех фреймов) */
+  --kai-hairline: #EAEAEA;         /* волосяная обводка карточек (0.3px в макете) */
+  --kai-hairline-strong: #D8D8D8;  /* обводка полей ввода / текстареа */
+  --kai-ink-tab: #181818;          /* тёмная плашка-«вырез» сверху, тёмные элементы */
 
-  /* Карточки — белые; «стекло» (opacity + backdrop-blur) добавляется
-     классами при вёрстке экрана, не в токене. */
+  /* чернила (текст) */
+  --kai-ink: #262626;              /* заголовки */
+  --kai-ink-body: #1F1F1F;         /* основной текст, названия */
+  --kai-ink-detail: #2D2D2D;       /* время приёмов, плотный детальный текст */
+  --kai-ink-nav: #494848;          /* подписи навигации */
+  --kai-ink-quiet: rgb(0 0 0 / 0.4); /* подзаголовки, «← в Путь», «(необязательно)» */
+
+  /* действие / бренд */
+  --kai-lavender: #DEC6F0;         /* CTA «Сохранить» (заливка) */
+  --kai-lavender-soft: #E3D2F1;    /* активная иконка режима (мягче) */
+  --kai-lavender-deep: #C9B6E4;    /* обводки/акценты, focus ring */
+  --kai-pink: #E76CBA;             /* яркий розовый акцент */
+  --kai-pink-soft: #F8ADE7;        /* точки «new», таб «Анализы» */
+  --kai-rose: #FFDADA;             /* статус-пилюля дозы */
+
+  /* голубой (препараты, активные табы) */
+  --kai-cyan: #C5F3F7;             /* конец градиента карточки препарата */
+  --kai-cyan-tab: #AEF9FE;         /* активный таб «Все» */
+
+  /* чипы (пастельные пары Кая) */
+  --kai-chip-pink: #FFD5EF;   --kai-chip-pink-bd: #FFBFDE;
+  --kai-chip-blue: #BCEBFF;   --kai-chip-blue-bd: #8FDAFF;
+  --kai-chip-yellow: #FFEF97; --kai-chip-yellow-bd: #F3D87F;
+
+  /* стекло карточек — заливка с прозрачностью (тема может сделать матовой) */
+  --kai-glass: rgb(255 255 255 / 0.62);
+  --kai-glass-nav: rgb(255 255 255 / 0.68);
+
+  /* материал */
+  --kai-shadow-card: 0 4px 4px rgb(0 0 0 / 0.04);
+  --kai-shadow-soft: 0 2px 10.7px rgb(0 0 0 / 0.03);
+  --kai-shadow-chip: 0 1px 6.2px rgb(0 0 0 / 0.08);
+  --kai-glow: 2px -1px 20px rgb(255 255 255 / 0.65);
+  --kai-blur: 4.65px;
+
+  /* градиент карточки препарата (белый → бледно-голубой) */
+  --kai-grad-med: linear-gradient(-90deg, rgb(255 255 255 / 0.6) 12%, rgb(197 243 247 / 0.6) 83%);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   СЛОЙ 2 — СЕМАНТИКА (shadcn). Ссылается ТОЛЬКО на примитивы. Компоненты — сюда.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --background: var(--kai-bg);
+  --foreground: var(--kai-ink-body);
+
+  /* Карточки — сплошной белый; «стекло» даёт утилита .card-glass (прозрачность
+     + blur), а не сам токен (иначе непрозрачные bg-card поедут). */
   --card: #FFFFFF;
-  --card-foreground: #1F1F1F;
+  --card-foreground: var(--kai-ink-body);
   --popover: #FFFFFF;
-  --popover-foreground: #1F1F1F;
+  --popover-foreground: var(--kai-ink-body);
 
-  /* Главные действия — розовая CTA Кая. Текст белый (у Кая встречается и
-     тёмно-зелёный #293A32 — он доступен как text-cta-ink точечно). */
-  --primary: #E76CBA;
-  --primary-foreground: #FFFFFF;
+  /* Главное действие Кая — лавандовая пилюля «Сохранить» + ТЁМНЫЙ текст
+     (у Кая на лаванде тёмные чернила, не белые). */
+  --primary: var(--kai-lavender);
+  --primary-foreground: var(--kai-ink-body);
 
-  /* Второстепенные — нейтральный светло-серый (чипы времени в макете). */
   --secondary: #F5F5F5;
-  --secondary-foreground: #262626;
+  --secondary-foreground: var(--kai-ink);
 
-  /* Приглушённое. */
-  --muted: #F3F3F3;
-  --muted-foreground: #8F8F8F;
+  --muted: #F1F1EE;
+  --muted-foreground: #6F6F6F;
 
-  /* Акцент — розовый чип Кая (hover-подсветки, активные табы). */
-  --accent: #FFD5EF;
-  --accent-foreground: #542E42;
+  /* Акцент — мягкая лаванда (hover/активные состояния). */
+  --accent: var(--kai-lavender-soft);
+  --accent-foreground: var(--kai-ink);
 
-  /* Деструктив — тёплый терракотовый, не клинический красный.
-     CLAUDE.md: «ничего медицинского». */
+  /* Деструктив — тёплый терракотовый, не клинический красный (CLAUDE.md). */
   --destructive: #B8624A;
 
-  /* Бордеры и инпуты — тонкая светло-серая обводка карточек макета. */
-  --border: #DADADA;
-  --input: #DADADA;
+  --border: var(--kai-hairline);
+  --input: var(--kai-hairline-strong);
 
-  /* Focus ring — розовый CTA. */
-  --ring: #E76CBA;
+  /* Focus ring — глубокая лаванда. */
+  --ring: var(--kai-lavender-deep);
 
-  /* Графики — пастель Кая: голубой→лаванда→розовый ramp + жёлтый акцент. */
-  --chart-1: #E76CBA;   /* розовый CTA */
-  --chart-2: #8FDAFF;   /* голубой */
-  --chart-3: #C9C5E4;   /* лаванда */
-  --chart-4: #F3D87F;   /* жёлтый */
-  --chart-5: #375E70;   /* глубокий сине-зелёный для контраста */
+  /* Графики — пастель Кая. */
+  --chart-1: var(--kai-lavender-deep);
+  --chart-2: var(--kai-chip-blue-bd);
+  --chart-3: var(--kai-pink-soft);
+  --chart-4: var(--kai-chip-yellow-bd);
+  --chart-5: #375E70;
 
   --radius: 0.75rem; /* legacy: некоторые shadcn-компоненты читают напрямую */
 }
@@ -162,10 +226,17 @@
 }
 
 @layer components {
-  /* «Матовое стекло» карточки — базовый контейнер концепции Кая:
-     белое @90% + backdrop-blur + тонкая обводка + тихая тень + r:20. */
+  /* «Матовое стекло» карточки Кая: заливка --kai-glass (белый ~62%) +
+     backdrop-blur 4.65px + волосяная обводка + тень-card. Всё из токенов —
+     тема может переопределить --kai-glass/--kai-blur/тень (напр. «бумажная»
+     тема: непрозрачный фон, blur 0). Радиус r:25 — как карточки в макете. */
   .card-glass {
-    @apply rounded-lg border border-[#D8D8D8] bg-white/90 shadow-card backdrop-blur-[9px];
+    border-radius: var(--radius-xl);
+    background: var(--kai-glass);
+    border: 0.5px solid var(--border);
+    box-shadow: var(--kai-shadow-card);
+    backdrop-filter: blur(var(--kai-blur));
+    -webkit-backdrop-filter: blur(var(--kai-blur));
   }
 }
 

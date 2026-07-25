@@ -38,7 +38,7 @@ export default async function TrackerPage() {
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute bottom-[-60px] left-[-80px] h-80 w-[460px] rounded-full bg-[#EAE0D0]/80"
+        className="pointer-events-none absolute bottom-[-60px] left-[-80px] h-80 w-[460px] rounded-full bg-accent/80"
         style={{ filter: 'blur(90px)' }}
       />
 
@@ -130,7 +130,7 @@ function List({
   return (
     <section>
       {/* Ярлык-пилюля секции — как «Сегодня» в макете. */}
-      <span className="inline-block rounded-full border border-border bg-white/90 px-4 py-1.5 text-sm text-[#242424] shadow-card">
+      <span className="inline-block rounded-full border border-border bg-white/90 px-4 py-1.5 text-sm text-foreground shadow-card">
         {label}
       </span>
       <div className="mt-3 grid gap-2.5">

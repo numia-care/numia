@@ -53,8 +53,8 @@ export function NewPinForm({ dek, onSaved }: Props) {
 
   return (
     <>
-      <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">Новый PIN</h1>
-      <p className="mb-6 text-sm text-[#7A7A7A]">
+      <h1 className="mb-1 text-2xl font-medium text-foreground">Новый PIN</h1>
+      <p className="mb-6 text-sm text-muted-foreground">
         Придумай новый 6-значный PIN для входа на этом устройстве.
       </p>
 
@@ -66,11 +66,11 @@ export function NewPinForm({ dek, onSaved }: Props) {
         }}
       >
         <div className="space-y-2">
-          <span className="block text-sm text-[#3A3A3A]">Новый PIN</span>
+          <span className="block text-sm text-foreground">Новый PIN</span>
           <PinInput value={newPin} onChange={setNewPin} autoFocus disabled={busy} />
         </div>
         <div className="space-y-2">
-          <span className="block text-sm text-[#3A3A3A]">Повтори PIN</span>
+          <span className="block text-sm text-foreground">Повтори PIN</span>
           <PinInput value={confirmPin} onChange={setConfirmPin} disabled={busy} />
         </div>
 
@@ -79,7 +79,7 @@ export function NewPinForm({ dek, onSaved }: Props) {
         <button
           type="submit"
           disabled={newPin.length !== 6 || confirmPin.length !== 6 || busy}
-          className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+          className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring/60"
         >
           {busy ? 'Сохраняем…' : 'Сохранить'}
         </button>

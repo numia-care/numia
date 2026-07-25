@@ -95,7 +95,7 @@ export function LabChart({ analyteCode, rows }: { analyteCode: string; rows: Cha
               className={cn(
                 'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
                 displayUnit === u.code
-                  ? 'bg-[#5A6B4A] text-white'
+                  ? 'bg-primary text-primary-foreground'
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
@@ -116,7 +116,7 @@ export function LabChart({ analyteCode, rows }: { analyteCode: string; rows: Cha
                 y1={y}
                 x2={W - PADDING.right}
                 y2={y}
-                stroke="#E8E2D8"
+                stroke="var(--border)"
                 strokeWidth={1}
               />
               <text
@@ -125,7 +125,7 @@ export function LabChart({ analyteCode, rows }: { analyteCode: string; rows: Cha
                 textAnchor="end"
                 dominantBaseline="middle"
                 fontSize={9}
-                fill="#7A7A7A"
+                fill="var(--muted-foreground)"
               >
                 {fmtNum(tick)}
               </text>
@@ -138,7 +138,7 @@ export function LabChart({ analyteCode, rows }: { analyteCode: string; rows: Cha
           <polyline
             points={linePts}
             fill="none"
-            stroke="#5A6B4A"
+            stroke="var(--chart-1)"
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -152,18 +152,18 @@ export function LabChart({ analyteCode, rows }: { analyteCode: string; rows: Cha
             cx={xScale(p.t)}
             cy={yScale(p.v)}
             r={3}
-            fill="#5A6B4A"
-            stroke="#FAF6F0"
+            fill="var(--chart-1)"
+            stroke="var(--background)"
             strokeWidth={1.5}
           />
         ))}
 
         {/* X-метки: первая и последняя дата */}
-        <text x={PADDING.left} y={H - 6} textAnchor="start" fontSize={9} fill="#7A7A7A">
+        <text x={PADDING.left} y={H - 6} textAnchor="start" fontSize={9} fill="var(--muted-foreground)">
           {fmtDate(minT)}
         </text>
         {maxT !== minT && (
-          <text x={W - PADDING.right} y={H - 6} textAnchor="end" fontSize={9} fill="#7A7A7A">
+          <text x={W - PADDING.right} y={H - 6} textAnchor="end" fontSize={9} fill="var(--muted-foreground)">
             {fmtDate(maxT)}
           </text>
         )}

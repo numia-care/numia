@@ -45,18 +45,18 @@ export async function TodayMeds() {
       ? 'border-chip-pink-border bg-chip-pink'
       : i === 1
         ? 'border-chip-blue-border bg-chip-blue'
-        : 'border-transparent bg-[#F5F5F5]'
+        : 'border-transparent bg-secondary'
 
   return (
     // Стекло-карточка по фрейму: заголовок 14px/500 + счётчик «(N из M)».
     <Link href="/tracker" className="card-glass block p-5 transition-shadow hover:shadow-md">
-      <h2 className="text-sm font-medium text-[#1F1F1F]">{t('medsTitle')}</h2>
+      <h2 className="text-sm font-medium text-foreground">{t('medsTitle')}</h2>
 
       {slots.length === 0 ? (
         <p className="mt-1.5 text-sm text-muted-foreground">{t('medsEmpty')}</p>
       ) : (
         <>
-          <p className="mt-0.5 text-[10px] text-[#A4A4A4]">
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
             ({t('medsProgress', { taken, total: slots.length })})
           </p>
           {pending.length > 0 && (
@@ -66,7 +66,7 @@ export async function TodayMeds() {
               {shown.map((s, i) => (
                 <span
                   key={s.id}
-                  className={`truncate rounded-full border px-2.5 py-1 text-xs text-[#1F1F1F] ${chipClass(i)}`}
+                  className={`truncate rounded-full border px-2.5 py-1 text-xs text-foreground ${chipClass(i)}`}
                 >
                   {formatSlotTime(s.scheduled_at, tz)} • {s.medication?.name ?? '—'}
                 </span>

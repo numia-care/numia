@@ -214,7 +214,7 @@ export function VoiceForm() {
           <audio src={previewUrl} controls playsInline className="w-full" />
         ) : recording ? (
           <div className="text-center">
-            <p className="font-mono text-3xl tabular-nums text-[#5A6B4A]">
+            <p className="font-mono text-3xl tabular-nums text-foreground">
               {formatMmSs(elapsedMs)}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">{t('recording')}</p>
@@ -229,7 +229,7 @@ export function VoiceForm() {
           disabled={saving}
           className={cn(
             'w-full rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-ring/50 disabled:opacity-50',
-            recording ? 'bg-rose-600 hover:bg-rose-700' : 'bg-[#5A6B4A] hover:bg-[#4A5A3A]',
+            recording ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary hover:bg-primary/90',
           )}
         >
           {recording ? t('stopRecording') : blob ? t('reRecord') : t('record')}

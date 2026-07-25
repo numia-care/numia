@@ -240,16 +240,16 @@ export function PinUnlockForm() {
 
   if (!checked) {
     return (
-      <div className="flex flex-1 items-center justify-center bg-[#FAF6F0]">
-        <span className="text-2xl text-[#5A6B4A]">✦</span>
+      <div className="flex flex-1 items-center justify-center bg-background">
+        <span className="text-2xl text-foreground">✦</span>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-[#FAF6F0] px-6 py-16">
+    <div className="flex flex-1 items-center justify-center bg-background px-6 py-16">
       <main className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm ring-1 ring-black/[0.04]">
-        <div className="mb-6 flex items-center gap-2 text-[#5A6B4A]">
+        <div className="mb-6 flex items-center gap-2 text-foreground">
           <span className="text-2xl">✦</span>
           <span className="text-sm uppercase tracking-widest">Numia</span>
         </div>
@@ -258,16 +258,16 @@ export function PinUnlockForm() {
           <NewPinForm dek={bioDek} onSaved={() => setStep('bio-done')} />
         ) : step === 'bio-done' ? (
           <>
-            <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
+            <h1 className="mb-1 text-2xl font-medium text-foreground">
               Новый PIN сохранён ✦
             </h1>
-            <p className="mb-6 text-sm leading-relaxed text-[#7A7A7A]">
+            <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
               Записи на месте. Дальше входи по биометрии или новому PIN.
             </p>
             <button
               type="button"
               onClick={() => router.replace('/')}
-              className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+              className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring/60"
             >
               Войти
             </button>
@@ -285,10 +285,10 @@ export function PinUnlockForm() {
           />
         ) : step === 'forgot' ? (
           <>
-            <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
+            <h1 className="mb-1 text-2xl font-medium text-foreground">
               Не помнишь PIN?
             </h1>
-            <p className="mb-6 text-sm leading-relaxed text-[#7A7A7A]">
+            <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
               Ничего страшного.{' '}
               {bioAvailable
                 ? 'Биометрия открывает те же записи — войди по ней и задай новый PIN.'
@@ -302,7 +302,7 @@ export function PinUnlockForm() {
                   type="button"
                   disabled={busy}
                   onClick={() => onBioUnlock(true)}
-                  className="mb-3 w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+                  className="mb-3 w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring/60"
                 >
                   Войти по Face ID и задать новый PIN
                 </button>
@@ -317,24 +317,24 @@ export function PinUnlockForm() {
               onClick={() => setStep('recover')}
               className={
                 bioAvailable
-                  ? 'w-full rounded-xl border border-[#5A6B4A] bg-white px-4 py-3 text-sm font-medium text-[#5A6B4A] transition-colors hover:bg-[#5A6B4A]/5 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60'
-                  : 'w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60'
+                  ? 'w-full rounded-xl border border-primary bg-white px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-ring/60'
+                  : 'w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring/60'
               }
             >
               Ввести ключ восстановления
             </button>
 
             {/* Запасной, неприметный выход — для тех, у кого ключа нет. */}
-            <div className="mt-8 border-t border-[#E8E2D8] pt-5">
+            <div className="mt-8 border-t border-border pt-5">
               <button
                 type="button"
                 disabled={busy}
                 onClick={onForgot}
-                className="text-sm text-[#7A7A7A] underline-offset-4 hover:text-rose-600 hover:underline disabled:opacity-50"
+                className="text-sm text-muted-foreground underline-offset-4 hover:text-rose-600 hover:underline disabled:opacity-50"
               >
                 Сбросить всё
               </button>
-              <p className="mt-1.5 text-xs leading-relaxed text-[#B8B0A4]">
+              <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                 Удалит PIN и выйдет из аккаунта. Без ключа восстановления
                 зашифрованные записи после сброса не вернуть.
               </p>
@@ -346,17 +346,17 @@ export function PinUnlockForm() {
                 setBioError(null)
                 setStep('unlock')
               }}
-              className="mt-6 block w-full text-center text-sm text-[#7A7A7A] underline-offset-4 hover:text-[#5A6B4A] hover:underline"
+              className="mt-6 block w-full text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
             >
               ← Назад
             </button>
           </>
         ) : (
           <>
-        <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
+        <h1 className="mb-1 text-2xl font-medium text-foreground">
           {bioAvailable ? 'С возвращением ✦' : 'Введи PIN'}
         </h1>
-        <p className="mb-6 text-sm text-[#7A7A7A]">
+        <p className="mb-6 text-sm text-muted-foreground">
           {bioAvailable
             ? 'Войди по биометрии или введи PIN.'
             : 'Те же 6 цифр, что и при первом входе.'}
@@ -370,15 +370,15 @@ export function PinUnlockForm() {
               type="button"
               disabled={busy}
               onClick={() => onBioUnlock(false)}
-              className="w-full rounded-xl border border-[#5A6B4A] bg-white px-4 py-3 text-sm font-medium text-[#5A6B4A] transition-colors hover:bg-[#5A6B4A]/5 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+              className="w-full rounded-xl border border-primary bg-white px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-primary/5 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring/60"
             >
               Войти по Face ID / Touch ID
             </button>
             {bioError && <p className="mt-2 text-sm text-rose-600">{bioError}</p>}
-            <div className="mt-5 flex items-center gap-3 text-xs text-[#B8B0A4]">
-              <span className="h-px flex-1 bg-[#E8E2D8]" />
+            <div className="mt-5 flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
               или PIN
-              <span className="h-px flex-1 bg-[#E8E2D8]" />
+              <span className="h-px flex-1 bg-border" />
             </div>
           </div>
         )}
@@ -399,7 +399,7 @@ export function PinUnlockForm() {
           {lockoutLeft > 0 ? (
             // Пауза после серии неверных попыток. Тон спокойный: это защита,
             // не наказание — настоящий владелец просто подождёт и попробует.
-            <p className="text-sm text-[#7A7A7A]">
+            <p className="text-sm text-muted-foreground">
               Слишком много попыток подряд. Пауза {lockoutLeft}{' '}
               {lockoutLeft % 10 === 1 && lockoutLeft % 100 !== 11
                 ? 'секунду'
@@ -415,7 +415,7 @@ export function PinUnlockForm() {
           <button
             type="submit"
             disabled={pin.length !== 6 || busy || lockoutLeft > 0}
-            className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+            className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring/60"
           >
             {busy ? 'Проверяем…' : lockoutLeft > 0 ? `Подожди ${lockoutLeft} c` : 'Войти'}
           </button>
@@ -432,7 +432,7 @@ export function PinUnlockForm() {
             className={
               attempts >= SOFT_LOCKOUT_AFTER
                 ? 'text-rose-600 underline-offset-4 hover:underline disabled:opacity-50'
-                : 'text-[#7A7A7A] underline-offset-4 hover:text-[#5A6B4A] hover:underline disabled:opacity-50'
+                : 'text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50'
             }
           >
             Не помню PIN
@@ -448,7 +448,7 @@ export function PinUnlockForm() {
               type="button"
               disabled={busy}
               onClick={() => setEnrollOpen(true)}
-              className="text-[#7A7A7A] underline-offset-4 hover:text-[#5A6B4A] hover:underline disabled:opacity-50"
+              className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
             >
               Хочешь входить по Face ID? ✦
             </button>

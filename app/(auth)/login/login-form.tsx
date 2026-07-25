@@ -150,17 +150,17 @@ export function LoginForm() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-[#FAF6F0] px-6 py-16">
+    <div className="flex flex-1 items-center justify-center bg-background px-6 py-16">
       <main className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm ring-1 ring-black/[0.04]">
-        <div className="mb-6 flex items-center gap-2 text-[#5A6B4A]">
+        <div className="mb-6 flex items-center gap-2 text-foreground">
           <span className="text-2xl">✦</span>
           <span className="text-sm uppercase tracking-widest">Numia</span>
         </div>
 
         {step === 'email' ? (
           <>
-            <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">Вход</h1>
-            <p className="mb-8 text-sm text-[#7A7A7A]">
+            <h1 className="mb-1 text-2xl font-medium text-foreground">Вход</h1>
+            <p className="mb-8 text-sm text-muted-foreground">
               Получи 6-значный код на почту — пароль не нужен.
             </p>
 
@@ -172,7 +172,7 @@ export function LoginForm() {
               }}
             >
               <label className="block">
-                <span className="mb-1.5 block text-sm text-[#3A3A3A]">Email</span>
+                <span className="mb-1.5 block text-sm text-foreground">Email</span>
                 <input
                   name="email"
                   type="email"
@@ -182,7 +182,7 @@ export function LoginForm() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="ты@почта.com"
                   disabled={loading}
-                  className="w-full rounded-xl border border-[#E8E2D8] bg-white px-4 py-3 text-[#3A3A3A] outline-none placeholder:text-[#B8B0A4] focus:border-[#9CAF88] focus:ring-2 focus:ring-[#C9B6E4]/40 disabled:opacity-60"
+                  className="w-full rounded-xl border border-border bg-white px-4 py-3 text-foreground outline-none placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/40 disabled:opacity-60"
                 />
               </label>
 
@@ -191,7 +191,7 @@ export function LoginForm() {
               <button
                 type="submit"
                 disabled={loading || cooldown > 0}
-                className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+                className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring/60"
               >
                 {loading
                   ? 'Отправляем…'
@@ -202,7 +202,7 @@ export function LoginForm() {
             </form>
 
             {/* Обещание прозрачности с /safety — говорим сразу, на входе. */}
-            <p className="mt-6 text-xs leading-relaxed text-[#7A7A7A]">
+            <p className="mt-6 text-xs leading-relaxed text-muted-foreground">
               Почта нужна только для входа. Это единственное, что связывает
               аккаунт с тобой, поэтому можно любую, хоть одноразовую
               (SimpleLogin, AnonAddy). Не блокируем ✦
@@ -210,14 +210,14 @@ export function LoginForm() {
           </>
         ) : (
           <>
-            <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">Введи код</h1>
-            <p className="mb-6 text-sm text-[#7A7A7A]">
-              Код отправлен на <span className="text-[#3A3A3A]">{email}</span>.
+            <h1 className="mb-1 text-2xl font-medium text-foreground">Введи код</h1>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Код отправлен на <span className="text-foreground">{email}</span>.
               Проверь почту, в т.ч. папку спам.
             </p>
 
             {notice && (
-              <div className="mb-4 rounded-xl bg-[#FAF6F0] p-3 text-sm text-[#5A6B4A]">
+              <div className="mb-4 rounded-xl bg-background p-3 text-sm text-foreground">
                 ✓ {notice}
               </div>
             )}
@@ -230,7 +230,7 @@ export function LoginForm() {
               }}
             >
               <label className="block">
-                <span className="mb-1.5 block text-sm text-[#3A3A3A]">Код</span>
+                <span className="mb-1.5 block text-sm text-foreground">Код</span>
                 <input
                   name="token"
                   type="text"
@@ -243,7 +243,7 @@ export function LoginForm() {
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="123456"
                   disabled={loading}
-                  className="w-full rounded-xl border border-[#E8E2D8] bg-white px-4 py-3 text-center text-2xl tracking-[0.5em] text-[#3A3A3A] outline-none placeholder:text-[#B8B0A4] placeholder:tracking-normal focus:border-[#9CAF88] focus:ring-2 focus:ring-[#C9B6E4]/40 disabled:opacity-60"
+                  className="w-full rounded-xl border border-border bg-white px-4 py-3 text-center text-2xl tracking-[0.5em] text-foreground outline-none placeholder:text-muted-foreground placeholder:tracking-normal focus:border-ring focus:ring-2 focus:ring-ring/40 disabled:opacity-60"
                 />
               </label>
 
@@ -252,7 +252,7 @@ export function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+                className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring/60"
               >
                 {loading ? 'Проверяем…' : 'Войти'}
               </button>
@@ -263,7 +263,7 @@ export function LoginForm() {
                 type="button"
                 onClick={() => send(true)}
                 disabled={loading || cooldown > 0}
-                className="text-[#7A7A7A] underline-offset-4 hover:text-[#5A6B4A] hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+                className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
               >
                 {cooldown > 0
                   ? `Отправить заново через ${cooldown} с`
@@ -273,7 +273,7 @@ export function LoginForm() {
                 type="button"
                 onClick={changeEmail}
                 disabled={loading}
-                className="text-[#7A7A7A] underline-offset-4 hover:text-[#5A6B4A] hover:underline disabled:opacity-50"
+                className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
               >
                 Изменить email
               </button>

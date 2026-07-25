@@ -97,16 +97,16 @@ export function PinSetupForm() {
   if (!checked) {
     // Сплеш на время проверки якоря — тот же, что на экране разблокировки.
     return (
-      <div className="flex flex-1 items-center justify-center bg-[#FAF6F0]">
-        <span className="text-2xl text-[#5A6B4A]">✦</span>
+      <div className="flex flex-1 items-center justify-center bg-background">
+        <span className="text-2xl text-foreground">✦</span>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-[#FAF6F0] px-6 py-16">
+    <div className="flex flex-1 items-center justify-center bg-background px-6 py-16">
       <main className="w-full max-w-md rounded-2xl bg-white p-8 shadow-sm ring-1 ring-black/[0.04]">
-        <div className="mb-6 flex items-center gap-2 text-[#5A6B4A]">
+        <div className="mb-6 flex items-center gap-2 text-foreground">
           <span className="text-2xl">✦</span>
           <span className="text-sm uppercase tracking-widest">Numia</span>
         </div>
@@ -124,10 +124,10 @@ export function PinSetupForm() {
           />
         ) : step === 'enter' ? (
           <>
-            <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
+            <h1 className="mb-1 text-2xl font-medium text-foreground">
               Придумай PIN
             </h1>
-            <p className="mb-6 text-sm text-[#7A7A7A]">
+            <p className="mb-6 text-sm text-muted-foreground">
               6 цифр. Будем спрашивать при входе и после паузы — даже если
               телефон попадёт в чужие руки, в Numia без PIN не зайдут.
             </p>
@@ -146,13 +146,13 @@ export function PinSetupForm() {
               <button
                 type="submit"
                 disabled={pin.length !== 6}
-                className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+                className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring/60"
               >
                 Дальше
               </button>
             </form>
 
-            <p className="mt-6 text-xs leading-relaxed text-[#7A7A7A]">
+            <p className="mt-6 text-xs leading-relaxed text-muted-foreground">
               Дальше покажем твой ключ восстановления. Сохрани его — это
               страховка: им вернёшь доступ, если забудешь PIN или сменишь
               устройство. Зашифрованные записи (дневник, фото) пропадут навсегда,
@@ -162,10 +162,10 @@ export function PinSetupForm() {
           </>
         ) : (
           <>
-            <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
+            <h1 className="mb-1 text-2xl font-medium text-foreground">
               Повтори PIN
             </h1>
-            <p className="mb-6 text-sm text-[#7A7A7A]">
+            <p className="mb-6 text-sm text-muted-foreground">
               Введи те же 6 цифр ещё раз для подтверждения.
             </p>
 
@@ -186,7 +186,7 @@ export function PinSetupForm() {
               <button
                 type="submit"
                 disabled={confirm.length !== 6 || busy}
-                className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+                className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring/60"
               >
                 {busy ? 'Сохраняем…' : 'Готово'}
               </button>
@@ -198,7 +198,7 @@ export function PinSetupForm() {
                   setConfirm('')
                   setError(null)
                 }}
-                className="block w-full text-center text-sm text-[#7A7A7A] underline-offset-4 hover:text-[#5A6B4A] hover:underline disabled:opacity-50"
+                className="block w-full text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
               >
                 Назад
               </button>

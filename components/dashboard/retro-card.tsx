@@ -92,7 +92,7 @@ export function RetroCard() {
       href="/path"
       className="card-glass block p-5 transition-shadow animate-in fade-in slide-in-from-bottom-3 duration-500 hover:shadow-md"
     >
-      <h2 className="text-sm font-medium text-[#1F1F1F]">
+      <h2 className="text-sm font-medium text-foreground">
         {hit.kind === 'year' ? t('retroYear') : t('retroMonth')}
       </h2>
       <div className="mt-3">

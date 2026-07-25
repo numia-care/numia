@@ -24,7 +24,7 @@ export function MedicationCard({ med }: { med: MedicationRow }) {
   return (
     <div
       className={cn(
-        'border border-[#D4D4D4] bg-[#EDEBE9] shadow-card transition-[border-radius] duration-200',
+        'border border-border bg-secondary shadow-card transition-[border-radius] duration-200',
         // Свёрнуто — фиксированные 26px (= половина высоты 52px, выглядит как
         // пилюля), НЕ rounded-full. rounded-full = 9999px: при развороте карточка
         // мгновенно становится высокой, и пока transition тянет радиус вниз, на
@@ -39,16 +39,16 @@ export function MedicationCard({ med }: { med: MedicationRow }) {
         aria-expanded={expanded}
         className="flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-left"
       >
-        <span className="min-w-0 flex-1 truncate text-sm text-[#1F1F1F]">
+        <span className="min-w-0 flex-1 truncate text-sm text-foreground">
           {med.name}
         </span>
-        <span className="shrink-0 text-xs text-[#1F1F1F]/80">
+        <span className="shrink-0 text-xs text-foreground/80">
           {formatDoseWithUnit(med.dose_amount, med.dose_unit)} •{' '}
           {t(`medForm.${med.form}`)}
         </span>
         <ChevronDownIcon
           className={cn(
-            'size-4 shrink-0 text-[#1F1F1F]/70 transition-transform',
+            'size-4 shrink-0 text-foreground/70 transition-transform',
             expanded && 'rotate-180',
           )}
         />
@@ -57,7 +57,7 @@ export function MedicationCard({ med }: { med: MedicationRow }) {
       {expanded && (
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3">
           <div className="min-w-0">
-            <p className="text-[11px] leading-snug text-[#1F1F1F]/70">
+            <p className="text-[11px] leading-snug text-foreground/70">
               {formatSchedule(med.schedule, t)}
             </p>
             <NextIntakeLine med={med} />
@@ -66,7 +66,7 @@ export function MedicationCard({ med }: { med: MedicationRow }) {
           <div className="flex shrink-0 items-center gap-1">
             <Link
               href={`/tracker/${med.id}/edit`}
-              className="rounded-full px-3 py-1.5 text-xs text-[#1F1F1F]/70 transition-colors hover:bg-white/50 hover:text-[#1F1F1F]"
+              className="rounded-full px-3 py-1.5 text-xs text-foreground/70 transition-colors hover:bg-white/50 hover:text-foreground"
             >
               {t('card.editButton')}
             </Link>
@@ -94,7 +94,7 @@ function NextIntakeLine({ med }: { med: MedicationRow }) {
     tomorrow: t('card.nextTomorrow'),
   })
   return (
-    <p className="mt-0.5 text-[11px] font-medium leading-snug text-[#1F1F1F]">
+    <p className="mt-0.5 text-[11px] font-medium leading-snug text-foreground">
       {t('card.next', { when })}
     </p>
   )
@@ -108,7 +108,7 @@ function KindBadge({ kind }: { kind: MedicationRow['kind'] }) {
     antiandrogen: 'border-chip-yellow-border bg-chip-yellow text-[#6B5A1E]',
     progesterone: 'border-[#EBCEFF] bg-[#E8BAF7]/60 text-[#5A3A6B]',
     testosterone: 'border-chip-blue-border bg-chip-blue text-[#2E4A5A]',
-    other: 'border-[#D4D4D4] bg-white/60 text-[#5A5A5A]',
+    other: 'border-border bg-white/60 text-[#5A5A5A]',
   }
   return (
     <span

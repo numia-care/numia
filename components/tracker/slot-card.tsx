@@ -42,10 +42,10 @@ export interface SlotCardProps {
 
 // Классы пилюли по цветовому индексу — пары заливка+обводка из фрейма.
 function pillClass(colorIndex: number | undefined, isUpcoming: boolean): string {
-  if (!isUpcoming) return 'border-[#D4D4D4] bg-[#EDEBE9]'
+  if (!isUpcoming) return 'border-border bg-secondary'
   if (colorIndex === 0) return 'border-chip-blue-border bg-chip-blue'
   if (colorIndex === 1) return 'border-chip-pink-border bg-chip-pink'
-  return 'border-[#D4D4D4] bg-[#EDEBE9]'
+  return 'border-border bg-secondary'
 }
 
 export function SlotCard(props: SlotCardProps) {
@@ -102,11 +102,11 @@ export function SlotCard(props: SlotCardProps) {
   }
 
   const checkbox = (
-    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[#FEFEFD] shadow-sm">
+    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-card shadow-sm">
       {/* Принято — тёмная точка (цвет из фрейма); пропуск — приглушённая. */}
-      {isTaken && <span className="size-3 rounded-full bg-[#262626]" />}
+      {isTaken && <span className="size-3 rounded-full bg-foreground" />}
       {(status === 'skipped' || status === 'missed') && (
-        <span className="size-3 rounded-full bg-[#8F8F8F]/50" />
+        <span className="size-3 rounded-full bg-muted-foreground/50" />
       )}
     </span>
   )
@@ -128,11 +128,11 @@ export function SlotCard(props: SlotCardProps) {
         checkbox
       )}
 
-      <span className="min-w-0 flex-1 truncate text-sm text-[#1F1F1F]">
+      <span className="min-w-0 flex-1 truncate text-sm text-foreground">
         {medName}
       </span>
 
-      <span className="shrink-0 text-xs text-[#1F1F1F]/80">
+      <span className="shrink-0 text-xs text-foreground/80">
         {timeStr} • {doseStr}
       </span>
 
@@ -145,7 +145,7 @@ export function SlotCard(props: SlotCardProps) {
           className="-m-1.5 flex size-8 shrink-0 items-center justify-center"
         >
           <ChevronDownIcon
-            className={cn('size-4 text-[#1F1F1F]/70 transition-transform', expanded && 'rotate-180')}
+            className={cn('size-4 text-foreground/70 transition-transform', expanded && 'rotate-180')}
           />
         </button>
       )}
@@ -167,14 +167,14 @@ export function SlotCard(props: SlotCardProps) {
       {/* Разворот (только upcoming): детали + нейтральное «Пропустить». */}
       {isUpcoming && expanded && (
         <div className="flex items-center justify-between gap-3 px-4 pb-3 pl-12">
-          <span className="text-[11px] leading-snug text-[#1F1F1F]/70">
+          <span className="text-[11px] leading-snug text-foreground/70">
             {doseStr} · {formStr}
           </span>
           <button
             type="button"
             disabled={isPending}
             onClick={() => act(markSkipped, t('skippedBadge'))}
-            className="shrink-0 rounded-full px-3 py-1.5 text-xs text-[#1F1F1F]/70 transition-colors hover:bg-white/50 hover:text-[#1F1F1F] disabled:opacity-60"
+            className="shrink-0 rounded-full px-3 py-1.5 text-xs text-foreground/70 transition-colors hover:bg-white/50 hover:text-foreground disabled:opacity-60"
           >
             {t('markSkipped')}
           </button>
@@ -184,7 +184,7 @@ export function SlotCard(props: SlotCardProps) {
       {/* Принято в другое время — тихая пометка в строке разворота нет,
           показываем в самой строке подсказкой через title. */}
       {isTaken && takenTimeStr && takenTimeStr !== timeStr && (
-        <div className="px-4 pb-2 pl-12 text-[11px] text-[#1F1F1F]/60">
+        <div className="px-4 pb-2 pl-12 text-[11px] text-foreground/60">
           {t('takenAtBadge', { time: takenTimeStr })}
         </div>
       )}

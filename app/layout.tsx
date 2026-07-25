@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getMessages } from 'next-intl/server'
 import {
-  Bitcount_Prop_Single,
+  Bitcount_Grid_Single,
   Boldonse,
   Instrument_Sans,
   Inter,
@@ -32,8 +32,8 @@ const boldonse = Boldonse({
   subsets: ['latin'],
 })
 
-// Bitcount — крупная дата на дашборде (фан-элемент концепции).
-const bitcount = Bitcount_Prop_Single({
+// Bitcount Grid Single — крупная дата (точный шрифт Кая для дата-пилюли).
+const bitcount = Bitcount_Grid_Single({
   variable: '--font-bitcount',
   weight: '400',
   subsets: ['latin'],
@@ -62,7 +62,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#5A6B4A',
+  themeColor: '#F5F6F0',
   colorScheme: 'light',
   // Клавиатура сжимает layout, а не перекрывает его (Android/Chrome; iOS
   // Safari директиву игнорирует — там смягчаем через KeyboardScrollAssist

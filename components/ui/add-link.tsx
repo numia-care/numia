@@ -10,7 +10,7 @@ export function AddLink({ href, label }: { href: string; label: string }) {
     <Link
       href={href}
       aria-label={label}
-      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#262626] text-white transition-opacity hover:opacity-85"
+      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-foreground text-white transition-opacity hover:opacity-85"
     >
       <PlusIcon className="size-5" />
     </Link>

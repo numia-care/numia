@@ -73,17 +73,17 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
   if (step === 'done') {
     return (
       <>
-        <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
+        <h1 className="mb-1 text-2xl font-medium text-foreground">
           Доступ восстановлен ✦
         </h1>
-        <p className="mb-6 text-sm leading-relaxed text-[#7A7A7A]">
+        <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
           Записи на месте. Новый PIN сохранён на этом устройстве — дальше входи
           с ним.
         </p>
         <button
           type="button"
           onClick={onSuccess}
-          className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+          className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring/60"
         >
           Войти
         </button>
@@ -108,18 +108,18 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
   // ── Ввод фразы ────────────────────────────────────────────────────────────────
   return (
     <>
-      <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
+      <h1 className="mb-1 text-2xl font-medium text-foreground">
         Ключ восстановления
       </h1>
       {/* Частый вопрос тестеров: вход с другого браузера / после переустановки
           выглядит как «новое устройство» (обёртка DEK лежит в IndexedDB, а он
           отдельный на каждый браузер). Объясняем, что это норма и данные целы. */}
-      <p className="mb-4 rounded-xl bg-[#EEF2E9] px-4 py-3 text-sm leading-relaxed text-[#5A6B4A]">
+      <p className="mb-4 rounded-xl bg-accent px-4 py-3 text-sm leading-relaxed text-foreground">
         Заходишь из другого браузера или после переустановки? Это нормально — для
         приложения это новое устройство. Введи ключ восстановления, и данные
         будут на месте ✦
       </p>
-      <p className="mb-5 text-sm leading-relaxed text-[#7A7A7A]">
+      <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
         Введи 12 слов ключа — можно вставить целиком или по одному, через пробел.
         Порядок слов важен.
       </p>
@@ -141,7 +141,7 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          className="w-full resize-none rounded-xl border border-[#E8E2D8] bg-white px-4 py-3 font-mono text-[#3A3A3A] outline-none placeholder:font-sans placeholder:text-[#B8B0A4] focus:border-[#9CAF88] focus:ring-2 focus:ring-[#C9B6E4]/40 disabled:opacity-60"
+          className="w-full resize-none rounded-xl border border-border bg-white px-4 py-3 font-mono text-foreground outline-none placeholder:font-sans placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/40 disabled:opacity-60"
         />
 
         {error && <p className="text-sm text-rose-600">{error}</p>}
@@ -149,7 +149,7 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
         <button
           type="submit"
           disabled={busy}
-          className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+          className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring/60"
         >
           {busy ? 'Проверяем…' : 'Продолжить'}
         </button>
@@ -159,7 +159,7 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
         type="button"
         onClick={onBack}
         disabled={busy}
-        className="mt-4 block w-full text-center text-sm text-[#7A7A7A] underline-offset-4 hover:text-[#5A6B4A] hover:underline disabled:opacity-50"
+        className="mt-4 block w-full text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
       >
         ← Назад
       </button>

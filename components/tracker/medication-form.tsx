@@ -183,7 +183,7 @@ export function MedicationForm({
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {/* Черновик восстановлен после того как приложение уводило на PIN. */}
         {restored && (
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-[#EEF2E9] px-4 py-3 text-sm text-[#5A6B4A]">
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-accent px-4 py-3 text-sm text-foreground">
             <span>{t('draftRestored')}</span>
             <button
               type="button"

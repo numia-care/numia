@@ -30,7 +30,7 @@ export function DateBadge() {
       }}
     >
       <span className="font-numeric text-[44px] leading-none">{d.day}</span>
-      <span className="mt-1 text-sm font-semibold text-[#FFFCF4]">{d.month}</span>
+      <span className="mt-1 text-sm font-semibold text-background">{d.month}</span>
     </div>
   )
 }

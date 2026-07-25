@@ -274,7 +274,7 @@ export function LabForm({ initialMode = 'values' }: { initialMode?: Mode }) {
             checked={noDate}
             onChange={(e) => setNoDate(e.target.checked)}
             disabled={saving}
-            className="size-4 accent-[#5A6B4A]"
+            className="size-4 accent-primary"
           />
           {t('noDateToggle')}
         </label>

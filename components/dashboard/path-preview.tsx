@@ -52,7 +52,7 @@ export function PathPreview() {
 
   return (
     <Link href="/path" className="card-glass block p-5 transition-shadow hover:shadow-md">
-      <h2 className="text-sm font-medium text-[#1F1F1F]">{t('pathTitle')}</h2>
+      <h2 className="text-sm font-medium text-foreground">{t('pathTitle')}</h2>
 
       {state.kind === 'loading' ? (
         <div className="mt-3 grid grid-cols-3 gap-2">
@@ -111,7 +111,7 @@ function PathTile({ entry }: { entry: PathEntry }) {
   }, [entry, isPhoto, isDiary])
 
   return (
-    <div className="flex aspect-square items-center justify-center overflow-hidden rounded-md bg-[#F3F3F3]">
+    <div className="flex aspect-square items-center justify-center overflow-hidden rounded-md bg-secondary">
       {isPhoto ? (
         url ? (
           // ПРИВАТНОСТЬ: дашборд часто открыт (PIN-грейс) и виден через плечо —
@@ -129,7 +129,7 @@ function PathTile({ entry }: { entry: PathEntry }) {
           <div className="size-full animate-pulse bg-muted/60" />
         )
       ) : entry.entryType === 'voice' ? (
-        <MicIcon className="size-5 text-[#8F8F8F]" />
+        <MicIcon className="size-5 text-muted-foreground" />
       ) : (
         <div className="flex size-full flex-col items-center justify-center gap-1 p-1.5">
           <span
@@ -143,7 +143,7 @@ function PathTile({ entry }: { entry: PathEntry }) {
             ✦
           </span>
           {note && (
-            <span className="line-clamp-2 text-center text-[10px] leading-tight text-[#1F1F1F]/80">
+            <span className="line-clamp-2 text-center text-[10px] leading-tight text-foreground/80">
               {note}
             </span>
           )}

@@ -50,7 +50,7 @@ export function PinInput({
         // Фильтруем не-цифры на каждом вводе — на случай paste с пробелами/дефисами.
         onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 6))}
         placeholder="••••••"
-        className="w-full rounded-xl border border-[#E8E2D8] bg-white px-4 py-3 pr-12 text-center text-2xl tracking-[0.5em] text-[#3A3A3A] outline-none placeholder:text-[#B8B0A4] placeholder:tracking-[0.3em] focus:border-[#9CAF88] focus:ring-2 focus:ring-[#C9B6E4]/40"
+        className="w-full rounded-xl border border-border bg-white px-4 py-3 pr-12 text-center text-2xl tracking-[0.5em] text-foreground outline-none placeholder:text-muted-foreground placeholder:tracking-[0.3em] focus:border-ring focus:ring-2 focus:ring-ring/40"
       />
       <button
         type="button"
@@ -59,7 +59,7 @@ export function PinInput({
         tabIndex={-1}
         onClick={() => setShow((s) => !s)}
         aria-label={show ? 'Скрыть PIN' : 'Показать PIN'}
-        className="absolute top-1/2 right-3 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-[#7A7A7A] transition-colors hover:text-[#5A6B4A] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C9B6E4]/60 disabled:opacity-50"
+        className="absolute top-1/2 right-3 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50"
         disabled={disabled}
       >
         {show ? (

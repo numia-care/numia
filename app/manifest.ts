@@ -17,8 +17,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: '/',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#FAF6F0',
-    theme_color: '#5A6B4A',
+    background_color: '#F5F6F0',
+    theme_color: '#F5F6F0',
     categories: ['health', 'lifestyle'],
     // TODO: добавить screenshots после готового UI трекера (этап 1+)
     icons: [

@@ -110,7 +110,7 @@ export function MoodQuickEntry() {
     // шкала на градиентной подложке (голубой → лаванда → розовый, r:18).
     // p-3.5: на 390px рядом бейдж даты — каждому пикселю ширины счёт.
     <div className="card-glass rounded-2xl p-3.5">
-      <h2 className="text-center text-[15px] text-[#242424]">{t('title')}</h2>
+      <h2 className="text-center text-[15px] text-foreground">{t('title')}</h2>
 
       {state.kind === 'loading' ? (
         <div className="mt-3 h-16 animate-pulse rounded-xl bg-muted/40" />

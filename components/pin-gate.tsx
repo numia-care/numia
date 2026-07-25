@@ -83,8 +83,8 @@ export function PinGate({ children }: { children: React.ReactNode }) {
     // Сплеш на время проверки — не даём вспышку защищённого контента
     // в момент между server-render и client-side проверкой.
     return (
-      <div className="flex flex-1 items-center justify-center bg-[#FAF6F0]">
-        <span className="text-2xl text-[#5A6B4A]">✦</span>
+      <div className="flex flex-1 items-center justify-center bg-background">
+        <span className="text-2xl text-foreground">✦</span>
       </div>
     )
   }

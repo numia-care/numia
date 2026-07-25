@@ -52,7 +52,7 @@ export function Greeting() {
         Привет{data.name ? `, ${data.name}` : ''}
       </h1>
       {data.phrase && (
-        <p className="mt-2 text-base text-[#242424]">{data.phrase}</p>
+        <p className="mt-2 text-base text-foreground">{data.phrase}</p>
       )}
       {data.date && (
         <p className="mt-1 text-sm text-muted-foreground">{data.date}</p>

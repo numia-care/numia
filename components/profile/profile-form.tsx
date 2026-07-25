@@ -111,7 +111,7 @@ export function ProfileForm() {
               className={cn(
                 'rounded-lg px-3 py-2 text-sm font-medium transition-colors',
                 form === o.value
-                  ? 'bg-[#5A6B4A] text-white'
+                  ? 'bg-primary text-primary-foreground'
                   : 'bg-muted/50 text-muted-foreground hover:text-foreground',
               )}
             >

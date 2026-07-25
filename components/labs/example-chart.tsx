@@ -30,7 +30,7 @@ export function ExampleChart() {
       aria-label="Пример графика динамики"
     >
       {/* Мягкая заливка под линией */}
-      <polygon points={area} fill="#9CAF88" opacity={0.12} />
+      <polygon points={area} fill="var(--chart-1)" opacity={0.12} />
 
       {/* Тонкая базовая сетка */}
       {[0.25, 0.5, 0.75].map((f) => {
@@ -42,7 +42,7 @@ export function ExampleChart() {
             y1={y}
             x2={PAD.left + PLOT_W}
             y2={y}
-            stroke="#E8E2D8"
+            stroke="var(--border)"
             strokeWidth={1}
           />
         )
@@ -52,7 +52,7 @@ export function ExampleChart() {
       <polyline
         points={line}
         fill="none"
-        stroke="#9CAF88"
+        stroke="var(--chart-1)"
         strokeWidth={2.5}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -60,7 +60,7 @@ export function ExampleChart() {
 
       {/* Точки */}
       {coords.map((c, i) => (
-        <circle key={i} cx={c.x} cy={c.y} r={3.5} fill="#5A6B4A" stroke="#FAF6F0" strokeWidth={1.5} />
+        <circle key={i} cx={c.x} cy={c.y} r={3.5} fill="var(--chart-1)" stroke="var(--background)" strokeWidth={1.5} />
       ))}
 
       {/* Подписи месяцев */}
@@ -71,7 +71,7 @@ export function ExampleChart() {
           y={H - 6}
           textAnchor="middle"
           fontSize={9}
-          fill="#B8B0A4"
+          fill="var(--muted-foreground)"
         >
           {MONTHS[i]}
         </text>

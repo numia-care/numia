@@ -67,23 +67,23 @@ export function RecoveryKeyCard({ phrase, onDone, onRemindLater }: Props) {
 
   return (
     <>
-      <h1 className="mb-1 text-2xl font-medium text-[#3A3A3A]">
+      <h1 className="mb-1 text-2xl font-medium text-foreground">
         Ключ восстановления ✦
       </h1>
-      <p className="mb-5 text-sm leading-relaxed text-[#7A7A7A]">
+      <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
         Если потеряешь телефон или забудешь PIN — этот ключ вернёт твои фото и
         записи. Сохрани его надёжно: в заметках, менеджере паролей. Мы не сможем
         восстановить его за тебя — так твои данные защищены даже от нас ✦
       </p>
 
       {/* 12 слов, пронумерованы — читаемо и для переписывания, и для проверки */}
-      <ol className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl bg-[#FAF6F0] p-4 ring-1 ring-black/[0.04]">
+      <ol className="mb-4 grid grid-cols-2 gap-x-4 gap-y-2 rounded-xl bg-background p-4 ring-1 ring-black/[0.04]">
         {words.map((w, i) => (
           <li key={i} className="flex items-baseline gap-2 text-sm">
-            <span className="w-5 shrink-0 text-right text-xs text-[#B8A5C4]">
+            <span className="w-5 shrink-0 text-right text-xs text-lavender-deep">
               {i + 1}
             </span>
-            <span className="font-mono text-[#3A3A3A]">{w}</span>
+            <span className="font-mono text-foreground">{w}</span>
           </li>
         ))}
       </ol>
@@ -92,32 +92,32 @@ export function RecoveryKeyCard({ phrase, onDone, onRemindLater }: Props) {
         <button
           type="button"
           onClick={copy}
-          className="rounded-lg bg-[#9CAF88]/20 px-3 py-2 text-sm text-[#5A6B4A] transition-colors hover:bg-[#9CAF88]/30"
+          className="rounded-lg bg-ring/20 px-3 py-2 text-sm text-foreground transition-colors hover:bg-ring/30"
         >
           {copied ? 'Скопировано ✓' : 'Скопировать'}
         </button>
         <button
           type="button"
           onClick={download}
-          className="rounded-lg bg-[#9CAF88]/20 px-3 py-2 text-sm text-[#5A6B4A] transition-colors hover:bg-[#9CAF88]/30"
+          className="rounded-lg bg-ring/20 px-3 py-2 text-sm text-foreground transition-colors hover:bg-ring/30"
         >
           Скачать файлом
         </button>
         <button
           type="button"
           onClick={mailToSelf}
-          className="rounded-lg bg-[#9CAF88]/20 px-3 py-2 text-sm text-[#5A6B4A] transition-colors hover:bg-[#9CAF88]/30"
+          className="rounded-lg bg-ring/20 px-3 py-2 text-sm text-foreground transition-colors hover:bg-ring/30"
         >
           Отправить себе
         </button>
       </div>
 
-      <label className="mb-4 flex cursor-pointer items-start gap-3 text-sm text-[#3A3A3A]">
+      <label className="mb-4 flex cursor-pointer items-start gap-3 text-sm text-foreground">
         <input
           type="checkbox"
           checked={confirmed}
           onChange={(e) => setConfirmed(e.target.checked)}
-          className="mt-0.5 h-4 w-4 accent-[#5A6B4A]"
+          className="mt-0.5 h-4 w-4 accent-primary"
         />
         <span>Ключ сохранён в надёжном месте ✦</span>
       </label>
@@ -126,7 +126,7 @@ export function RecoveryKeyCard({ phrase, onDone, onRemindLater }: Props) {
         type="button"
         disabled={!confirmed}
         onClick={onDone}
-        className="w-full rounded-xl bg-[#5A6B4A] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#4A5A3A] disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[#C9B6E4]/60"
+        className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-ring/60"
       >
         Готово
       </button>
@@ -134,11 +134,11 @@ export function RecoveryKeyCard({ phrase, onDone, onRemindLater }: Props) {
       <button
         type="button"
         onClick={onRemindLater}
-        className="mt-3 block w-full text-center text-sm text-[#7A7A7A] underline-offset-4 hover:text-[#5A6B4A] hover:underline"
+        className="mt-3 block w-full text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
         Напомнить позже
       </button>
-      <p className="mt-2 text-center text-xs text-[#7A7A7A]">
+      <p className="mt-2 text-center text-xs text-muted-foreground">
         Пока ключ сохранён, забытый PIN не страшен — доступ вернёшь им. Записи
         пропадут навсегда, только если потеряешь и PIN, и ключ.
       </p>

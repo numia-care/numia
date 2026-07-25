@@ -33,12 +33,12 @@ export default async function TodayPage() {
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute right-[-120px] top-[30%] h-72 w-96 rounded-full bg-[#EAE0D0]/80"
+        className="pointer-events-none absolute right-[-120px] top-[30%] h-72 w-96 rounded-full bg-accent/80"
         style={{ filter: 'blur(90px)' }}
       />
       <div
         aria-hidden
-        className="pointer-events-none absolute bottom-[-60px] left-[-80px] h-80 w-[460px] rounded-full bg-[#EAE0D0]/80"
+        className="pointer-events-none absolute bottom-[-60px] left-[-80px] h-80 w-[460px] rounded-full bg-accent/80"
         style={{ filter: 'blur(90px)' }}
       />
 
@@ -55,7 +55,7 @@ export default async function TodayPage() {
             <Link
               href="/profile"
               aria-label={t('profileLink')}
-              className="absolute right-0 top-8 flex size-10 items-center justify-center rounded-full border-2 border-[#262626] text-[#262626] transition-colors hover:bg-[#262626]/5"
+              className="absolute right-0 top-8 flex size-10 items-center justify-center rounded-full border-2 border-foreground text-foreground transition-colors hover:bg-foreground/5"
             >
               <UserIcon className="size-5" />
             </Link>

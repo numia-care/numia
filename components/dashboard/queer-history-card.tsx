@@ -26,16 +26,16 @@ export function QueerHistoryCard() {
       suppressHydrationWarning
       className="rounded-lg border border-chip-yellow-border/60 bg-chip-yellow/70 p-5 shadow-card backdrop-blur-[9px]"
     >
-      <p className="flex items-center gap-2 text-[13px] font-medium text-[#1F1F1F]">
+      <p className="flex items-center gap-2 text-[13px] font-medium text-foreground">
         <BookOpenIcon className="size-4 shrink-0" aria-hidden />
         {picked.fact.label}
         {!picked.onThisDay && (
-          <span className="font-normal text-[#1F1F1F]/60">
+          <span className="font-normal text-foreground/60">
             · {t('historyTitle')}
           </span>
         )}
       </p>
-      <p className="mt-2 text-[13px] leading-relaxed text-[#1F1F1F]">
+      <p className="mt-2 text-[13px] leading-relaxed text-foreground">
         {picked.fact.text}
       </p>
     </div>
