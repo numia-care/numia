@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDownIcon } from 'lucide-react'
+import { ChevronDownIcon, PencilIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import Link from 'next/link'
@@ -13,49 +13,47 @@ import { cn } from '@/lib/utils'
 
 import { MedicationDeleteButton } from './medication-delete-button'
 
-// Препарат в списке — строка-пилюля по фрейму Кая (серая, r:40 свёрнутая):
-//   имя … «доза • форма» [шеврон]
-// Разворот: расписание + бейдж типа + действия (Изменить / Убрать).
-// Клиентский: разворот — локальный state.
+// Карточка препарата по макету Кая (фрейм «препараты кнопки - все», 571:18–47):
+//   [название … доза] [белый круг-шеврон]
+// Заливка — фирменный градиент белый→бледно-голубой (--kai-grad-med, токен),
+// r:25, тень-card. Свёрнуто ~52px, развёрнуто ~93px; радиус постоянный 25px —
+// «капсульного» эффекта при развороте нет. Разворот: расписание, ближайший
+// приём, бейдж типа, действия «Изменить»/«Убрать».
 export function MedicationCard({ med }: { med: MedicationRow }) {
   const t = useTranslations('tracker')
   const [expanded, setExpanded] = useState(false)
 
   return (
     <div
-      className={cn(
-        'border border-border bg-secondary shadow-card transition-[border-radius] duration-200',
-        // Свёрнуто — фиксированные 26px (= половина высоты 52px, выглядит как
-        // пилюля), НЕ rounded-full. rounded-full = 9999px: при развороте карточка
-        // мгновенно становится высокой, и пока transition тянет радиус вниз, на
-        // высоком элементе он читается как «капсула» с радиусом в полвысоты —
-        // отсюда эффект «сдавливается, потом расправляется». 26px→25px незаметно.
-        expanded ? 'rounded-[25px]' : 'rounded-[26px]',
-      )}
+      className="shadow-card rounded-[25px]"
+      // Градиент — из токена-примитива (тема может переопределить --kai-grad-med).
+      style={{ backgroundImage: 'var(--kai-grad-med)' }}
     >
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
-        className="flex min-h-[52px] w-full items-center gap-3 px-4 py-2 text-left"
+        className="flex min-h-[52px] w-full items-center gap-3 py-2 pr-2 pl-5 text-left"
       >
-        <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+        <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-foreground">
           {med.name}
         </span>
-        <span className="shrink-0 text-xs text-foreground/80">
-          {formatDoseWithUnit(med.dose_amount, med.dose_unit)} •{' '}
-          {t(`medForm.${med.form}`)}
+        <span className="shrink-0 text-xs text-foreground/70">
+          {formatDoseWithUnit(med.dose_amount, med.dose_unit)}
         </span>
-        <ChevronDownIcon
-          className={cn(
-            'size-4 shrink-0 text-foreground/70 transition-transform',
-            expanded && 'rotate-180',
-          )}
-        />
+        {/* Белый круг с шевроном — контрол разворота (по фрейму). */}
+        <span className="shadow-soft flex size-8 shrink-0 items-center justify-center rounded-full bg-card">
+          <ChevronDownIcon
+            className={cn(
+              'size-4 text-foreground/70 transition-transform',
+              expanded && 'rotate-180',
+            )}
+          />
+        </span>
       </button>
 
       {expanded && (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 pb-4">
           <div className="min-w-0">
             <p className="text-[11px] leading-snug text-foreground/70">
               {formatSchedule(med.schedule, t)}
@@ -66,8 +64,9 @@ export function MedicationCard({ med }: { med: MedicationRow }) {
           <div className="flex shrink-0 items-center gap-1">
             <Link
               href={`/tracker/${med.id}/edit`}
-              className="rounded-full px-3 py-1.5 text-xs text-foreground/70 transition-colors hover:bg-white/50 hover:text-foreground"
+              className="flex items-center gap-1 rounded-full bg-card/70 px-3 py-1.5 text-xs text-foreground/70 transition-colors hover:bg-card hover:text-foreground"
             >
+              <PencilIcon className="size-3.5" />
               {t('card.editButton')}
             </Link>
             <MedicationDeleteButton id={med.id} name={med.name} />
