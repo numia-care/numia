@@ -1,32 +1,42 @@
 'use client'
 
+import { MicIcon, PauseIcon, PlayIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 
-import { decryptCaption, loadMediaUrl, type PathEntry } from '@/lib/path/entries'
+import { decryptCaption, loadMediaUrl, type MoodLevel, type PathEntry } from '@/lib/path/entries'
 import { cn } from '@/lib/utils'
 import { EntryDeleteButton } from './entry-delete-button'
+import { MoodBadge } from './mood-badge'
 
-// Одна запись ленты (фото или голос). Лениво (когда подъезжает к вьюпорту)
-// скачивает шифроблоб, расшифровывает на устройстве и показывает медиа + дату +
-// подпись. До этого — скелетон, чтобы не блокировать прокрутку всей ленты.
+// Запись ленты (фото или голос) — вёрстка по PNG-эталонам «путь1–3»:
 //
-// Ветвление по entry_type: photo → <img>, voice → <audio controls>. Логика
-// загрузки/расшифровки/освобождения общая (медиа — это object URL в обоих
-// случаях).
+//   Фото  — «полароид»: белая карточка r:25 с полем ~10px вокруг снимка (r:15),
+//           дата (ДД.ММ.ГГ, semibold) внизу слева ВНУТРИ рамки. Подпись — в
+//           отдельной белой пилюле, наезжающей на карточку (только в виде
+//           «дорожка»); муд-бейдж прицеплен к её углу.
+//   Голос — градиентная пилюля (белый→лайм→розовый→сиреневый, токен
+//           --kai-grad-audio) с play/пауза, декоративной волной и микрофоном;
+//           обёрнута в белую карточку с датой (плеер РАБОЧИЙ: скрытый <audio>).
 //
-// Память: расшифрованное медиа живёт как object URL. Его ОБЯЗАТЕЛЬНО отзываем
-// при размонтировании (и если успели размонтироваться, пока шло скачивание) —
-// иначе блобы копятся до перезагрузки страницы.
+// Ленивая расшифровка сохранена: медиа скачивается/расшифровывается, когда
+// запись подъезжает к вьюпорту. object URL отзываем при размонтировании.
 
-const dayLabel = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' })
+const dateLabel = new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+})
 
 export function EntryMedia({
   entry,
   onDelete,
+  compact,
 }: {
   entry: PathEntry
   onDelete: (entry: PathEntry) => void
+  /** true в виде «мозаика»: без наезжающей пилюли подписи (по эталону путь3). */
+  compact?: boolean
 }) {
   const t = useTranslations('path')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -36,8 +46,6 @@ export function EntryMedia({
   const [caption, setCaption] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
 
-  // Появление во вьюпорте → пора грузить. rootMargin 200px — начинаем чуть
-  // заранее, чтобы медиа успело расшифроваться к моменту показа.
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -54,7 +62,6 @@ export function EntryMedia({
     return () => io.disconnect()
   }, [])
 
-  // Скачать + расшифровать, когда стали видимы.
   useEffect(() => {
     if (!visible) return
     let active = true
@@ -71,11 +78,9 @@ export function EntryMedia({
           setUrl(mediaUrl)
           setCaption(cap)
         } else {
-          // Размонтировались, пока шла расшифровка — освобождаем сразу.
           URL.revokeObjectURL(mediaUrl)
         }
       } catch (e) {
-        // Лог без контента (только тип ошибки) — для диагностики с устройства.
         console.error('path media load failed:', e instanceof Error ? e.message : e)
         if (active) setFailed(true)
       }
@@ -88,66 +93,188 @@ export function EntryMedia({
     }
   }, [visible, entry])
 
-  const date = dayLabel.format(new Date(entry.occurredAt))
+  const date = dateLabel.format(new Date(entry.occurredAt))
   const isVoice = entry.entryType === 'voice'
 
   return (
-    // Появление с fade+подъёмом при первом попадании во вьюпорт (visible уже
-    // отслеживается для ленивой расшифровки — переиспользуем). Один раз на
-    // запись: IO отключается после срабатывания, класс не откатывается.
     <figure
       ref={containerRef}
       className={cn(
-        'space-y-2 transition-all duration-500 motion-reduce:transition-none',
+        'transition-all duration-500 motion-reduce:transition-none',
         visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
       )}
     >
       {isVoice ? (
-        // Голос: стекло-карточка Кая (r:20). Скелетон до готовности URL.
-        <div className="shadow-soft rounded-[20px] border border-border bg-white/80 p-4 backdrop-blur-[4px]">
-          {failed ? (
-            <p className="text-sm text-foreground/50">{t('thumbError')}</p>
-          ) : url ? (
-            <audio src={url} controls playsInline className="w-full" />
-          ) : (
-            <div className="h-12 w-full animate-pulse rounded-lg bg-foreground/5" />
-          )}
-        </div>
+        <VoiceCard
+          url={url}
+          failed={failed}
+          date={date}
+          entryIso={entry.occurredAt}
+          seed={entry.id}
+          errorText={t('thumbError')}
+          deleteButton={<EntryDeleteButton entry={entry} onDelete={onDelete} />}
+        />
       ) : (
-        // Фото — скруглённый снимок r:15 (по фрейму) с мягким белым свечением.
+        // «Полароид»: белая рамка, снимок, дата внутри.
+        <div className="shadow-card rounded-[25px] bg-card p-[10px] pb-2">
+          <div className="overflow-hidden rounded-[15px]">
+            {failed ? (
+              <div className="flex aspect-square items-center justify-center bg-muted/50 px-4 text-center text-xs text-foreground/50">
+                {t('thumbError')}
+              </div>
+            ) : url ? (
+              // object URL из расшифрованного блоба — next/image не применим.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={url}
+                alt={caption ?? date}
+                className="block aspect-[10/11] w-full object-cover"
+              />
+            ) : (
+              <div className="aspect-[10/11] w-full animate-pulse bg-muted/70" />
+            )}
+          </div>
+          <div className="flex items-center justify-between px-1 pt-2">
+            <time
+              className="text-[11px] font-semibold text-foreground"
+              dateTime={entry.occurredAt}
+            >
+              {date}
+            </time>
+            <EntryDeleteButton entry={entry} onDelete={onDelete} />
+          </div>
+        </div>
+      )}
+
+      {/* Подпись — белая пилюля, наезжающая на карточку (вид «дорожка»).
+          Муд-бейдж (если у записи есть настроение) — на её правом плече. */}
+      {!compact && caption && (
+        <figcaption className="relative z-10 -mt-3 ml-auto w-fit max-w-[85%]">
+          <div className="shadow-chip relative rounded-[14px] bg-card px-3 py-2 text-[11px] leading-snug text-foreground">
+            {caption}
+            {entry.mood != null && (
+              <MoodBadge
+                level={entry.mood as MoodLevel}
+                size={26}
+                className="absolute -right-2.5 -top-3"
+              />
+            )}
+          </div>
+        </figcaption>
+      )}
+    </figure>
+  )
+}
+
+// ── Голосовая карточка: градиентный плеер по эталону ─────────────────────────
+
+function VoiceCard({
+  url,
+  failed,
+  date,
+  entryIso,
+  seed,
+  errorText,
+  deleteButton,
+}: {
+  url: string | null
+  failed: boolean
+  date: string
+  entryIso: string
+  seed: string
+  errorText: string
+  deleteButton: React.ReactNode
+}) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [playing, setPlaying] = useState(false)
+
+  // Декоративная волна: детерминированные высоты штрихов из id записи.
+  const bars = barsFromSeed(seed, 22)
+
+  function toggle() {
+    const el = audioRef.current
+    if (!el) return
+    if (playing) {
+      el.pause()
+    } else {
+      void el.play()
+    }
+  }
+
+  return (
+    <div className="shadow-card rounded-[25px] bg-card p-[10px] pb-2">
+      {failed ? (
+        <p className="px-2 py-3 text-xs text-foreground/50">{errorText}</p>
+      ) : (
         <div
-          className="overflow-hidden rounded-[15px] bg-white/80"
-          style={{ boxShadow: 'var(--kai-glow)' }}
+          className="flex h-[54px] items-center gap-2 rounded-full px-4"
+          style={{ backgroundImage: 'var(--kai-grad-audio)' }}
         >
-          {failed ? (
-            <div className="flex aspect-[4/3] items-center justify-center px-4 text-center text-sm text-foreground/50">
-              {t('thumbError')}
-            </div>
-          ) : url ? (
-            // object URL из расшифрованного блоба — next/image не применим (не http-источник).
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+          <button
+            type="button"
+            onClick={toggle}
+            disabled={!url}
+            aria-label={playing ? 'Пауза' : 'Слушать'}
+            className="shrink-0 text-foreground disabled:opacity-40"
+          >
+            {playing ? (
+              <PauseIcon className="size-5 fill-current" />
+            ) : (
+              <PlayIcon className="size-5 fill-current" />
+            )}
+          </button>
+
+          {/* Волна — декоративная (высоты из id), как в эталоне. */}
+          <div className="flex min-w-0 flex-1 items-center justify-center gap-[2.5px]">
+            {bars.map((h, i) => (
+              <span
+                key={i}
+                className="w-[2.5px] shrink-0 rounded-full bg-foreground"
+                style={{ height: `${h}px` }}
+              />
+            ))}
+          </div>
+
+          <MicIcon className="size-5 shrink-0 text-foreground" />
+
+          {url && (
+            <audio
+              ref={audioRef}
               src={url}
-              alt={caption ?? date}
-              className="block max-h-[60vh] w-full object-cover"
+              playsInline
+              onPlay={() => setPlaying(true)}
+              onPause={() => setPlaying(false)}
+              onEnded={() => setPlaying(false)}
+              className="hidden"
             />
-          ) : (
-            // bg обязателен: пульс без фона на белой карточке невидим.
-            <div className="aspect-[4/3] w-full animate-pulse bg-muted/70" />
           )}
         </div>
       )}
 
-      {/* Подпись/дата — компактная стеклянная пилюля под снимком (по фрейму). */}
-      <figcaption className="shadow-soft rounded-[10px] border border-border bg-white/80 px-3 py-1.5 backdrop-blur-[4px]">
-        <div className="flex items-center justify-between gap-2">
-          <time className="text-[11px] text-foreground/60" dateTime={entry.occurredAt}>
-            {date}
-          </time>
-          <EntryDeleteButton entry={entry} onDelete={onDelete} />
-        </div>
-        {caption && <p className="mt-0.5 text-xs text-foreground/90">{caption}</p>}
-      </figcaption>
-    </figure>
+      <div className="flex items-center justify-between px-2 pt-2">
+        <time className="text-[11px] font-semibold text-foreground" dateTime={entryIso}>
+          {date}
+        </time>
+        {deleteButton}
+      </div>
+    </div>
   )
+}
+
+// Псевдослучайные высоты штрихов волны из строки-сида (стабильны между рендерами).
+function barsFromSeed(seed: string, count: number): number[] {
+  let h = 2166136261
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  const out: number[] = []
+  for (let i = 0; i < count; i++) {
+    h ^= h << 13
+    h ^= h >>> 17
+    h ^= h << 5
+    const v = Math.abs(h % 100) / 100
+    out.push(5 + Math.round(v * 15)) // 5–20px
+  }
+  return out
 }

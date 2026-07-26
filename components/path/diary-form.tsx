@@ -59,51 +59,50 @@ export function DiaryForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      {/* Настроение (опционально) */}
-      <div className="space-y-2">
-        <Label>
-          {t('moodLabel')}{' '}
-          <span className="font-normal text-muted-foreground">
-            {t('captionOptional')}
-          </span>
-        </Label>
+    <form onSubmit={onSubmit} className="space-y-7">
+      {/* «Как ты?» + плитки настроения (по эталону: подписи под плитками,
+          свечение позади ряда — внутри MoodScale). */}
+      <div className="space-y-3">
+        <div className="flex items-baseline justify-between">
+          <Label className="text-[15px] font-semibold">{t('moodLabel')}</Label>
+          <span className="text-xs text-black/40">{t('captionOptional')}</span>
+        </div>
         <MoodScale value={mood} onChange={setMood} disabled={saving} />
       </div>
 
-      {/* Текст (опционально) */}
-      <div className="space-y-1.5">
-        <Label htmlFor="diary-note">
-          {t('noteLabel')}{' '}
-          <span className="font-normal text-muted-foreground">
-            {t('captionOptional')}
-          </span>
-        </Label>
+      {/* «Напиши здесь» + дата-пилюля справа, большое поле (по эталону). */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="diary-note" className="text-[15px] font-semibold">
+            {t('noteLabel')}
+          </Label>
+          <DatePicker
+            value={date}
+            onChange={setDate}
+            disableFuture
+            className="shadow-card h-10 rounded-full border-0 bg-card px-3.5"
+          />
+        </div>
         <Textarea
           id="diary-note"
           value={note}
           onChange={(e) => setNote(e.target.value)}
           placeholder={t('notePlaceholder')}
-          rows={4}
+          rows={10}
           disabled={saving}
+          className="min-h-[280px] rounded-[30px] border-0 bg-card/70 p-5 shadow-none"
         />
       </div>
 
-      {/* Дата события */}
-      <div className="space-y-1.5">
-        <Label htmlFor="occurred-at">{t('dateLabel')}</Label>
-        <div>
-          <DatePicker value={date} onChange={setDate} disableFuture />
-        </div>
+      <div className="flex justify-center">
+        <button
+          type="submit"
+          disabled={!hasContent || saving}
+          className={cn(buttonVariants({ size: 'lg' }), 'rounded-full px-9')}
+        >
+          {saving ? t('saving') : t('submit')}
+        </button>
       </div>
-
-      <button
-        type="submit"
-        disabled={!hasContent || saving}
-        className={cn(buttonVariants({ size: 'lg' }), 'w-full')}
-      >
-        {saving ? t('saving') : t('submit')}
-      </button>
     </form>
   )
 }

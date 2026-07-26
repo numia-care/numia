@@ -1,6 +1,7 @@
 'use client'
 
 import { format, parse } from 'date-fns'
+import { MicIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
@@ -207,72 +208,108 @@ export function VoiceForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      {/* Запись / превью */}
-      <div className="space-y-3 rounded-2xl bg-card p-5 ring-1 ring-border">
-        {previewUrl ? (
-          <audio src={previewUrl} controls playsInline className="w-full" />
-        ) : recording ? (
-          <div className="text-center">
-            <p className="font-mono text-3xl tabular-nums text-foreground">
-              {formatMmSs(elapsedMs)}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">{t('recording')}</p>
-          </div>
-        ) : (
-          <p className="text-center text-sm text-muted-foreground">{t('recordHint')}</p>
-        )}
+    <form onSubmit={onSubmit} className="space-y-7">
+      {/* Рекордер по эталону «путь новая запись голос»: заголовок, большой
+          круг-микрофон в двух точечных кольцах на мятном свечении. Тап по
+          кругу — старт/стоп записи. */}
+      <p className="text-center text-[15px] font-semibold text-foreground">
+        {t('recordHint')}
+      </p>
+
+      <div className="relative mx-auto flex size-[260px] items-center justify-center">
+        {/* Мятно-зелёное свечение под кольцами. */}
+        <div
+          aria-hidden
+          className="absolute inset-0 rounded-full opacity-80"
+          style={{
+            background:
+              'radial-gradient(circle, rgba(126,218,197,0.35) 0%, rgba(169,226,94,0.22) 45%, transparent 70%)',
+          }}
+        />
+        {/* Точечные кольца. */}
+        <div
+          aria-hidden
+          className={cn(
+            'absolute inset-0 rounded-full border-2 border-dotted border-foreground/50',
+            recording && 'animate-pulse',
+          )}
+        />
+        <div
+          aria-hidden
+          className="absolute inset-[38px] rounded-full border-2 border-dotted border-foreground/50"
+        />
 
         <button
           type="button"
           onClick={recording ? stopRecording : startRecording}
           disabled={saving}
-          className={cn(
-            'w-full rounded-xl px-4 py-3 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-ring/50 disabled:opacity-50',
-            recording ? 'bg-rose-600 hover:bg-rose-700' : 'bg-primary hover:bg-primary/90',
-          )}
+          aria-label={recording ? t('stopRecording') : blob ? t('reRecord') : t('record')}
+          className="shadow-card relative z-10 flex size-[104px] items-center justify-center rounded-full bg-card text-foreground transition-transform active:scale-95 disabled:opacity-50"
         >
-          {recording ? t('stopRecording') : blob ? t('reRecord') : t('record')}
+          {recording ? (
+            <span className="font-mono text-sm font-semibold tabular-nums">
+              {formatMmSs(elapsedMs)}
+            </span>
+          ) : (
+            <MicIcon className="size-7" strokeWidth={1.8} />
+          )}
         </button>
-
-        {!previewUrl && (
-          <p className="text-center text-xs text-muted-foreground">{t('recordMax')}</p>
-        )}
       </div>
 
-      {/* Дата события */}
-      <div className="space-y-1.5">
-        <Label htmlFor="occurred-at">{t('dateLabel')}</Label>
-        <div>
-          <DatePicker value={date} onChange={setDate} />
+      {/* Прослушать записанное + перезаписать. */}
+      {previewUrl && (
+        <div className="shadow-soft space-y-2 rounded-[20px] bg-card p-4">
+          <audio src={previewUrl} controls playsInline className="w-full" />
+          <button
+            type="button"
+            onClick={startRecording}
+            disabled={saving}
+            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            {t('reRecord')}
+          </button>
         </div>
+      )}
+      {!previewUrl && !recording && (
+        <p className="text-center text-xs text-black/40">{t('recordMax')}</p>
+      )}
+
+      {/* Дата — пилюля по центру (по эталону). */}
+      <div className="flex justify-center">
+        <DatePicker
+          value={date}
+          onChange={setDate}
+          className="shadow-card h-11 rounded-full border-0 bg-card px-4"
+        />
       </div>
 
       {/* Подпись (опционально) */}
-      <div className="space-y-1.5">
-        <Label htmlFor="caption">
-          {t('captionLabel')}{' '}
-          <span className="font-normal text-muted-foreground">
-            {t('captionOptional')}
-          </span>
-        </Label>
+      <div className="space-y-2">
+        <div className="flex items-baseline justify-between">
+          <Label htmlFor="caption" className="text-[15px] font-semibold">
+            {t('captionLabel')}
+          </Label>
+          <span className="text-xs text-black/40">{t('captionOptional')}</span>
+        </div>
         <Textarea
           id="caption"
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
-          placeholder={t('captionPlaceholder')}
-          rows={2}
+          rows={3}
           disabled={saving}
+          className="rounded-[20px] border-0 bg-card/70 shadow-none"
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={!blob || saving || recording}
-        className={cn(buttonVariants({ size: 'lg' }), 'w-full')}
-      >
-        {saving ? t('saving') : t('submit')}
-      </button>
+      <div className="flex justify-center">
+        <button
+          type="submit"
+          disabled={!blob || saving || recording}
+          className={cn(buttonVariants({ size: 'lg' }), 'rounded-full px-9')}
+        >
+          {saving ? t('saving') : t('submit')}
+        </button>
+      </div>
     </form>
   )
 }

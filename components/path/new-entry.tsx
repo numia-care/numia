@@ -1,5 +1,6 @@
 'use client'
 
+import { CameraIcon, FeatherIcon, MicIcon, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 
@@ -8,41 +9,42 @@ import { DiaryForm } from './diary-form'
 import { PhotoForm } from './photo-form'
 import { VoiceForm } from './voice-form'
 
-// Экран добавления записи: переключатель «Фото | Запись | Дневник» + форма.
+// Экран добавления записи по PNG-эталонам «путь новая запись …»: три круглые
+// кнопки режима (камера / микрофон / перо) по центру, активная — лавандовая.
 // Медиа-формы идут в общий E2E-пайплайн (lib/path/entries), дневник — в
 // addDiaryEntry (настроение открыто, текст шифруется).
 type Mode = 'photo' | 'voice' | 'diary'
 
-const MODES: readonly Mode[] = ['photo', 'voice', 'diary']
-
-const MODE_LABEL: Record<Mode, string> = {
-  photo: 'modePhoto',
-  voice: 'modeVoice',
-  diary: 'modeDiary',
-}
+const MODES: readonly { mode: Mode; icon: LucideIcon; label: string }[] = [
+  { mode: 'photo', icon: CameraIcon, label: 'modePhoto' },
+  { mode: 'voice', icon: MicIcon, label: 'modeVoice' },
+  { mode: 'diary', icon: FeatherIcon, label: 'modeDiary' },
+]
 
 export function NewEntry({ initialMode = 'photo' }: { initialMode?: Mode }) {
   const t = useTranslations('path.new')
   const [mode, setMode] = useState<Mode>(initialMode)
 
   return (
-    <div className="space-y-6">
-      {/* Сегментированный переключатель режима. */}
-      <div className="grid grid-cols-3 gap-1 rounded-xl bg-card p-1 ring-1 ring-border">
-        {MODES.map((m) => (
+    <div className="space-y-8">
+      {/* Кружки режима — по центру, активный на мягкой лаванде. */}
+      <div className="flex items-center justify-center gap-3">
+        {MODES.map(({ mode: m, icon: Icon, label }) => (
           <button
             key={m}
             type="button"
             onClick={() => setMode(m)}
             aria-pressed={mode === m}
+            aria-label={t(label)}
+            title={t(label)}
             className={cn(
-              'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
+              'shadow-soft flex size-[50px] items-center justify-center rounded-full transition-colors',
               mode === m
-                ? 'bg-primary text-primary-foreground'
-                : 'text-muted-foreground hover:text-foreground',
+                ? 'bg-lavender-soft text-foreground'
+                : 'bg-card text-foreground hover:bg-secondary',
             )}
           >
-            {t(MODE_LABEL[m])}
+            <Icon className="size-[24px]" strokeWidth={1.8} />
           </button>
         ))}
       </div>

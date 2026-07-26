@@ -4,16 +4,20 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 
 import { decryptNote, type MoodLevel, type PathEntry } from '@/lib/path/entries'
-import { MOOD_COLOR } from '@/lib/path/mood'
 import { cn } from '@/lib/utils'
 import { EntryDeleteButton } from './entry-delete-button'
+import { MoodBadge } from './mood-badge'
 
-// Карточка дневниковой записи в ленте «Пути»: индикатор настроения (если есть) +
-// расшифрованный текст (если есть) + дата. Настроение открыто (edет в
-// метаданных, расшифровка не нужна). Текст шифрован — расшифровываем лениво, как
-// подпись фото: пока запись не подъехала к вьюпорту, шифротекст не трогаем.
+// Дневниковая карточка по PNG-эталону «путь1/3»: чистая белая карточка r:20,
+// текст 12px (до ~8 строк с многоточием), внизу дата (ДД.ММ.ГГ, semibold)
+// слева и муд-бейдж справа. Без ярлыка «Дневник» — тип читается по виду.
+// Текст шифрован — расшифровываем лениво (когда карточка у вьюпорта).
 
-const dayLabel = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long' })
+const dateLabel = new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+})
 
 export function DiaryCard({
   entry,
@@ -23,14 +27,12 @@ export function DiaryCard({
   onDelete: (entry: PathEntry) => void
 }) {
   const t = useTranslations('path')
-  const tMood = useTranslations('path.mood')
   const containerRef = useRef<HTMLDivElement>(null)
 
   const [visible, setVisible] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
 
-  // Ленивость: грузим/расшифровываем текст, только когда карточка близко к экрану.
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -64,59 +66,44 @@ export function DiaryCard({
     }
   }, [visible, entry])
 
-  const date = dayLabel.format(new Date(entry.occurredAt))
+  const date = dateLabel.format(new Date(entry.occurredAt))
   const hasNote = entry.noteCiphertext !== null
 
   return (
-    // Появление с fade+подъёмом при первом попадании во вьюпорт — как у
-    // медиа-записей (EntryMedia), visible уже отслеживается для расшифровки.
     <div
       ref={containerRef}
       className={cn(
-        // Стекло-карточка Кая r:20, компактнее (лента извилистая, карточки узкие).
-        'shadow-soft rounded-[20px] border border-border bg-white/80 p-4 backdrop-blur-[4px] transition-all duration-500 motion-reduce:transition-none',
+        'shadow-card rounded-[20px] bg-card p-4 transition-all duration-500 motion-reduce:transition-none',
         visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
       )}
     >
-      {/* «Ярлычок»-заголовок карточки — как в концепции макета. */}
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {t('diaryTag')}
-        </span>
-        <div className="flex items-center gap-2">
-          <time className="text-sm text-foreground/60" dateTime={entry.occurredAt}>
-            {date}
-          </time>
-          <EntryDeleteButton entry={entry} onDelete={onDelete} />
-        </div>
-      </div>
-
-      {/* Индикатор настроения (если есть) — ✦ в цвете ступени + подпись,
-          тот же язык, что в шкале ввода. */}
-      {entry.mood != null && (
-        <div className="mb-2 flex items-center gap-2">
-          <span
-            aria-hidden
-            className="text-lg leading-none"
-            style={{ color: MOOD_COLOR[entry.mood as MoodLevel] }}
-          >
-            ✦
-          </span>
-          <span className="text-sm text-foreground/80">
-            {tMood(`level.${entry.mood}`)}
-          </span>
-        </div>
-      )}
-
-      {/* Текст (если есть). Пока расшифровывается — мягкий скелетон. */}
+      {/* Текст: до 8 строк, дальше многоточие (как в эталоне «...ког...»). */}
       {hasNote &&
         (failed ? (
-          <p className="text-sm text-foreground/50">{t('thumbError')}</p>
+          <p className="text-xs text-foreground/50">{t('thumbError')}</p>
         ) : note !== null ? (
-          <p className="whitespace-pre-wrap text-foreground/90">{note}</p>
+          <p className="line-clamp-[8] whitespace-pre-wrap text-[12px] leading-[1.35] text-foreground">
+            {note}
+          </p>
         ) : (
-          <div className="h-5 w-2/3 animate-pulse rounded bg-foreground/5" />
+          <div className="space-y-1.5">
+            <div className="h-3 w-full animate-pulse rounded bg-foreground/5" />
+            <div className="h-3 w-4/5 animate-pulse rounded bg-foreground/5" />
+            <div className="h-3 w-2/3 animate-pulse rounded bg-foreground/5" />
+          </div>
         ))}
+
+      <div className={cn('flex items-center justify-between gap-2', hasNote && 'mt-3')}>
+        <time className="text-[11px] font-semibold text-foreground" dateTime={entry.occurredAt}>
+          {date}
+        </time>
+        <div className="flex items-center gap-1.5">
+          <EntryDeleteButton entry={entry} onDelete={onDelete} />
+          {entry.mood != null && (
+            <MoodBadge level={entry.mood as MoodLevel} size={24} />
+          )}
+        </div>
+      </div>
     </div>
   )
 }

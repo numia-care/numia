@@ -74,30 +74,40 @@ export function PhotoForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      {/* Превью / плейсхолдер */}
-      <div className="space-y-3">
+    <form onSubmit={onSubmit} className="space-y-7">
+      {/* Большая белая зона снимка (r:30, по эталону) — вся кликабельна. */}
+      <label className="block cursor-pointer">
         {previewUrl ? (
-          <div className="overflow-hidden rounded-2xl bg-card ring-1 ring-border">
-            {/* object URL выбранного файла — next/image не применим (не http-источник). */}
+          <div className="shadow-soft overflow-hidden rounded-[30px] bg-card">
+            {/* object URL выбранного файла — next/image не применим. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={previewUrl}
               alt=""
-              className="block max-h-[60vh] w-full object-contain"
+              className="block max-h-[55vh] w-full object-contain"
             />
           </div>
         ) : (
-          <div className="flex aspect-[4/3] items-center justify-center rounded-2xl bg-card text-3xl text-foreground/30 ring-1 ring-border">
+          <div className="shadow-soft flex aspect-[4/5] max-h-[48vh] w-full items-center justify-center rounded-[30px] bg-card text-3xl text-foreground/25">
             ✦
           </div>
         )}
-
         {/* accept=image/* без capture: на мобильном даёт выбор камера/галерея. */}
+        <input
+          type="file"
+          accept="image/*"
+          onChange={onPick}
+          disabled={saving}
+          className="sr-only"
+        />
+      </label>
+
+      {/* Ряд пилюль: [Выбрать фото] … [дата] — по эталону. */}
+      <div className="flex items-center justify-between gap-3">
         <label
           className={cn(
-            buttonVariants({ variant: 'outline', size: 'lg' }),
-            'cursor-pointer',
+            'shadow-card cursor-pointer rounded-full bg-card px-5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary',
+            saving && 'pointer-events-none opacity-60',
           )}
         >
           {file ? t('changePhoto') : t('pickPhoto')}
@@ -109,41 +119,41 @@ export function PhotoForm() {
             className="sr-only"
           />
         </label>
-      </div>
-
-      {/* Дата события */}
-      <div className="space-y-1.5">
-        <Label htmlFor="occurred-at">{t('dateLabel')}</Label>
-        <div>
-          <DatePicker value={date} onChange={setDate} />
-        </div>
+        <DatePicker
+          value={date}
+          onChange={setDate}
+          className="shadow-card h-11 rounded-full border-0 bg-card px-4"
+        />
       </div>
 
       {/* Подпись (опционально) */}
-      <div className="space-y-1.5">
-        <Label htmlFor="caption">
-          {t('captionLabel')}{' '}
-          <span className="font-normal text-muted-foreground">
-            {t('captionOptional')}
-          </span>
-        </Label>
+      <div className="space-y-2">
+        <div className="flex items-baseline justify-between">
+          <Label htmlFor="caption" className="text-[15px] font-semibold">
+            {t('captionLabel')}
+          </Label>
+          <span className="text-xs text-black/40">{t('captionOptional')}</span>
+        </div>
         <Textarea
           id="caption"
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
-          placeholder={t('captionPlaceholder')}
-          rows={2}
+          rows={3}
           disabled={saving}
+          className="rounded-[20px] border-0 bg-card/70 shadow-none"
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={!file || saving}
-        className={cn(buttonVariants({ size: 'lg' }), 'w-full')}
-      >
-        {saving ? t('saving') : t('submit')}
-      </button>
+      {/* Лавандовая пилюля по центру (по эталону). */}
+      <div className="flex justify-center">
+        <button
+          type="submit"
+          disabled={!file || saving}
+          className={cn(buttonVariants({ size: 'lg' }), 'rounded-full px-9')}
+        >
+          {saving ? t('saving') : t('submit')}
+        </button>
+      </div>
     </form>
   )
 }

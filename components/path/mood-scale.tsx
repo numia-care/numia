@@ -3,16 +3,14 @@
 import { useTranslations } from 'next-intl'
 
 import type { MoodLevel } from '@/lib/path/entries'
-import { MOOD_BORDER, MOOD_COLOR, MOOD_LEVELS, MOOD_TEXT, moodRgba } from '@/lib/path/mood'
+import { MOOD_LEVELS } from '@/lib/path/mood'
 import { cn } from '@/lib/utils'
+import { MoodBadge } from './mood-badge'
 
-// Шкала настроения 1–5 — вёрстка по фрейму Кая «как ты?»: белые квадратные
-// ячейки (r:15) с обводкой цвета ступени, внутри ✦ цветом ступени и подпись
-// оттенком той же ступени. Переиспользуется формой дневника и быстрым входом
-// на дашборде (там она лежит на градиентной подложке).
-//
-// Выбранная ступень: заливка цветом ступени (мягкая) + сияние ✦.
-// Невыбранные при наличии выбора приглушаются.
+// Шкала настроения 1–5 по PNG-эталону «путь новая запись текст»: белые плитки
+// r:18 с цветными «цветками»-лицами, подписи под плитками, позади ряда мягкое
+// градиентное свечение (лаванда → голубой → зелень). Выбранная плитка — на
+// мягкой лаванде. Переиспользуется формой дневника и быстрым входом дашборда.
 
 interface Props {
   value: MoodLevel | null
@@ -25,54 +23,55 @@ export function MoodScale({ value, onChange, disabled, className }: Props) {
   const t = useTranslations('path.mood')
 
   return (
-    <div
-      role="radiogroup"
-      aria-label={t('groupLabel')}
-      className={cn('flex justify-between gap-1', className)}
-    >
-      {MOOD_LEVELS.map((lvl) => {
-        const active = value === lvl
-        const dimmed = value !== null && !active
-        return (
-          <button
-            key={lvl}
-            type="button"
-            role="radio"
-            aria-checked={active}
-            aria-label={t(`level.${lvl}`)}
-            disabled={disabled}
-            onClick={() => onChange(lvl)}
-            // min-w-0 + фиксированная высота вместо aspect-square: на 390px
-            // ячейки ~38px, квадрат зажимал бы подпись под ✦ (баг «налезает»).
-            className={cn(
-              'flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md border bg-white/80 px-0.5 transition-all',
-              'disabled:cursor-not-allowed disabled:opacity-60',
-              dimmed && 'opacity-50',
-            )}
-            style={{
-              borderColor: MOOD_BORDER[lvl],
-              backgroundColor: active ? moodRgba(lvl, 0.25) : undefined,
-            }}
-          >
-            <span
-              aria-hidden
-              className="text-base leading-none"
-              style={{
-                color: MOOD_COLOR[lvl],
-                textShadow: active ? `0 0 10px ${moodRgba(lvl, 0.8)}` : 'none',
-              }}
+    <div className={cn('relative', className)}>
+      {/* Свечение позади ряда — градиент палитры ступеней, размытый. */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 top-0 h-14 rounded-full opacity-60 blur-2xl"
+        style={{
+          background:
+            'linear-gradient(90deg, #C9B4EA 0%, #A3C0EE 30%, #7EDAC5 55%, #6EDC85 75%, #A9E25E 100%)',
+        }}
+      />
+
+      <div
+        role="radiogroup"
+        aria-label={t('groupLabel')}
+        className="relative flex justify-between gap-1.5"
+      >
+        {MOOD_LEVELS.map((lvl) => {
+          const active = value === lvl
+          const dimmed = value !== null && !active
+          return (
+            <button
+              key={lvl}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              aria-label={t(`level.${lvl}`)}
+              disabled={disabled}
+              onClick={() => onChange(lvl)}
+              className={cn(
+                'flex min-w-0 flex-1 flex-col items-center gap-1.5 transition-opacity',
+                'disabled:cursor-not-allowed disabled:opacity-60',
+                dimmed && 'opacity-45',
+              )}
             >
-              ✦
-            </span>
-            <span
-              className="w-full text-center text-[9px] font-medium leading-none tracking-tight"
-              style={{ color: MOOD_TEXT[lvl] }}
-            >
-              {t(`level.${lvl}`)}
-            </span>
-          </button>
-        )
-      })}
+              <span
+                className={cn(
+                  'shadow-chip flex aspect-square w-full max-w-[56px] items-center justify-center rounded-[18px] transition-colors',
+                  active ? 'bg-lavender-soft' : 'bg-card',
+                )}
+              >
+                <MoodBadge level={lvl} size={34} />
+              </span>
+              <span className="w-full text-center text-[10px] leading-none text-foreground">
+                {t(`level.${lvl}`)}
+              </span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

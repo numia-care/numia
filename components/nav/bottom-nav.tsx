@@ -68,14 +68,19 @@ export function BottomNav() {
                 href={tab.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'flex flex-col items-center gap-0.5 rounded-[22px] py-1.5 transition-colors',
-                  // Активный — приподнятая белая плашка + тёмные чернила.
-                  active
-                    ? 'shadow-soft bg-white/70 text-foreground'
-                    : 'text-foreground/55 hover:text-foreground',
+                  'flex flex-col items-center gap-1 py-1 transition-colors',
+                  active ? 'text-foreground' : 'text-foreground/60 hover:text-foreground',
                 )}
               >
-                <Icon className="size-5" />
+                {/* Активный таб — белый круг за иконкой (по PNG-эталону). */}
+                <span
+                  className={cn(
+                    'flex size-9 items-center justify-center rounded-full transition-colors',
+                    active && 'shadow-soft -my-0.5 size-10 bg-white',
+                  )}
+                >
+                  <Icon className="size-5" strokeWidth={1.8} />
+                </span>
                 <span className="text-[9px] font-semibold leading-none">
                   {t(tab.key)}
                 </span>
