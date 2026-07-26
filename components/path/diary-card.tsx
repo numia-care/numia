@@ -82,7 +82,7 @@ export function DiaryCard({
         (failed ? (
           <p className="text-xs text-foreground/50">{t('thumbError')}</p>
         ) : note !== null ? (
-          <p className="line-clamp-[8] whitespace-pre-wrap text-[12px] leading-[1.35] text-foreground">
+          <p className="line-clamp-3 text-[12px] leading-[1.4] text-foreground">
             {note}
           </p>
         ) : (

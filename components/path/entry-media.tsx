@@ -9,18 +9,16 @@ import { cn } from '@/lib/utils'
 import { EntryDeleteButton } from './entry-delete-button'
 import { MoodBadge } from './mood-badge'
 
-// Запись ленты (фото или голос) — вёрстка по PNG-эталонам «путь1–3»:
+// Превью-карточка записи (фото / голос) для ленты «Пути». КОМПАКТНАЯ, весь
+// контент — в границах карточки (эталоны путь1–3):
 //
-//   Фото  — «полароид»: белая карточка r:25 с полем ~10px вокруг снимка (r:15),
-//           дата (ДД.ММ.ГГ, semibold) внизу слева ВНУТРИ рамки. Подпись — в
-//           отдельной белой пилюле, наезжающей на карточку (только в виде
-//           «дорожка»); муд-бейдж прицеплен к её углу.
-//   Голос — градиентная пилюля (белый→лайм→розовый→сиреневый, токен
-//           --kai-grad-audio) с play/пауза, декоративной волной и микрофоном;
-//           обёрнута в белую карточку с датой (плеер РАБОЧИЙ: скрытый <audio>).
+//   Фото  — миниатюра фикс-пропорций (4:5, object-cover, заливка карточки) в
+//           белой рамке r:25; под снимком строка: дата + муд-бейдж. Подпись —
+//           одна строка с многоточием (полностью — в просмотре по тапу, шаг 2).
+//   Голос — компактный градиентный плеер во всю ширину карточки: play/пауза,
+//           волна во flex-1 c overflow-hidden (НЕ вылезает), микрофон; ниже дата.
 //
-// Ленивая расшифровка сохранена: медиа скачивается/расшифровывается, когда
-// запись подъезжает к вьюпорту. object URL отзываем при размонтировании.
+// Ленивая расшифровка сохранена. object URL отзываем при размонтировании.
 
 const dateLabel = new Intl.DateTimeFormat('ru-RU', {
   day: '2-digit',
@@ -31,12 +29,9 @@ const dateLabel = new Intl.DateTimeFormat('ru-RU', {
 export function EntryMedia({
   entry,
   onDelete,
-  compact,
 }: {
   entry: PathEntry
   onDelete: (entry: PathEntry) => void
-  /** true в виде «мозаика»: без наезжающей пилюли подписи (по эталону путь3). */
-  compact?: boolean
 }) {
   const t = useTranslations('path')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -66,7 +61,6 @@ export function EntryMedia({
     if (!visible) return
     let active = true
     let objectUrl: string | null = null
-
     async function load() {
       try {
         const [mediaUrl, cap] = await Promise.all([
@@ -86,7 +80,6 @@ export function EntryMedia({
       }
     }
     load()
-
     return () => {
       active = false
       if (objectUrl) URL.revokeObjectURL(objectUrl)
@@ -95,31 +88,23 @@ export function EntryMedia({
 
   const date = dateLabel.format(new Date(entry.occurredAt))
   const isVoice = entry.entryType === 'voice'
+  const mood = entry.mood != null ? (entry.mood as MoodLevel) : null
 
   return (
     <figure
       ref={containerRef}
       className={cn(
-        'transition-all duration-500 motion-reduce:transition-none',
+        'shadow-card overflow-hidden rounded-[25px] bg-card transition-all duration-500 motion-reduce:transition-none',
         visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
       )}
     >
       {isVoice ? (
-        <VoiceCard
-          url={url}
-          failed={failed}
-          date={date}
-          entryIso={entry.occurredAt}
-          seed={entry.id}
-          errorText={t('thumbError')}
-          deleteButton={<EntryDeleteButton entry={entry} onDelete={onDelete} />}
-        />
+        <VoicePreview url={url} failed={failed} seed={entry.id} errorText={t('thumbError')} />
       ) : (
-        // «Полароид»: белая рамка, снимок, дата внутри.
-        <div className="shadow-card rounded-[25px] bg-card p-[10px] pb-2">
-          <div className="overflow-hidden rounded-[15px]">
+        <div className="p-[9px] pb-0">
+          <div className="overflow-hidden rounded-[16px]">
             {failed ? (
-              <div className="flex aspect-square items-center justify-center bg-muted/50 px-4 text-center text-xs text-foreground/50">
+              <div className="flex aspect-[4/5] items-center justify-center bg-muted/50 px-3 text-center text-xs text-foreground/50">
                 {t('thumbError')}
               </div>
             ) : url ? (
@@ -128,140 +113,114 @@ export function EntryMedia({
               <img
                 src={url}
                 alt={caption ?? date}
-                className="block aspect-[10/11] w-full object-cover"
+                className="block aspect-[4/5] w-full object-cover"
               />
             ) : (
-              <div className="aspect-[10/11] w-full animate-pulse bg-muted/70" />
+              <div className="aspect-[4/5] w-full animate-pulse bg-muted/70" />
             )}
-          </div>
-          <div className="flex items-center justify-between px-1 pt-2">
-            <time
-              className="text-[11px] font-semibold text-foreground"
-              dateTime={entry.occurredAt}
-            >
-              {date}
-            </time>
-            <EntryDeleteButton entry={entry} onDelete={onDelete} />
           </div>
         </div>
       )}
 
-      {/* Подпись — белая пилюля, наезжающая на карточку (вид «дорожка»).
-          Муд-бейдж (если у записи есть настроение) — на её правом плече. */}
-      {!compact && caption && (
-        <figcaption className="relative z-10 -mt-3 ml-auto w-fit max-w-[85%]">
-          <div className="shadow-chip relative rounded-[14px] bg-card px-3 py-2 text-[11px] leading-snug text-foreground">
-            {caption}
-            {entry.mood != null && (
-              <MoodBadge
-                level={entry.mood as MoodLevel}
-                size={26}
-                className="absolute -right-2.5 -top-3"
-              />
-            )}
-          </div>
-        </figcaption>
+      {/* Подпись фото — одна строка с многоточием (полностью — в просмотре). */}
+      {!isVoice && caption && (
+        <p className="truncate px-3.5 pt-2 text-[11px] leading-snug text-foreground/80">
+          {caption}
+        </p>
       )}
+
+      {/* Нижняя строка: дата слева, действия+бейдж справа — В ГРАНИЦАХ карточки. */}
+      <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
+        <time className="text-[11px] font-semibold text-foreground" dateTime={entry.occurredAt}>
+          {date}
+        </time>
+        <div className="flex items-center gap-1.5">
+          <EntryDeleteButton entry={entry} onDelete={onDelete} />
+          {mood != null && <MoodBadge level={mood} size={22} />}
+        </div>
+      </div>
     </figure>
   )
 }
 
-// ── Голосовая карточка: градиентный плеер по эталону ─────────────────────────
-
-function VoiceCard({
+// Компактный голосовой плеер во всю ширину карточки. Волна — во flex-1 с
+// overflow-hidden, поэтому НИКОГДА не вылезает за границы.
+function VoicePreview({
   url,
   failed,
-  date,
-  entryIso,
   seed,
   errorText,
-  deleteButton,
 }: {
   url: string | null
   failed: boolean
-  date: string
-  entryIso: string
   seed: string
   errorText: string
-  deleteButton: React.ReactNode
 }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
-
-  // Декоративная волна: детерминированные высоты штрихов из id записи.
-  const bars = barsFromSeed(seed, 22)
+  const bars = barsFromSeed(seed, 40)
 
   function toggle() {
     const el = audioRef.current
     if (!el) return
-    if (playing) {
-      el.pause()
-    } else {
-      void el.play()
-    }
+    if (playing) el.pause()
+    else void el.play()
+  }
+
+  if (failed) {
+    return <p className="px-4 pt-4 text-xs text-foreground/50">{errorText}</p>
   }
 
   return (
-    <div className="shadow-card rounded-[25px] bg-card p-[10px] pb-2">
-      {failed ? (
-        <p className="px-2 py-3 text-xs text-foreground/50">{errorText}</p>
-      ) : (
-        <div
-          className="flex h-[54px] items-center gap-2 rounded-full px-4"
-          style={{ backgroundImage: 'var(--kai-grad-audio)' }}
+    <div className="p-[9px] pb-0">
+      <div
+        className="flex h-[52px] items-center gap-2.5 rounded-[16px] px-3.5"
+        style={{ backgroundImage: 'var(--kai-grad-audio)' }}
+      >
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={!url}
+          aria-label={playing ? 'Пауза' : 'Слушать'}
+          className="shrink-0 text-foreground disabled:opacity-40"
         >
-          <button
-            type="button"
-            onClick={toggle}
-            disabled={!url}
-            aria-label={playing ? 'Пауза' : 'Слушать'}
-            className="shrink-0 text-foreground disabled:opacity-40"
-          >
-            {playing ? (
-              <PauseIcon className="size-5 fill-current" />
-            ) : (
-              <PlayIcon className="size-5 fill-current" />
-            )}
-          </button>
-
-          {/* Волна — декоративная (высоты из id), как в эталоне. */}
-          <div className="flex min-w-0 flex-1 items-center justify-center gap-[2.5px]">
-            {bars.map((h, i) => (
-              <span
-                key={i}
-                className="w-[2.5px] shrink-0 rounded-full bg-foreground"
-                style={{ height: `${h}px` }}
-              />
-            ))}
-          </div>
-
-          <MicIcon className="size-5 shrink-0 text-foreground" />
-
-          {url && (
-            <audio
-              ref={audioRef}
-              src={url}
-              playsInline
-              onPlay={() => setPlaying(true)}
-              onPause={() => setPlaying(false)}
-              onEnded={() => setPlaying(false)}
-              className="hidden"
-            />
+          {playing ? (
+            <PauseIcon className="size-[18px] fill-current" />
+          ) : (
+            <PlayIcon className="size-[18px] fill-current" />
           )}
-        </div>
-      )}
+        </button>
 
-      <div className="flex items-center justify-between px-2 pt-2">
-        <time className="text-[11px] font-semibold text-foreground" dateTime={entryIso}>
-          {date}
-        </time>
-        {deleteButton}
+        {/* Волна — во flex-1 overflow-hidden: клипается, за края не выходит. */}
+        <div className="flex min-w-0 flex-1 items-center gap-[2px] overflow-hidden">
+          {bars.map((h, i) => (
+            <span
+              key={i}
+              className="w-[2px] shrink-0 rounded-full bg-foreground/80"
+              style={{ height: h + 'px' }}
+            />
+          ))}
+        </div>
+
+        <MicIcon className="size-[18px] shrink-0 text-foreground" />
+
+        {url && (
+          <audio
+            ref={audioRef}
+            src={url}
+            playsInline
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            onEnded={() => setPlaying(false)}
+            className="hidden"
+          />
+        )}
       </div>
     </div>
   )
 }
 
-// Псевдослучайные высоты штрихов волны из строки-сида (стабильны между рендерами).
+// Псевдослучайные высоты штрихов из id (стабильны между рендерами).
 function barsFromSeed(seed: string, count: number): number[] {
   let h = 2166136261
   for (let i = 0; i < seed.length; i++) {
@@ -273,8 +232,7 @@ function barsFromSeed(seed: string, count: number): number[] {
     h ^= h << 13
     h ^= h >>> 17
     h ^= h << 5
-    const v = Math.abs(h % 100) / 100
-    out.push(5 + Math.round(v * 15)) // 5–20px
+    out.push(5 + Math.round((Math.abs(h % 100) / 100) * 13)) // 5–18px
   }
   return out
 }

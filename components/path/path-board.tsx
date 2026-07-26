@@ -2,43 +2,32 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 
+import { cn } from '@/lib/utils'
 import type { PathEntry } from '@/lib/path/entries'
 import type { PathView } from './path-toolbar'
 
-// Доска «Пути» — absolute-мозаика с замером реальных высот карточек
-// (по PNG-эталонам «путь1» дорожка / «путь3» мозаика):
+// Доска «Пути»: ДВЕ НЕЗАВИСИМЫЕ колонки без наложений (флекс, обычный поток).
+// Записи чередуются: чётные — левая колонка, нечётные — правая.
 //
-//   'path' — карточки ~62% ширины попеременно лево/право, КАСКАДОМ с наездом
-//            (следующая начинается примерно с середины предыдущей, эталон
-//            путь1). Между ними — ТОЧЕЧНАЯ тёмная S-кривая (мелкие круглые
-//            точки, плавные изгибы) под карточками.
-//   'grid' — два плотных столбца ~48%: жадная укладка в короткий столбец
-//            (shortest-column, эталон путь3), без кривой.
+//   'path' — свободный ритм: правая колонка смещена вниз (стаггер), зазоры
+//            крупнее, между карточками вьётся точечная S-кривая (эталон путь1).
+//   'grid' — плотная мозаика: зазоры меньше, без кривой (эталон путь3).
 //
-// Высоты замеряются ResizeObserver'ом на каждой карточке: ленивая расшифровка
-// (фото/текст догружаются) меняет высоту → раскладка и кривая пересчитываются.
+// Кривая рисуется ПО ЗАМЕРАМ реальных карточек и пересчитывается
+// ResizeObserver'ом (ленивая догрузка фото/текста меняет высоты). Absolute-
+// раскладки НЕТ — наложения и переполнения исключены самим потоком документа.
 
 interface Point {
   x: number
   y: number
 }
 
-interface ItemLayout {
-  x: number
-  y: number
-  w: number
-}
-
-const GAP_X = 12 // между столбцами мозаики
-const GAP_Y = 24 // вертикальный зазор мозаики
-const PATH_W = 0.62 // ширина карточки в виде «дорожка»
-const OVERLAP = 0.55 // каскад: следующая начинается с 55% высоты предыдущей
-const SAME_SIDE_GAP = 28 // зазор между картами одной стороны (дорожка)
+const n = (v: number) => v.toFixed(1)
 
 // Гладкая кривая через точки: Catmull-Rom → кубические безье.
 function smoothPath(pts: Point[]): string {
   if (pts.length < 2) return ''
-  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`
+  const seg: string[] = ['M ' + n(pts[0].x) + ' ' + n(pts[0].y)]
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[i - 1] ?? pts[i]
     const p1 = pts[i]
@@ -48,9 +37,11 @@ function smoothPath(pts: Point[]): string {
     const c1y = p1.y + (p2.y - p0.y) / 6
     const c2x = p2.x - (p3.x - p1.x) / 6
     const c2y = p2.y - (p3.y - p1.y) / 6
-    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)}, ${c2x.toFixed(1)} ${c2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`
+    seg.push(
+      'C ' + n(c1x) + ' ' + n(c1y) + ', ' + n(c2x) + ' ' + n(c2y) + ', ' + n(p2.x) + ' ' + n(p2.y),
+    )
   }
-  return d
+  return seg.join(' ')
 }
 
 export function PathBoard({
@@ -64,93 +55,69 @@ export function PathBoard({
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
-  const [layouts, setLayouts] = useState<ItemLayout[] | null>(null)
-  const [boardH, setBoardH] = useState(0)
   const [curve, setCurve] = useState('')
-  const [boardW, setBoardW] = useState(0)
+  const [size, setSize] = useState({ w: 0, h: 0 })
+
+  const isPath = view === 'path'
+
+  // Чередование по индексу: чётные — левая колонка, нечётные — правая.
+  const withIndex = entries.map((entry, i) => ({ entry, i }))
+  const left = withIndex.filter((p) => p.i % 2 === 0)
+  const right = withIndex.filter((p) => p.i % 2 === 1)
 
   useLayoutEffect(() => {
-    function relayout() {
+    if (!isPath) return
+    function measure() {
       const container = containerRef.current
       if (!container) return
-      const W = container.clientWidth
-      if (W === 0) return
+      const cRect = container.getBoundingClientRect()
 
-      const heights = itemRefs.current
-        .slice(0, entries.length)
-        .map((el) => el?.offsetHeight ?? 0)
-      if (heights.some((h) => h === 0)) return // ещё не отрендерились
+      // Якоря — внутренние края карточек (сторона к центру), между соседями —
+      // точка в центральном жёлобе: получаются S-петли, как в эталоне.
+      const anchors: Point[] = []
+      itemRefs.current.slice(0, entries.length).forEach((el, i) => {
+        if (!el) return
+        const r = el.getBoundingClientRect()
+        const y = r.top - cRect.top + r.height / 2
+        const x = i % 2 === 0 ? r.right - cRect.left - 6 : r.left - cRect.left + 6
+        anchors.push({ x, y })
+      })
+      const pts: Point[] = []
+      anchors.forEach((a, i) => {
+        pts.push(a)
+        const b = anchors[i + 1]
+        if (b) pts.push({ x: cRect.width / 2 + (i % 2 === 0 ? 26 : -26), y: (a.y + b.y) / 2 })
+      })
 
-      const next: ItemLayout[] = []
-      let maxBottom = 0
-
-      if (view === 'grid') {
-        const colW = (W - GAP_X) / 2
-        const colH = [0, 0]
-        heights.forEach((h) => {
-          const col = colH[0] <= colH[1] ? 0 : 1
-          next.push({ x: col * (colW + GAP_X), y: colH[col], w: colW })
-          colH[col] += h + GAP_Y
-        })
-        maxBottom = Math.max(colH[0], colH[1]) - GAP_Y
-        setCurve('')
-      } else {
-        const colW = W * PATH_W
-        const anchors: Point[] = []
-        heights.forEach((h, i) => {
-          const left = i % 2 === 0
-          const x = left ? 0 : W - colW
-          const prevY = i > 0 ? next[i - 1].y : 0
-          const prevH = i > 0 ? heights[i - 1] : 0
-          const sameY = i > 1 ? next[i - 2].y + heights[i - 2] + SAME_SIDE_GAP : 0
-          const y = i === 0 ? 0 : Math.max(prevY + prevH * OVERLAP, sameY)
-          next.push({ x, y, w: colW })
-          // Якорь кривой — внутренний край карточки на её вертикальной середине.
-          anchors.push({ x: left ? colW - 8 : W - colW + 8, y: y + h / 2 })
-          maxBottom = Math.max(maxBottom, y + h)
-        })
-
-        // Промежуточные точки в центральном жёлобе — кривая «провисает» между
-        // карточками, образуя S-петли, как в эталоне.
-        const pts: Point[] = []
-        anchors.forEach((a, i) => {
-          pts.push(a)
-          const b = anchors[i + 1]
-          if (b) pts.push({ x: W / 2 + (i % 2 === 0 ? 30 : -30), y: (a.y + b.y) / 2 })
-        })
-        setCurve(smoothPath(pts))
-      }
-
-      setLayouts(next)
-      setBoardH(maxBottom)
-      setBoardW(W)
+      setCurve(smoothPath(pts))
+      setSize({ w: cRect.width, h: container.offsetHeight })
     }
 
-    relayout()
-    const ro = new ResizeObserver(relayout)
+    measure()
+    const ro = new ResizeObserver(measure)
     if (containerRef.current) ro.observe(containerRef.current)
-    itemRefs.current.slice(0, entries.length).forEach((el) => {
-      if (el) ro.observe(el)
-    })
-    return () => ro.disconnect()
-  }, [entries, view])
+    itemRefs.current.slice(0, entries.length).forEach((el) => el && ro.observe(el))
+    window.addEventListener('resize', measure)
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [entries, isPath])
 
-  const ready = layouts !== null && layouts.length === entries.length
+  const gap = isPath ? 'gap-7' : 'gap-3'
+  const colGap = isPath ? 'gap-7' : 'gap-3'
+  const rightStagger = isPath ? 'mt-12' : ''
 
   return (
-    <div
-      ref={containerRef}
-      className="relative"
-      style={{ height: ready ? boardH : undefined }}
-    >
-      {/* Точечная кривая-дорожка — под карточками. Тёмная, мелкие точки. */}
-      {view === 'path' && ready && curve && (
+    <div ref={containerRef} className="relative">
+      {/* Точечная кривая-дорожка — под карточками (только вид «дорожка»). */}
+      {isPath && curve && (
         <svg
           aria-hidden
           className="pointer-events-none absolute inset-0 z-0"
-          width={boardW}
-          height={boardH}
-          viewBox={`0 0 ${boardW} ${boardH}`}
+          width={size.w}
+          height={size.h}
+          viewBox={'0 0 ' + size.w + ' ' + size.h}
           fill="none"
         >
           <path
@@ -163,37 +130,33 @@ export function PathBoard({
         </svg>
       )}
 
-      {entries.map((entry, i) => {
-        const l = ready ? layouts![i] : null
-        return (
-          <div
-            key={entry.id}
-            ref={(el) => {
-              itemRefs.current[i] = el
-            }}
-            className="transition-opacity duration-300"
-            style={
-              l
-                ? {
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    transform: `translate(${l.x}px, ${l.y}px)`,
-                    width: l.w,
-                    // Ранние записи выше: их подписи-пилюли наезжают на соседей.
-                    zIndex: entries.length - i,
-                  }
-                : {
-                    // До замера: обычный поток (невидимо), чтобы узнать высоты.
-                    width: view === 'grid' ? '48%' : `${PATH_W * 100}%`,
-                    opacity: 0,
-                  }
-            }
-          >
-            {renderEntry(entry)}
-          </div>
-        )
-      })}
+      {/* Две независимые колонки: обычный поток, без absolute → без наложений. */}
+      <div className={cn('relative z-10 flex items-start', colGap)}>
+        <div className={cn('flex min-w-0 flex-1 flex-col', gap)}>
+          {left.map(({ entry, i }) => (
+            <div
+              key={entry.id}
+              ref={(el) => {
+                itemRefs.current[i] = el
+              }}
+            >
+              {renderEntry(entry)}
+            </div>
+          ))}
+        </div>
+        <div className={cn('flex min-w-0 flex-1 flex-col', gap, rightStagger)}>
+          {right.map(({ entry, i }) => (
+            <div
+              key={entry.id}
+              ref={(el) => {
+                itemRefs.current[i] = el
+              }}
+            >
+              {renderEntry(entry)}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

@@ -227,12 +227,7 @@ export function PathFeed() {
             entry.entryType === 'diary' ? (
               <DiaryCard entry={entry} onDelete={scheduleDelete} />
             ) : (
-              // В мозаике подписи-пилюли не показываем (эталон путь3).
-              <EntryMedia
-                entry={entry}
-                onDelete={scheduleDelete}
-                compact={view === 'grid'}
-              />
+              <EntryMedia entry={entry} onDelete={scheduleDelete} />
             )
           }
         />
