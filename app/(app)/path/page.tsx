@@ -1,7 +1,6 @@
 import { getTranslations } from 'next-intl/server'
 
 import { PathFeed } from '@/components/path/path-feed'
-import { AddLink } from '@/components/ui/add-link'
 
 // Серверная оболочка: заголовок + кнопка добавления. Сама лента — клиентская
 // (PathFeed): расшифровка идёт на устройстве ключом из PIN-сессии, на сервере
@@ -29,14 +28,11 @@ export default async function PathPage() {
       />
 
       <div className="relative mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
-        {/* Заголовок по центру (по фрейму), «+» — справа. */}
-        <header className="relative mb-8 flex items-center justify-center">
+        {/* Заголовок по центру (по фрейму); тулбар с «+» — внутри PathFeed. */}
+        <header className="mb-6 flex items-center justify-center">
           <h1 className="text-[28px] font-medium tracking-[-0.02em] text-foreground">
             {t('title')}
           </h1>
-          <div className="absolute right-0">
-            <AddLink href="/path/new" label={t('addButton')} />
-          </div>
         </header>
 
         <PathFeed />

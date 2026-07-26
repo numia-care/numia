@@ -10,7 +10,12 @@ import { deleteEntry, listEntries, type PathEntry } from '@/lib/path/entries'
 import { buttonVariants } from '@/components/ui/button'
 import { DiaryCard } from './diary-card'
 import { EntryMedia } from './entry-media'
-import { PathTimeline } from './path-timeline'
+import { PathBoard } from './path-board'
+import {
+  PathToolbar,
+  type PathView,
+  type TypeFilter,
+} from './path-toolbar'
 
 // Окно «Отменить» после подтверждения удаления: запись уже скрыта из ленты,
 // но реально удаляется только по истечении. Совпадает с duration тоста.
@@ -35,6 +40,10 @@ type State =
 export function PathFeed() {
   const t = useTranslations('path')
   const [state, setState] = useState<State>({ kind: 'loading' })
+  // Тулбар: активный фильтр по типу, порядок сортировки, вид (дорожка/мозаика).
+  const [activeType, setActiveType] = useState<TypeFilter>(null)
+  const [sortDesc, setSortDesc] = useState(true)
+  const [view, setView] = useState<PathView>('path')
   // Счётчик перезагрузок: retry-кнопка инкрементит → эффект перезапускается.
   // Идиоматичный способ «дёрнуть» эффект заново, без вынесенной async-функции.
   const [reloadKey, setReloadKey] = useState(0)
@@ -186,20 +195,44 @@ export function PathFeed() {
 
   if (state.entries.length === 0) return <EmptyState />
 
-  // Непрерывная извилистая дорожка (макет Кая): записи попеременно лево/право,
-  // между ними вьётся пунктирная линия. Помесячную группировку убрали —
-  // дорожка непрерывна; дата видна на каждой карточке.
+  // Фильтр по типу + порядок сортировки (метаданные приходят occurred_at desc).
+  const filtered = state.entries.filter((e) =>
+    activeType === null ? true : e.entryType === activeType,
+  )
+  const ordered = sortDesc ? filtered : [...filtered].reverse()
+
   return (
-    <PathTimeline
-      entries={state.entries}
-      renderEntry={(entry) =>
-        entry.entryType === 'diary' ? (
-          <DiaryCard entry={entry} onDelete={scheduleDelete} />
-        ) : (
-          <EntryMedia entry={entry} onDelete={scheduleDelete} />
-        )
-      }
-    />
+    <>
+      <PathToolbar
+        activeType={activeType}
+        onSelectType={setActiveType}
+        sortDesc={sortDesc}
+        onToggleSort={() => setSortDesc((v) => !v)}
+        view={view}
+        onToggleView={() => setView((v) => (v === 'path' ? 'grid' : 'path'))}
+        addHref="/path/new"
+      />
+
+      {ordered.length === 0 ? (
+        <p className="rounded-2xl bg-card p-8 text-center text-foreground/70 ring-1 ring-border">
+          {t('toolbar.emptyFiltered')}
+        </p>
+      ) : (
+        // Две колонки мозаикой; в виде «дорожка» между карточками — плавная
+        // кривая (макет Кая, фреймы 583:155 / 591:398).
+        <PathBoard
+          entries={ordered}
+          view={view}
+          renderEntry={(entry) =>
+            entry.entryType === 'diary' ? (
+              <DiaryCard entry={entry} onDelete={scheduleDelete} />
+            ) : (
+              <EntryMedia entry={entry} onDelete={scheduleDelete} />
+            )
+          }
+        />
+      )}
+    </>
   )
 }
 
