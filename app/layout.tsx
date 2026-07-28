@@ -68,6 +68,11 @@ export const viewport: Viewport = {
   // Safari директиву игнорирует — там смягчаем через KeyboardScrollAssist
   // и font-size ≥16px на инпутах, чтобы не было автозума).
   interactiveWidget: 'resizes-content',
+  // viewport-fit=cover — БЕЗ него iOS отдаёт env(safe-area-inset-*) нулями,
+  // и все calc() с ними молча схлопываются до константной части. Именно из-за
+  // этого нижний бар навигации ложился на home-indicator, хотя
+  // env(safe-area-inset-bottom) в нём уже был (bottom-nav.tsx, (app)/layout.tsx).
+  viewportFit: 'cover',
 }
 
 export default async function RootLayout({
