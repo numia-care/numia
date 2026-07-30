@@ -10,6 +10,7 @@ import { deleteEntry, listEntries, type PathEntry } from '@/lib/path/entries'
 import { buttonVariants } from '@/components/ui/button'
 import { DiaryCard } from './diary-card'
 import { EntryMedia } from './entry-media'
+import { EntryViewer } from './entry-viewer'
 import { PathBoard } from './path-board'
 import {
   PathToolbar,
@@ -44,6 +45,9 @@ export function PathFeed() {
   const [activeType, setActiveType] = useState<TypeFilter>(null)
   const [sortDesc, setSortDesc] = useState(true)
   const [view, setView] = useState<PathView>('path')
+  // Открытая в полном просмотре запись — по id, а не по индексу: фильтр и
+  // порядок ленты меняются, id переживает и то, и другое.
+  const [openId, setOpenId] = useState<string | null>(null)
   // Счётчик перезагрузок: retry-кнопка инкрементит → эффект перезапускается.
   // Идиоматичный способ «дёрнуть» эффект заново, без вынесенной async-функции.
   const [reloadKey, setReloadKey] = useState(0)
@@ -201,6 +205,9 @@ export function PathFeed() {
   )
   const ordered = sortDesc ? filtered : [...filtered].reverse()
 
+  // -1 — записи в текущей выборке нет (закрыли, удалили, сменили фильтр).
+  const openIndex = openId === null ? -1 : ordered.findIndex((e) => e.id === openId)
+
   return (
     <>
       <PathToolbar
@@ -223,13 +230,27 @@ export function PathFeed() {
         <PathBoard
           entries={ordered}
           view={view}
-          renderEntry={(entry) =>
+          renderEntry={(entry, side) =>
             entry.entryType === 'diary' ? (
-              <DiaryCard entry={entry} onDelete={scheduleDelete} />
+              // У дневника бейдж настроения остаётся ВНУТРИ карточки (так в
+              // макете) — сторона колонки ему не нужна.
+              <DiaryCard entry={entry} onOpen={(e) => setOpenId(e.id)} />
             ) : (
-              <EntryMedia entry={entry} onDelete={scheduleDelete} />
+              <EntryMedia entry={entry} onOpen={(e) => setOpenId(e.id)} side={side} />
             )
           }
+        />
+      )}
+
+      {/* Полный просмотр по тапу: листается свайпом по той же выборке, что и
+          лента. Удаление живёт здесь — в карточках кнопок нет. */}
+      {openIndex >= 0 && (
+        <EntryViewer
+          entries={ordered}
+          index={openIndex}
+          onIndexChange={(i) => setOpenId(ordered[i].id)}
+          onClose={() => setOpenId(null)}
+          onDelete={scheduleDelete}
         />
       )}
     </>

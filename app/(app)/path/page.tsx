@@ -10,24 +10,31 @@ export default async function PathPage() {
 
   return (
     <div className="relative overflow-hidden">
-      {/* Пастельные блобы-свечения за дорожкой (эллипсы Кая), дешёвый CSS. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-24 right-[-90px] h-72 w-96 rounded-full bg-chip-blue/40"
-        style={{ filter: 'blur(90px)' }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-[40%] left-[-100px] h-80 w-96 rounded-full bg-accent/50"
-        style={{ filter: 'blur(90px)' }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-[-40px] right-[-60px] h-72 w-80 rounded-full bg-chip-pink/40"
-        style={{ filter: 'blur(90px)' }}
-      />
+      {/* Пастельные эллипсы-свечения за лентой (эллипсы Кая): нежный зелёный и
+          розовый чередуются сверху вниз, попеременно у левого и правого края.
+          Позиции в % — фон тянется вместе с лентой, сколько бы записей ни было.
+          Дёшево для слабых телефонов: только blur, без анимации. */}
+      {[
+        { top: '4%', side: 'right', color: 'var(--kai-glow-green)' },
+        { top: '26%', side: 'left', color: 'var(--kai-chip-pink)' },
+        { top: '48%', side: 'right', color: 'var(--kai-glow-green)' },
+        { top: '70%', side: 'left', color: 'var(--kai-chip-pink)' },
+        { top: '90%', side: 'right', color: 'var(--kai-glow-green)' },
+      ].map((blob, i) => (
+        <div
+          key={i}
+          aria-hidden
+          className="pointer-events-none absolute h-72 w-80 rounded-full opacity-55"
+          style={{
+            top: blob.top,
+            [blob.side]: '-90px',
+            background: blob.color,
+            filter: 'blur(90px)',
+          }}
+        />
+      ))}
 
-      <div className="relative mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
+      <div className="page-shell relative py-10 sm:py-14">
         {/* Заголовок по центру (по фрейму); тулбар с «+» — внутри PathFeed. */}
         <header className="mb-6 flex items-center justify-center">
           <h1 className="text-[28px] font-medium tracking-[-0.02em] text-foreground">

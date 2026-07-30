@@ -5,12 +5,12 @@ import { useTranslations } from 'next-intl'
 
 import { decryptNote, type MoodLevel, type PathEntry } from '@/lib/path/entries'
 import { cn } from '@/lib/utils'
-import { EntryDeleteButton } from './entry-delete-button'
 import { MoodBadge } from './mood-badge'
 
 // Дневниковая карточка по PNG-эталону «путь1/3»: чистая белая карточка r:20,
-// текст 12px (до ~8 строк с многоточием), внизу дата (ДД.ММ.ГГ, semibold)
-// слева и муд-бейдж справа. Без ярлыка «Дневник» — тип читается по виду.
+// текст 12px (обрезан многоточием), внизу дата (ДД.ММ.ГГ, semibold) слева и
+// муд-бейдж справа. Без ярлыка «Дневник» — тип читается по виду. Кнопок в
+// карточке нет (как в макете): тап открывает полный просмотр.
 // Текст шифрован — расшифровываем лениво (когда карточка у вьюпорта).
 
 const dateLabel = new Intl.DateTimeFormat('ru-RU', {
@@ -21,10 +21,10 @@ const dateLabel = new Intl.DateTimeFormat('ru-RU', {
 
 export function DiaryCard({
   entry,
-  onDelete,
+  onOpen,
 }: {
   entry: PathEntry
-  onDelete: (entry: PathEntry) => void
+  onOpen: (entry: PathEntry) => void
 }) {
   const t = useTranslations('path')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -73,16 +73,27 @@ export function DiaryCard({
     <div
       ref={containerRef}
       className={cn(
-        'shadow-card rounded-[20px] bg-card p-4 transition-all duration-500 motion-reduce:transition-none',
+        'shadow-card relative rounded-[20px] bg-card p-4 transition-all duration-500 motion-reduce:transition-none',
+        // Отклик на нажатие: карточка мягко «проседает» под пальцем.
+        'has-[.entry-open:active]:scale-[0.98]',
         visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
       )}
     >
+      {/* Невидимая кнопка на всю карточку — открывает полный просмотр, где
+          текст виден целиком (в ленте он обрезан многоточием). */}
+      <button
+        type="button"
+        onClick={() => onOpen(entry)}
+        aria-label={t('viewer.open')}
+        className="entry-open absolute inset-0 z-0 cursor-pointer"
+      />
+
       {/* Текст: до 8 строк, дальше многоточие (как в эталоне «...ког...»). */}
       {hasNote &&
         (failed ? (
           <p className="text-xs text-foreground/50">{t('thumbError')}</p>
         ) : note !== null ? (
-          <p className="line-clamp-3 text-[12px] leading-[1.4] text-foreground">
+          <p className="line-clamp-5 text-[12px] leading-[1.4] text-foreground">
             {note}
           </p>
         ) : (
@@ -97,12 +108,9 @@ export function DiaryCard({
         <time className="text-[11px] font-semibold text-foreground" dateTime={entry.occurredAt}>
           {date}
         </time>
-        <div className="flex items-center gap-1.5">
-          <EntryDeleteButton entry={entry} onDelete={onDelete} />
-          {entry.mood != null && (
-            <MoodBadge level={entry.mood as MoodLevel} size={24} />
-          )}
-        </div>
+        {entry.mood != null && (
+          <MoodBadge level={entry.mood as MoodLevel} size={24} />
+        )}
       </div>
     </div>
   )

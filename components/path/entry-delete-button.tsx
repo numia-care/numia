@@ -1,5 +1,6 @@
 'use client'
 
+import { Trash2Icon } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 
@@ -15,10 +16,13 @@ import {
 } from '@/components/ui/dialog'
 import type { PathEntry } from '@/lib/path/entries'
 
-// Кнопка «Убрать» на записи ленты «Пути» (любой тип: фото/голос/дневник) с
-// диалогом подтверждения. Сама НЕ удаляет: после подтверждения отдаёт запись
-// наверх (onDelete), а лента делает отложенное удаление с 5-секундным
-// «Отменить» в тосте (см. PathFeed.scheduleDelete) — случайный тап обратим.
+// Кнопка «Убрать» в ПОЛНОМ ПРОСМОТРЕ записи (в ленте её больше нет — по макету
+// карточки чистые, удаление живёт на один тап глубже). Круглая иконка-корзина в
+// шапке просмотра + диалог подтверждения.
+//
+// Сама НЕ удаляет: после подтверждения отдаёт запись наверх (onDelete), а лента
+// делает отложенное удаление с 5-секундным «Отменить» в тосте
+// (см. PathFeed.scheduleDelete) — случайный тап обратим.
 export function EntryDeleteButton({
   entry,
   onDelete,
@@ -39,13 +43,14 @@ export function EntryDeleteButton({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-auto px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground"
+          <button
+            type="button"
+            aria-label={t('button')}
+            title={t('button')}
+            className="shadow-card flex size-11 shrink-0 items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-secondary"
           >
-            {t('button')}
-          </Button>
+            <Trash2Icon className="size-[20px]" strokeWidth={1.8} />
+          </button>
         }
       />
       <DialogContent>

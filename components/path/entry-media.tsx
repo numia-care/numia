@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 
 import { decryptCaption, loadMediaUrl, type MoodLevel, type PathEntry } from '@/lib/path/entries'
+import { barsFromSeed } from '@/lib/path/waveform'
 import { cn } from '@/lib/utils'
-import { EntryDeleteButton } from './entry-delete-button'
 import { MoodBadge } from './mood-badge'
 
 // Превью-карточка записи (фото / голос) для ленты «Пути». КОМПАКТНАЯ, весь
@@ -19,6 +19,11 @@ import { MoodBadge } from './mood-badge'
 //           волна во flex-1 c overflow-hidden (НЕ вылезает), микрофон; ниже дата.
 //
 // Ленивая расшифровка сохранена. object URL отзываем при размонтировании.
+//
+// Тап по карточке открывает полный просмотр (EntryViewer). Клик ловит невидимая
+// кнопка на всю площадь карточки: обернуть всю карточку в <button> нельзя —
+// внутри голосовой уже есть своя кнопка play (кнопка в кнопке невалидна).
+// Play лежит выше по z, поэтому тап по нему играет, а не открывает просмотр.
 
 const dateLabel = new Intl.DateTimeFormat('ru-RU', {
   day: '2-digit',
@@ -28,10 +33,14 @@ const dateLabel = new Intl.DateTimeFormat('ru-RU', {
 
 export function EntryMedia({
   entry,
-  onDelete,
+  onOpen,
+  side = 'left',
 }: {
   entry: PathEntry
-  onDelete: (entry: PathEntry) => void
+  onOpen: (entry: PathEntry) => void
+  // Колонка, в которой стоит карточка: от неё зависит, в какую сторону
+  // сдвинут пузырь подписи и с какого края висит бейдж настроения.
+  side?: 'left' | 'right'
 }) {
   const t = useTranslations('path')
   const containerRef = useRef<HTMLDivElement>(null)
@@ -90,21 +99,38 @@ export function EntryMedia({
   const isVoice = entry.entryType === 'voice'
   const mood = entry.mood != null ? (entry.mood as MoodLevel) : null
 
+  // Пузырь подписи и бейдж настроения висят ПОД карточкой и торчат за её
+  // границы, поэтому оболочка `relative` без overflow, а сама карточка (figure)
+  // остаётся с overflow-hidden — иначе фото вылезало бы из скруглений.
+  //
+  // Оба элемента ABSOLUTE и не входят в бокс оболочки: доска «Пути» меряет
+  // именно её (itemRefs) для якорей дорожки и для высоты доски. Если бы пузырь
+  // влиял на высоту, коннекторы поехали бы вслед за длиной подписи.
   return (
-    <figure
-      ref={containerRef}
-      className={cn(
-        'shadow-card overflow-hidden rounded-[25px] bg-card transition-all duration-500 motion-reduce:transition-none',
-        visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
-      )}
-    >
+    <div ref={containerRef} className="relative">
+      <figure
+        className={cn(
+          'shadow-card relative overflow-hidden rounded-[25px] bg-card transition-all duration-500 motion-reduce:transition-none',
+          // Отклик на нажатие: карточка мягко «проседает» под пальцем.
+          'has-[.entry-open:active]:scale-[0.98]',
+          visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0',
+        )}
+      >
+        {/* Невидимая кнопка на всю карточку — открывает полный просмотр. */}
+        <button
+          type="button"
+          onClick={() => onOpen(entry)}
+          aria-label={t('viewer.open')}
+          className="entry-open absolute inset-0 z-0 cursor-pointer"
+        />
+
       {isVoice ? (
         <VoicePreview url={url} failed={failed} seed={entry.id} errorText={t('thumbError')} />
       ) : (
         <div className="p-[9px] pb-0">
           <div className="overflow-hidden rounded-[16px]">
             {failed ? (
-              <div className="flex aspect-[4/5] items-center justify-center bg-muted/50 px-3 text-center text-xs text-foreground/50">
+              <div className="flex aspect-square items-center justify-center bg-muted/50 px-3 text-center text-xs text-foreground/50">
                 {t('thumbError')}
               </div>
             ) : url ? (
@@ -113,33 +139,60 @@ export function EntryMedia({
               <img
                 src={url}
                 alt={caption ?? date}
-                className="block aspect-[4/5] w-full object-cover"
+                className="block aspect-square w-full object-cover"
               />
             ) : (
-              <div className="aspect-[4/5] w-full animate-pulse bg-muted/70" />
+              <div className="aspect-square w-full animate-pulse bg-muted/70" />
             )}
           </div>
         </div>
       )}
 
-      {/* Подпись фото — одна строка с многоточием (полностью — в просмотре). */}
-      {!isVoice && caption && (
-        <p className="truncate px-3.5 pt-2 text-[11px] leading-snug text-foreground/80">
-          {caption}
-        </p>
-      )}
-
-      {/* Нижняя строка: дата слева, действия+бейдж справа — В ГРАНИЦАХ карточки. */}
-      <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
-        <time className="text-[11px] font-semibold text-foreground" dateTime={entry.occurredAt}>
-          {date}
-        </time>
-        <div className="flex items-center gap-1.5">
-          <EntryDeleteButton entry={entry} onDelete={onDelete} />
-          {mood != null && <MoodBadge level={mood} size={22} />}
+        {/* Нижняя строка карточки — только дата. Подпись и бейдж настроения
+            переехали в пузырь под карточкой (замер эталона путь1/2). */}
+        <div className="px-3.5 py-2.5">
+          <time className="text-[11px] font-semibold text-foreground" dateTime={entry.occurredAt}>
+            {date}
+          </time>
         </div>
-      </div>
-    </figure>
+      </figure>
+
+      {/* Пузырь подписи + бейдж — ЗАМЕР эталона:
+            ширина ~106 при карточке 145 → 73%;
+            начинается на 15 ниже карточки;
+            сдвинут в сторону жёлоба (для левой колонки — вправо, для правой —
+            влево), внутренний край с отступом 7 от края карточки;
+            бейдж 19×19 сидит на верхней грани пузыря у его внешнего конца,
+            наполовину снаружи.
+          Пузырь показываем, только если есть что показать: подпись или
+          настроение. Пустой белый прямоугольник под карточкой был бы мусором. */}
+      {(caption || mood != null) && (
+        <div
+          className={cn(
+            'absolute top-full z-10 mt-[15px] w-[73%]',
+            side === 'left' ? 'right-[7px]' : 'left-[7px]',
+          )}
+        >
+          <div className="shadow-card relative rounded-[14px] bg-card px-3 py-2">
+            {caption && (
+              <p className="line-clamp-2 text-[11px] leading-snug text-foreground">
+                {caption}
+              </p>
+            )}
+            {mood != null && (
+              <span
+                className={cn(
+                  'absolute -top-[9px]',
+                  side === 'left' ? '-right-[6px]' : '-left-[6px]',
+                )}
+              >
+                <MoodBadge level={mood} size={19} />
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -182,7 +235,8 @@ function VoicePreview({
           onClick={toggle}
           disabled={!url}
           aria-label={playing ? 'Пауза' : 'Слушать'}
-          className="shrink-0 text-foreground disabled:opacity-40"
+          // z-10 — выше невидимой кнопки «открыть»: тап по play играет запись.
+          className="relative z-10 shrink-0 text-foreground disabled:opacity-40"
         >
           {playing ? (
             <PauseIcon className="size-[18px] fill-current" />
@@ -218,21 +272,4 @@ function VoicePreview({
       </div>
     </div>
   )
-}
-
-// Псевдослучайные высоты штрихов из id (стабильны между рендерами).
-function barsFromSeed(seed: string, count: number): number[] {
-  let h = 2166136261
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  const out: number[] = []
-  for (let i = 0; i < count; i++) {
-    h ^= h << 13
-    h ^= h >>> 17
-    h ^= h << 5
-    out.push(5 + Math.round((Math.abs(h % 100) / 100) * 13)) // 5–18px
-  }
-  return out
 }
