@@ -164,7 +164,8 @@ redoing only the wrap.
 - **Recovery key (UX):** we call it «Ключ восстановления ✦» ("Recovery key ✦"), not «seed phrase».
   Shown once when the PIN is created (`components/recovery-key-card.tsx`):
   copy / download .txt / send to yourself (mailto, our server doesn't see it) +
-  a «сохранила» ("I've saved it", feminine) checkbox. Optional («Напомнить позже» ("Remind me later"), flag `recovery_ack`).
+  a «Ключ сохранён в надёжном месте ✦» ("The key is saved in a safe place ✦") checkbox (gender-neutral wording,
+  like the whole UI). Optional («Напомнить позже» ("Remind me later"), flag `recovery_ack`).
 
 **Important:** forgot the PIN AND didn't save the recovery key → the data can't be recovered. With
 the key, it can be. Resetting the PIN/«Сбросить всё» ("Reset everything") wipes the wraps → the old

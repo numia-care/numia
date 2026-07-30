@@ -57,7 +57,11 @@ export function PinUnlockForm() {
   // Биометрия: включена ли на этом устройстве (кнопка), ошибка последней
   // попытки и DEK, развёрнутый биометрией для шага bio-newpin.
   const [bioAvailable, setBioAvailable] = useState(false)
-  const [bioError, setBioError] = useState<string | null>(null)
+  // Сообщение о биометрии + действие рядом с ним. Отдельная структура (а не
+  // строка), потому что у «не настроен» и «не получилось» разные кнопки и тон,
+  // и показывать их нужно ДАЖЕ когда bioAvailable уже false — иначе экран
+  // просто гасит кнопку Face ID и молчит (так было до переезда на новый домен).
+  const [bioNotice, setBioNotice] = useState<BioNotice | null>(null)
   const [bioDek, setBioDek] = useState<Dek | null>(null)
   // Умеет ли устройство биометрию вообще (для тихого предложения включить —
   // строчка под PIN-падом, видна пока биометрия не включена) + сам диалог.
@@ -178,7 +182,7 @@ export function PinUnlockForm() {
    * оставляем развёрнутый DEK и ведём задавать новый PIN.
    */
   async function onBioUnlock(forNewPin: boolean) {
-    setBioError(null)
+    setBioNotice(null)
     setBusy(true)
     try {
       const result = await unlockWithBiometric()
@@ -197,19 +201,24 @@ export function PinUnlockForm() {
       }
       setBusy(false)
       if (result.status === 'failed') {
-        // Например, passkey удалили из системных настроек. PIN всегда есть.
-        setBioError(
-          'Не получилось по биометрии. Войди по PIN — и загляни в настройки безопасности: возможно, биометрию нужно включить заново.',
-        )
+        // Например, passkey удалили из системных настроек. PIN всегда есть,
+        // поэтому предлагаем настроить заново прямо здесь, а не отсылаем в
+        // настройки.
+        setBioNotice({
+          text: 'Не получилось войти по Face ID. Войди по PIN или настрой Face ID заново.',
+          cta: 'Настроить заново',
+          tone: 'error',
+        })
       } else if (result.status === 'no_bio') {
-        // Набор пропал между рендером и тапом — прячем кнопку.
+        // Набор пропал между рендером и тапом — прячем кнопку, но НЕ молчим.
         setBioAvailable(false)
+        setBioNotice({ text: 'Face ID не настроен', cta: 'Настроить', tone: 'info' })
       }
       // 'cancelled' — юзер закрыл системный шит, молчим.
     } catch (e) {
       console.error('biometric unlock failed:', e)
       setBusy(false)
-      setBioError('Что-то пошло не так. Войди по PIN.')
+      setBioNotice({ text: 'Что-то пошло не так. Войди по PIN.', cta: null, tone: 'error' })
     }
   }
 
@@ -306,10 +315,23 @@ export function PinUnlockForm() {
                 >
                   Войти по Face ID и задать новый PIN
                 </button>
-                {bioError && (
-                  <p className="mb-3 text-sm text-rose-600">{bioError}</p>
-                )}
               </>
+            )}
+
+            {/* Вне блока bioAvailable: если набор пропал между рендером и тапом,
+                блок выше исчезает — сообщение должно остаться. Кнопки-действия
+                здесь нет: настройка Face ID требует PIN, а на этом экране юзер
+                как раз потому, что PIN не помнит. */}
+            {bioNotice && (
+              <p
+                className={
+                  bioNotice.tone === 'error'
+                    ? 'mb-3 text-sm text-rose-600'
+                    : 'mb-3 text-sm text-muted-foreground'
+                }
+              >
+                {bioNotice.text}
+              </p>
             )}
 
             <button
@@ -343,7 +365,7 @@ export function PinUnlockForm() {
             <button
               type="button"
               onClick={() => {
-                setBioError(null)
+                setBioNotice(null)
                 setStep('unlock')
               }}
               className="mt-6 block w-full text-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
@@ -362,6 +384,15 @@ export function PinUnlockForm() {
             : 'Те же 6 цифр, что и при первом входе.'}
         </p>
 
+        {/* Биометрия отвалилась прямо в этой сессии (или её тут и не было):
+            кнопки Face ID уже нет, поэтому сообщение с действием живёт
+            отдельно — иначе экран молча гасит кнопку. */}
+        {!bioAvailable && bioNotice && (
+          <div className="mb-5">
+            <BioNoticeBlock notice={bioNotice} onEnroll={() => setEnrollOpen(true)} />
+          </div>
+        )}
+
         {/* Кнопка, не авто-вызов: WebAuthn требует user gesture, а внезапный
             системный шит при каждом развороте приложения раздражал бы. */}
         {bioAvailable && (
@@ -374,7 +405,7 @@ export function PinUnlockForm() {
             >
               Войти по Face ID / Touch ID
             </button>
-            {bioError && <p className="mt-2 text-sm text-rose-600">{bioError}</p>}
+            <BioNoticeBlock notice={bioNotice} onEnroll={() => setEnrollOpen(true)} />
             <div className="mt-5 flex items-center gap-3 text-xs text-muted-foreground">
               <span className="h-px flex-1 bg-border" />
               или PIN
@@ -426,7 +457,7 @@ export function PinUnlockForm() {
             type="button"
             disabled={busy}
             onClick={() => {
-              setBioError(null)
+              setBioNotice(null)
               setStep('forgot')
             }}
             className={
@@ -438,19 +469,23 @@ export function PinUnlockForm() {
             Не помню PIN
           </button>
 
-          {/* Тихое предложение включить биометрию — живёт там, где боль:
-              прямо у ввода PIN. Видно, пока биометрия не включена (после
-              включения его место занимает кнопка «Войти по Face ID» выше).
-              Только уверенное 'yes': предложение, которое упрётся в «не
-              поддерживается», хуже чем никакого. */}
-          {!bioAvailable && bioSupport === 'yes' && (
+          {/* Предложение настроить биометрию — живёт там, где боль: прямо у
+              ввода PIN. Видно, пока биометрия не включена (после включения его
+              место занимает кнопка «Войти по Face ID» выше).
+              'unknown' тоже показываем: 'no' мы уже отсеяли честной проверкой
+              платформенного аутентификатора, а 'unknown' значит лишь «браузер
+              не сказал про PRF». Раньше здесь стояло строгое 'yes' — и на
+              устройствах без getClientCapabilities экран не предлагал ничего
+              вообще. Если PRF всё-таки не окажется, это корректно отработает
+              BiometricEnrollDialog ('prf_unsupported'). */}
+          {!bioAvailable && bioSupport !== 'no' && bioSupport !== 'pending' && (
             <button
               type="button"
               disabled={busy}
               onClick={() => setEnrollOpen(true)}
               className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
             >
-              Хочешь входить по Face ID? ✦
+              Настроить вход по Face ID ✦
             </button>
           )}
         </div>
@@ -464,10 +499,56 @@ export function PinUnlockForm() {
         <BiometricEnrollDialog
           open={enrollOpen}
           onClose={() => setEnrollOpen(false)}
-          onEnrolled={() => setBioAvailable(true)}
+          onEnrolled={() => {
+            setBioAvailable(true)
+            setBioNotice(null) // «не настроен» больше не про нас
+          }}
         />
 
       </main>
+    </div>
+  )
+}
+
+// Сообщение о состоянии биометрии + действие рядом.
+//   info  — «Face ID не настроен» (констатация, не ошибка)
+//   error — попытка входа не удалась
+// Кнопка открывает тот же BiometricEnrollDialog, что и предложение под
+// PIN-падом: настройка требует PIN, который на экране входа юзер и вводит.
+interface BioNotice {
+  text: string
+  cta: string | null
+  tone: 'info' | 'error'
+}
+
+function BioNoticeBlock({
+  notice,
+  onEnroll,
+}: {
+  notice: BioNotice | null
+  onEnroll: () => void
+}) {
+  if (!notice) return null
+  return (
+    <div className="mt-2">
+      <p
+        className={
+          notice.tone === 'error'
+            ? 'text-sm text-rose-600'
+            : 'text-sm text-muted-foreground'
+        }
+      >
+        {notice.text}
+      </p>
+      {notice.cta && (
+        <button
+          type="button"
+          onClick={onEnroll}
+          className="mt-1 text-sm text-foreground underline underline-offset-4 hover:text-foreground/80"
+        >
+          {notice.cta}
+        </button>
+      )}
     </div>
   )
 }
