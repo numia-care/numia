@@ -12,6 +12,7 @@ import { PathPreview } from '@/components/dashboard/path-preview'
 import { RetroCard } from '@/components/dashboard/retro-card'
 import { QueerHistoryCard } from '@/components/dashboard/queer-history-card'
 import { TodayMeds } from '@/components/dashboard/today-meds'
+import { WikiCard } from '@/components/dashboard/wiki-card'
 
 // Главный экран «Сегодня» — точка входа в приложение (после login + PIN).
 // Этот дроб: приветствие + каркас блоков с тёплыми пустыми состояниями.
@@ -44,7 +45,7 @@ export default async function TodayPage() {
 
       {/* Занавес первого входа — сам решает, показываться ли (клиент). */}
       <OnboardingCurtain />
-      <div className="relative mx-auto w-full max-w-2xl space-y-6 px-5 py-6 sm:py-10">
+      <div className="page-shell relative space-y-6 py-6 sm:py-10">
         <FadeIn>
           {/* Шапка по макету: ✦ по центру (дышит), профиль — тёмный кружок справа. */}
           <div className="relative">
@@ -63,18 +64,19 @@ export default async function TodayPage() {
           <div className="mt-6">
             <Greeting />
           </div>
+          {/* Бейдж даты — по центру под приветствием (замер эталона: 12.6
+              от текста выше). Раньше стоял в ряду слева от карточки
+              настроения — это была раскладка раннего фрейма. */}
+          <div className="mt-[13px] flex justify-center">
+            <DateBadge />
+          </div>
           {/* Вечерний мягкий заход на дневник — сам решает, показываться ли. */}
           <EveningNudge />
         </FadeIn>
 
-        {/* Ряд по макету: бейдж даты + быстрый вход настроения. */}
+        {/* Настроение — во всю ширину (бейдж уехал под приветствие). */}
         <FadeIn delayMs={60}>
-          <div className="flex items-stretch gap-3">
-            <DateBadge />
-            <div className="min-w-0 flex-1">
-              <MoodQuickEntry />
-            </div>
-          </div>
+          <MoodQuickEntry />
         </FadeIn>
 
         {/* Квир-история дня. */}
@@ -96,23 +98,32 @@ export default async function TodayPage() {
           </Suspense>
         </FadeIn>
 
-        {/* Последнее из «Пути» — превью 1–2 записей (заглушка, если пусто). */}
+        {/* Нижний ряд: «Вики» и «Путь» рядом (замер эталона: карточки ~160 и
+            ~164 шириной, зазор 12.6 → равные колонки с gap-3). */}
         <FadeIn delayMs={240}>
-          <PathPreview />
+          <div className="grid grid-cols-2 gap-3">
+            <WikiCard />
+            <PathPreview />
+          </div>
         </FadeIn>
       </div>
     </div>
   )
 }
 
-// Скелетон сводки приёмов — та же стекло-карточка, чтобы не прыгала вёрстка.
+// Скелетон сводки приёмов — та же геометрия, что у готовой карточки (иконка
+// в шапке, кружок-стрелка справа, 3 ряда × 2 колонки), чтобы вёрстка не прыгала.
 function TodayMedsSkeleton() {
   return (
-    <div aria-hidden className="card-glass animate-pulse p-5">
-      <div className="h-4 w-40 rounded-full bg-black/[0.06]" />
-      <div className="mt-3 grid grid-cols-2 gap-1.5">
-        <div className="h-7 rounded-full bg-black/[0.06]" />
-        <div className="h-7 rounded-full bg-black/[0.06]" />
+    <div aria-hidden className="card-glass animate-pulse px-5 py-3.5">
+      <div className="relative flex items-center justify-center">
+        <div className="size-[19px] rounded bg-black/[0.06]" />
+        <div className="absolute right-0 size-[38px] rounded-full bg-black/[0.06]" />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className="h-4 rounded bg-black/[0.06]" />
+        ))}
       </div>
     </div>
   )

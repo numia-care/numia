@@ -1,19 +1,30 @@
+import { ChevronRightIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
-import { after } from 'next/server'
 
+import { MedicationsIcon } from '@/components/icons/kai'
 import { createClient, getAuthUser } from '@/lib/supabase/server'
 import { generateSlotsForActiveMeds } from '@/lib/tracker/slot-generator'
 import { formatSlotTime, getTodaySlots, type TodaySlot } from '@/lib/tracker/today'
 import { getUserTimezoneServer } from '@/lib/timezone-server'
 
-// Компактная сводка сегодняшних приёмов на дашборде. Открытые данные под RLS
-// (числа/статусы, не E2E), поэтому считаем на сервере. Нет приёмов на сегодня →
-// тёплая заглушка. Вся карточка — ссылка в Трекер.
+// Сводка сегодняшних приёмов на дашборде — ЗАМЕР эталона today.jpg:
+//   карточка ~337×114, в шапке ТОЛЬКО иконка-планшет по центру (без заголовка
+//   и счётчика «N из M»), справа белый кружок-стрелка d=38.5 в Трекер,
+//   ниже приёмы простым текстом «HH:MM Название» в 3 ряда × 2 колонки
+//   (колонка 1 с x≈53.7, колонка 2 с x≈187, шаг рядов 23).
 //
-// Перф: auth/tz кэшированы на запрос, генерация слотов — в after() (после
-// ответа, страховка самолечения), критический путь — один select слотов.
-// Та же схема, что на /tracker (перф-репорт беты, 2026-07-22).
+// Показываем ВСЕ приёмы дня, а не только ближайшие невыполненные: в макете их
+// шесть, и карточка читается как расписание дня целиком. Цветных пилюль
+// (розовая/голубая/серые) в макете нет — обычный текст.
+//
+// Открытые данные под RLS (время + название, не E2E), поэтому считаем на
+// сервере. Нет приёмов — тёплая заглушка.
+//
+// Генерация слотов идёт СИНХРОННО до чтения (решение 2026-07-30, тот же фикс,
+// что на /tracker): в after() она выполнялась уже после ответа, и на первом
+// заходе карточка показывала пустоту вместо приёмов. Ошибку глотаем — лучше
+// показать то, что уже есть в БД, чем уронить дашборд.
 export async function TodayMeds() {
   const t = await getTranslations('dashboard')
   const user = await getAuthUser()
@@ -22,62 +33,49 @@ export async function TodayMeds() {
   let tz = 'UTC'
   if (user) {
     tz = await getUserTimezoneServer()
-    const supabase = await createClient() // до after(): cookies в нём недоступны
-    after(async () => {
-      try {
-        await generateSlotsForActiveMeds(supabase, user.id, tz, 1)
-      } catch (e) {
-        console.error('slot generation after dashboard render failed:', e)
-      }
-    })
+    const supabase = await createClient()
+    try {
+      await generateSlotsForActiveMeds(supabase, user.id, tz, 1)
+    } catch (e) {
+      console.error('slot generation before dashboard render failed:', e)
+    }
     slots = await getTodaySlots(tz)
   }
 
-  const taken = slots.filter((s) => s.status === 'taken').length
-  const pending = slots.filter((s) => s.status === 'upcoming')
-  const shown = pending.slice(0, 4)
-  const extra = pending.length - shown.length
-
-  // Цвета чипов по фрейму Кая: первый — розовый, второй — голубой,
-  // остальные — нейтральные серые.
-  const chipClass = (i: number) =>
-    i === 0
-      ? 'border-chip-pink-border bg-chip-pink'
-      : i === 1
-        ? 'border-chip-blue-border bg-chip-blue'
-        : 'border-transparent bg-secondary'
-
   return (
-    // Стекло-карточка по фрейму: заголовок 14px/500 + счётчик «(N из M)».
-    <Link href="/tracker" className="card-glass block p-5 transition-shadow hover:shadow-md">
-      <h2 className="text-sm font-medium text-foreground">{t('medsTitle')}</h2>
+    <div className="card-glass relative px-5 py-3.5">
+      {/* Шапка: иконка по центру, стрелка справа. Ссылка теперь на самой
+          стрелке, а не на всей карточке — так в макете. */}
+      <div className="relative flex items-center justify-center">
+        <MedicationsIcon className="size-[19px] text-foreground" />
+        <Link
+          href="/tracker"
+          aria-label={t('medsTitle')}
+          className="shadow-soft absolute right-0 flex size-[38px] items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-white"
+        >
+          <ChevronRightIcon className="size-5" strokeWidth={1.8} />
+        </Link>
+      </div>
 
       {slots.length === 0 ? (
-        <p className="mt-1.5 text-sm text-muted-foreground">{t('medsEmpty')}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t('medsEmpty')}</p>
       ) : (
-        <>
-          <p className="mt-0.5 text-[10px] text-muted-foreground">
-            ({t('medsProgress', { taken, total: slots.length })})
-          </p>
-          {pending.length > 0 && (
-            // grid-flow-col + rows-2: цветные чипы (первые два ближайших)
-            // ложатся в ЛЕВУЮ колонку сверху вниз — как в фрейме Кая.
-            <div className="mt-3 grid grid-flow-col grid-cols-2 grid-rows-2 gap-1.5">
-              {shown.map((s, i) => (
-                <span
-                  key={s.id}
-                  className={`truncate rounded-full border px-2.5 py-1 text-xs text-foreground ${chipClass(i)}`}
-                >
-                  {formatSlotTime(s.scheduled_at, tz)} • {s.medication?.name ?? '—'}
-                </span>
-              ))}
-              {extra > 0 && (
-                <span className="px-1 py-1 text-xs text-muted-foreground">+{extra}</span>
-              )}
-            </div>
-          )}
-        </>
+        // grid-flow-col + явное число рядов: первая половина дня ложится в
+        // ЛЕВУЮ колонку сверху вниз, вторая — в правую (порядок как в макете).
+        <div
+          className="mt-3 grid grid-flow-col grid-cols-2 gap-x-4 gap-y-1.5"
+          style={{ gridTemplateRows: `repeat(${Math.ceil(slots.length / 2)}, auto)` }}
+        >
+          {slots.map((s) => (
+            <p key={s.id} className="flex items-baseline gap-3 text-[13px] text-foreground">
+              <time className="shrink-0 tabular-nums text-foreground/70">
+                {formatSlotTime(s.scheduled_at, tz)}
+              </time>
+              <span className="min-w-0 truncate">{s.medication?.name ?? '—'}</span>
+            </p>
+          ))}
+        </div>
       )}
-    </Link>
+    </div>
   )
 }

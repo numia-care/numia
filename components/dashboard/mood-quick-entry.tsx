@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 
+import { MoodIcon } from '@/components/icons/kai'
 import { MoodScale } from '@/components/path/mood-scale'
 import { buttonVariants } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -106,11 +107,25 @@ export function MoodQuickEntry() {
   }
 
   return (
-    // Карточка по фрейму Кая «как ты?»: стекло r:30, заголовок 16px/400,
-    // шкала на градиентной подложке (голубой → лаванда → розовый, r:18).
-    // p-3.5: на 390px рядом бейдж даты — каждому пикселю ширины счёт.
-    <div className="card-glass rounded-2xl p-3.5">
-      <h2 className="text-center text-[15px] text-foreground">{t('title')}</h2>
+    // ЗАМЕР эталона today.jpg: карточка высотой 134.6, радиус 54
+    // (--radius-5xl, в токенах он и подписан «муд-стрип»), заливка — мягкий
+    // градиент лаванда → зелень (#EFEDF0 → #F0F6E8, замер по краям внутри).
+    // Сверху иконка Кая, под ней вопрос по центру, ниже пять плиток дугой.
+    //
+    // Ширина — по колонке контента: детектор краёв даёт 25 и 361, то есть
+    // ровно колонка. (В первом замере мне показалось, что карточка шире экрана,
+    // но маска «не фон» ловила мягкое свечение вокруг, а не саму карточку.)
+    //
+    // min-h, а не h: 134.6 — это высота в состоянии выбора; на шаге «пара слов»
+    // внутри появляется текстовое поле, и карточка обязана расти.
+    <div
+      // justify-center — содержимое стоит по центру карточки по вертикали
+      // (в макете дуга центрирована, а не прижата к нижней кромке).
+      className="rounded-5xl shadow-card flex min-h-[135px] flex-col justify-center px-4 py-3.5"
+      style={{ backgroundImage: 'var(--kai-grad-mood)' }}
+    >
+      <MoodIcon className="mx-auto size-[19px] text-foreground" />
+      <h2 className="mt-2 text-center text-[15px] text-foreground">{t('title')}</h2>
 
       {state.kind === 'loading' ? (
         <div className="mt-3 h-16 animate-pulse rounded-xl bg-muted/40" />
@@ -167,7 +182,7 @@ export function MoodQuickEntry() {
               'linear-gradient(90deg, #B1D7E7 0%, #E6D7F6 50%, #FFB3D9 100%)',
           }}
         >
-          <MoodScale value={null} onChange={onPick} disabled={busy} />
+          <MoodScale value={null} onChange={onPick} disabled={busy} layout="arc" />
         </div>
       )}
     </div>

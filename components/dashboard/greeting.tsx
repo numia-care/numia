@@ -6,8 +6,8 @@ import { pickGreeting } from '@/lib/dashboard/greetings'
 import { getAddressForm, getDisplayName } from '@/lib/profile/local'
 import { PROFILE_SYNCED_EVENT } from '@/lib/profile/sync'
 
-// Приветствие на дашборде: «Привет, [имя] ✦» + дата + тёплая фраза с учётом
-// рода обращения. Имя/род читаем из локального кэша профиля (localStorage),
+// Приветствие на дашборде: «Привет,» / имя + тёплая фраза с учётом рода
+// обращения. Имя/род читаем из локального кэша профиля (localStorage),
 // время — текущее. Всё это клиентское: на сервере значений нет, поэтому
 // считаем в инициализаторе useState (на SSR → запасной «Привет ✦»), а
 // несовпадение гидрации на этом блоке гасим suppressHydrationWarning.
@@ -17,21 +17,13 @@ import { PROFILE_SYNCED_EVENT } from '@/lib/profile/sync'
 // имя приезжает через секунду). Подписываемся на событие синка и перечитываем —
 // иначе имя появилось бы только при следующем открытии.
 
-const dateFmt = new Intl.DateTimeFormat('ru-RU', {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-})
-
 function readGreeting() {
   if (typeof window === 'undefined') {
-    return { name: null as string | null, phrase: '', date: '' }
+    return { name: null as string | null, phrase: '' }
   }
-  const now = new Date()
   return {
     name: getDisplayName(),
-    phrase: pickGreeting(getAddressForm(), now),
-    date: dateFmt.format(now),
+    phrase: pickGreeting(getAddressForm(), new Date()),
   }
 }
 
@@ -45,17 +37,28 @@ export function Greeting() {
   }, [])
 
   return (
-    // По фрейму Кая: заголовок 30px без ✦ (звезда теперь в шапке страницы),
-    // letter-spacing слегка ужат, тёплая фраза под ним.
-    <div suppressHydrationWarning>
-      <h1 className="text-3xl tracking-[-0.03em] text-foreground">
-        Привет{data.name ? `, ${data.name}` : ''}
+    // ЗАМЕР эталона today.jpg: заголовок ПО ЦЕНТРУ, в две строки
+    // («Привет,» / имя), высота прописных 24 → кегль 33, шаг строк 28.6
+    // (плотный, ~0.87). Длинной даты («среда, 29 июля») здесь больше нет —
+    // её заменил пиксельный бейдж под фразой (DateBadge в page.tsx).
+    //
+    // Фраза с ротацией (pickGreeting) — осознанное отступление от макета
+    // (решение 2026-07-30): в эталоне её нет, но она даёт экрану голос.
+    // Кегля для неё в макете нет, поэтому взят обычный мелкий текст.
+    <div suppressHydrationWarning className="text-center">
+      <h1 className="text-[33px] leading-[0.87] tracking-[-0.03em] text-foreground">
+        {data.name ? (
+          <>
+            Привет,
+            <br />
+            {data.name}
+          </>
+        ) : (
+          'Привет'
+        )}
       </h1>
       {data.phrase && (
-        <p className="mt-2 text-base text-foreground">{data.phrase}</p>
-      )}
-      {data.date && (
-        <p className="mt-1 text-sm text-muted-foreground">{data.date}</p>
+        <p className="mt-3 text-sm text-foreground/70">{data.phrase}</p>
       )}
     </div>
   )

@@ -35,9 +35,17 @@ export function MoodBadge({
 }) {
   const { petals, depth } = MOOD_SHAPE[level]
   const mouth = MOOD_MOUTH[level]
-  // Рот: горизонтальная кривая в центре; кривизна по ступени.
+
+  // Рот: квадратичная кривая по центру, кривизна по ступени.
+  //
+  // ВАЖНО про знак: y в SVG растёт ВНИЗ, поэтому улыбка — это контрольная
+  // точка НИЖЕ концов рта. Раньше знак был перевёрнут (bend = -mouth·4.5), и
+  // ступени читались наоборот: «прекрасно» с грустным ртом, «тяжело» с улыбкой.
+  //
+  // Квадратичная кривая доходит лишь до середины между концами и контрольной
+  // точкой, поэтому для видимой глубины d контрольную уводим на ~1.5d.
   const mouthY = 13
-  const bend = -mouth * 4.5
+  const bend = mouth * 4.5 // + улыбка, − грусть, 0 — ровная черта
 
   return (
     <svg
@@ -49,7 +57,7 @@ export function MoodBadge({
     >
       <path d={petalPath(petals, depth)} fill={MOOD_COLOR[level]} />
       <path
-        d={`M 8 ${mouthY - bend / 2} Q 12 ${mouthY + bend / 2 + (mouth === 0 ? 0 : bend / 2)} 16 ${mouthY - bend / 2}`}
+        d={`M 8 ${mouthY - bend / 2} Q 12 ${mouthY + bend * 1.5} 16 ${mouthY - bend / 2}`}
         stroke="#1F1F1F"
         strokeWidth={1.8}
         strokeLinecap="round"

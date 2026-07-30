@@ -2,35 +2,47 @@
 
 import { useState } from 'react'
 
-// Бейдж сегодняшней даты — фан-элемент концепции Кая (фрейм «сегодня»):
-// сочный радиальный градиент (#FF6600 → #FF66B0 → #00CDF6), крупное число
-// дня шрифтом Bitcount, месяц под ним. r:40. Дата локальная, считается в
-// инициализаторе (SSR отдаёт пусто, после гидрации — реальная дата;
-// расхождение гасим suppressHydrationWarning, как в Greeting).
+// Бейдж сегодняшней даты — ЗАМЕР эталона today.jpg: тёмная пилюля 94.8×23.9,
+// r:12, заливка #262626 (= --kai-ink), внутри «23/09/26» одной строкой
+// пиксельным Bitcount (--font-numeric, уже подключён в layout.tsx).
+// Глифы 8.6 высотой → кегль ~13, боковой паддинг 12.6.
+//
+// Прежний бейдж (96×105, радиальный градиент, крупное число дня + месяц
+// словом) был собран по раннему фрейму — финальный макет заменил его целиком.
+//
+// Дата локальная, считается в инициализаторе: на SSR значения нет, после
+// гидрации появляется реальное — расхождение гасим suppressHydrationWarning,
+// как в Greeting.
+//
+// БЕЗ aria-hidden, в отличие от старого бейджа: длинную дату из приветствия
+// («среда, 29 июля») мы убрали, и теперь это единственная дата на экране —
+// спрятать её от скринридера значило бы просто её потерять.
 
-const monthFmt = new Intl.DateTimeFormat('ru-RU', { month: 'long' })
+const fmt = new Intl.DateTimeFormat('ru-RU', {
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+})
 
 export function DateBadge() {
   const [d] = useState(() => {
-    if (typeof window === 'undefined') return { day: '', month: '' }
+    if (typeof window === 'undefined') return { text: '', iso: '' }
     const now = new Date()
-    return { day: String(now.getDate()), month: monthFmt.format(now) }
+    return {
+      // ru-RU 2-digit даёт «23.09.26» — в макете разделитель косой.
+      text: fmt.format(now).replace(/\./g, '/'),
+      iso: now.toISOString().slice(0, 10),
+    }
   })
 
   return (
-    <div
+    <time
       suppressHydrationWarning
-      aria-hidden
-      // w-24 (96px): на 390px-экранах карточке «Как ты?» рядом нужен каждый
-      // пиксель — 103px из макета (402px) ужаты пропорционально.
-      className="flex h-[105px] w-24 shrink-0 flex-col items-center justify-center rounded-3xl text-white"
-      style={{
-        background:
-          'radial-gradient(120% 120% at 20% 15%, #FF6600 10%, #FF66B0 55%, #00CDF6 100%)',
-      }}
+      dateTime={d.iso}
+      className="font-numeric inline-flex h-[24px] items-center justify-center rounded-[12px] px-[13px] text-[13px] leading-none text-background"
+      style={{ backgroundColor: 'var(--kai-ink)' }}
     >
-      <span className="font-numeric text-[44px] leading-none">{d.day}</span>
-      <span className="mt-1 text-sm font-semibold text-background">{d.month}</span>
-    </div>
+      {d.text}
+    </time>
   )
 }

@@ -1,10 +1,11 @@
 'use client'
 
-import { MicIcon } from 'lucide-react'
+import { ChevronRightIcon, MicIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 
+import { PathIcon } from '@/components/icons/kai'
 import { getCryptoKey } from '@/lib/crypto/session'
 import {
   decryptNote,
@@ -15,10 +16,13 @@ import {
 } from '@/lib/path/entries'
 import { MOOD_COLOR } from '@/lib/path/mood'
 
-// Превью «Пути» на дашборде — по фрейму Кая: стекло-карточка, заголовок
-// 14px/500, сетка из трёх квадратных тайлов (r:15, #F3F3F3): фото-миниатюра /
-// иконка голоса / ✦ дневника в цвете настроения. Расшифровка на устройстве,
-// как в ленте. Вся карточка — ссылка в «Путь».
+// Превью «Пути» — ПРАВАЯ из двух нижних карточек дашборда (ЗАМЕР эталона
+// today.jpg: высота 154.5, в шапке иконка-узел слева и белый кружок-шеврон
+// справа, ниже два превью записей). Левая — «Вики» (wiki-card.tsx).
+//
+// Заголовка текстом в макете нет — вместо него иконка Кая. Тайлов теперь ДВА,
+// а не три: карточка стала вдвое уже. Расшифровка на устройстве, как в ленте.
+// Вся карточка — ссылка в «Путь».
 type State = { kind: 'loading' } | { kind: 'ready'; entries: PathEntry[] }
 
 export function PathPreview() {
@@ -38,7 +42,7 @@ export function PathPreview() {
           setState({ kind: 'ready', entries: [] })
           return
         }
-        setState({ kind: 'ready', entries: entries.slice(0, 3) })
+        setState({ kind: 'ready', entries: entries.slice(0, 2) })
       } catch {
         if (!cancelled) setState({ kind: 'ready', entries: [] })
       }
@@ -51,19 +55,30 @@ export function PathPreview() {
   }, [])
 
   return (
-    <Link href="/path" className="card-glass block p-5 transition-shadow hover:shadow-md">
-      <h2 className="text-sm font-medium text-foreground">{t('pathTitle')}</h2>
+    <Link
+      href="/path"
+      aria-label={t('pathTitle')}
+      className="card-glass flex h-[155px] flex-col p-3 transition-shadow hover:shadow-md"
+    >
+      <div className="flex items-center justify-between">
+        <PathIcon className="size-[19px] text-foreground" />
+        <span className="shadow-soft flex size-[34px] items-center justify-center rounded-full bg-white text-foreground">
+          <ChevronRightIcon className="size-[18px]" strokeWidth={1.8} />
+        </span>
+      </div>
 
       {state.kind === 'loading' ? (
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="aspect-square animate-pulse rounded-md bg-muted/60" />
+        <div className="mt-2 grid flex-1 grid-cols-2 gap-1.5">
+          {[0, 1].map((i) => (
+            <div key={i} className="animate-pulse rounded-md bg-muted/60" />
           ))}
         </div>
       ) : state.entries.length === 0 ? (
-        <p className="mt-1.5 text-sm text-muted-foreground">{t('pathEmpty')}</p>
+        <p className="mt-2 text-[13px] leading-snug text-muted-foreground">
+          {t('pathEmpty')}
+        </p>
       ) : (
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-2 grid flex-1 grid-cols-2 gap-1.5">
           {state.entries.map((entry) => (
             <PathTile key={entry.id} entry={entry} />
           ))}
@@ -111,7 +126,9 @@ function PathTile({ entry }: { entry: PathEntry }) {
   }, [entry, isPhoto, isDiary])
 
   return (
-    <div className="flex aspect-square items-center justify-center overflow-hidden rounded-md bg-secondary">
+    // Без aspect-square: тайлы растягиваются по высоте карточки (155),
+    // как в макете — два превью занимают всю нижнюю часть.
+    <div className="flex items-center justify-center overflow-hidden rounded-md bg-secondary">
       {isPhoto ? (
         url ? (
           // ПРИВАТНОСТЬ: дашборд часто открыт (PIN-грейс) и виден через плечо —

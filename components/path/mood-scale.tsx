@@ -7,20 +7,77 @@ import { MOOD_LEVELS } from '@/lib/path/mood'
 import { cn } from '@/lib/utils'
 import { MoodBadge } from './mood-badge'
 
-// Шкала настроения 1–5 по PNG-эталону «путь новая запись текст»: белые плитки
-// r:18 с цветными «цветками»-лицами, подписи под плитками, позади ряда мягкое
-// градиентное свечение (лаванда → голубой → зелень). Выбранная плитка — на
-// мягкой лаванде. Переиспользуется формой дневника и быстрым входом дашборда.
+// Шкала настроения 1–5. Два варианта раскладки, поведение и разметка выбора
+// (radiogroup, ступени, состояния) — общие:
+//
+//   'row' — эталон «путь новая запись текст»: белые плитки r:18 в ряд, подписи
+//           под плитками, позади мягкое градиентное свечение. Форма дневника.
+//   'arc' — эталон дашборда today.jpg: пять плиток 48×48 ДУГОЙ (крайние выше,
+//           центральная ниже на 20), без подписей и без свечения — фон даёт
+//           сама карточка. Смещения замерены: 0 / 11.9 / 19.9 / 11.9 / 0.
+//
+// Варианты, а не отдельный компонент: макеты расходятся только геометрией,
+// а логика выбора должна остаться одна на оба экрана.
 
 interface Props {
   value: MoodLevel | null
   onChange: (mood: MoodLevel) => void
   disabled?: boolean
   className?: string
+  layout?: 'row' | 'arc'
 }
 
-export function MoodScale({ value, onChange, disabled, className }: Props) {
+// Насколько плитка опущена относительно самой верхней (замер эталона).
+const ARC_OFFSET: Record<number, number> = { 1: 0, 2: 12, 3: 20, 4: 12, 5: 0 }
+const ARC_MAX = 20
+
+export function MoodScale({ value, onChange, disabled, className, layout = 'row' }: Props) {
   const t = useTranslations('path.mood')
+  const isArc = layout === 'arc'
+
+  if (isArc) {
+    return (
+      <div
+        role="radiogroup"
+        aria-label={t('groupLabel')}
+        // items-start + индивидуальный сдвиг сверху = дуга. Высота контейнера
+        // задана самой высокой плиткой плюс максимальный сдвиг.
+        className={cn('flex items-start justify-center gap-2', className)}
+      >
+        {MOOD_LEVELS.map((lvl) => {
+          const active = value === lvl
+          const dimmed = value !== null && !active
+          return (
+            <button
+              key={lvl}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              aria-label={t(`level.${lvl}`)}
+              disabled={disabled}
+              onClick={() => onChange(lvl)}
+              // Верхний отступ даёт дугу, нижний добирает до одинаковой высоты
+              // бокса у всех плиток (48 + 20). Без него ряд «весит» вниз:
+              // высоту задавала самая опущенная плитка, и дуга прижималась к
+              // нижней кромке карточки вместо центра.
+              style={{
+                marginTop: ARC_OFFSET[lvl],
+                marginBottom: ARC_MAX - ARC_OFFSET[lvl],
+              }}
+              className={cn(
+                'shadow-chip flex size-12 shrink-0 items-center justify-center rounded-[18px] transition-all',
+                'disabled:cursor-not-allowed disabled:opacity-60',
+                active ? 'bg-lavender-soft' : 'bg-card',
+                dimmed && 'opacity-45',
+              )}
+            >
+              <MoodBadge level={lvl} size={30} />
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <div className={cn('relative', className)}>
