@@ -12,7 +12,7 @@ import { createClient } from '@/lib/supabase/server'
  *   upcoming → taken | skipped (юзер тапнул)
  *   upcoming → missed (фон, когда время прошло без действий — добавим позже)
  *   any → upcoming (undo)
- *   any → taken (backfill «приняла вчера в 21:00»)
+ *   any → taken (backfill «приём был вчера в 21:00»)
  *
  * Все мутации проходят через RLS (user_id = auth.uid()), так что попытка
  * apдейта чужого ряда тихо ничего не сделает. Дополнительные проверки
@@ -27,7 +27,7 @@ export type ActionResult<T = void> =
 
 /**
  * Отметить слот принятым. taken_at = now() — пишем фактическое время.
- * Для backfill (приняла в прошлом) — используй backfillTaken.
+ * Для backfill (приём был в прошлом) — используй backfillTaken.
  */
 export async function markTaken(eventId: string): Promise<ActionResult> {
   if (!ID_SCHEMA.safeParse(eventId).success) {
@@ -79,7 +79,7 @@ export async function undoIntake(eventId: string): Promise<ActionResult> {
 }
 
 /**
- * Backfill — «приняла вчера в 21:00». taken_at — конкретный момент,
+ * Backfill — «приём был вчера в 21:00». taken_at — конкретный момент,
  * не now(). Используется для прошлых слотов через диалог.
  *
  * @param takenAtIso — ISO timestamp в UTC.
