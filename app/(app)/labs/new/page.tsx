@@ -16,7 +16,7 @@ export default async function NewLabResultPage({
   const initialMode = mode === 'photo' ? 'photo' : 'values'
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
+    <div className="page-shell py-10 sm:py-14">
       <header className="mb-8">
         <Link
           href="/labs"

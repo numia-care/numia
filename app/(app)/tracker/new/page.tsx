@@ -7,7 +7,7 @@ export default async function NewMedicationPage() {
   const t = await getTranslations('tracker.new')
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
+    <div className="page-shell py-10 sm:py-14">
       <header className="mb-8">
         <Link
           href="/tracker"

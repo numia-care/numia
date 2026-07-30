@@ -17,7 +17,7 @@ export default async function NewPathEntryPage({
   const initialMode = mode === 'diary' || mode === 'voice' ? mode : 'photo'
 
   return (
-    <div className="mx-auto w-full max-w-2xl px-5 py-8 sm:py-12">
+    <div className="page-shell py-8 sm:py-12">
       <header className="mb-7">
         <Link
           href="/path"

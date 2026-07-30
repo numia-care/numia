@@ -22,7 +22,7 @@ export default function SafetyPage() {
   return (
     <div>
       <StickyBackBar />
-      <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
+      <div className="page-shell py-10 sm:py-14">
       <header className="mb-10">
         <div className="mb-6 flex items-center gap-2 text-moss">
           <span className="text-2xl">✦</span>
