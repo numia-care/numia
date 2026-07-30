@@ -7,19 +7,23 @@ import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
 
 import { markSkipped, markTaken, undoIntake } from '@/lib/tracker/intake'
+import type { MedicationRow } from '@/lib/tracker/queries'
 import { playIntakeSparks } from '@/lib/tracker/spark'
 import { cn } from '@/lib/utils'
 
+import { MedFormIcon } from './med-form-icon'
 import { SlotBackfillDialog } from './slot-backfill-dialog'
 
-// Слот приёма — строка-пилюля по фрейму Кая «препараты»:
+// Слот приёма — строка-пилюля по эталону преппараты1:
 //   [чекбокс] имя … «HH:MM • доза» [шеврон]
 //
-// Чекбокс слева — и есть «Принято»: белый кружок, по тапу — ТЁМНАЯ ТОЧКА
-// #262626 (цвет строго по фрейму, не «зелёная галочка по логике») + вспышка ✦.
-// Цвет пилюли: два ближайших приёма — голубая и розовая (как чипы дашборда),
-// остальные — тёплый серый. Шеврон разворачивает детали (форма, «Пропустить» —
-// нейтрально, без негативной окраски).
+// Заливка — ЛАЙМОВЫЙ ГРАДИЕНТ у ВСЕХ строк (--kai-grad-slot, замер эталона).
+// Прежнее выделение двух ближайших приёмов голубой и розовой пилюлями снято:
+// в макете такого разделения нет, все строки одинаковые.
+//
+// Чекбокс слева — и есть «Принято»: скруглённый КВАДРАТ 17px (замер), белый;
+// по тапу заливается зелёным --kai-slot-check + вспышка ✦. Шеврон разворачивает
+// детали (форма, «Пропустить» — нейтрально, без негативной окраски).
 //
 // Прошлые слоты (taken/skipped/missed) — строка целиком открывает backfill-
 // диалог (поменять время / передумать), как и раньше.
@@ -32,20 +36,12 @@ export interface SlotCardProps {
   medName: string
   doseStr: string
   formStr: string
+  // Сырая форма препарата — для MedFormIcon (formStr это уже перевод).
+  form?: MedicationRow['form']
   status: 'upcoming' | 'taken' | 'skipped' | 'missed'
   timezone: string
   // true, если это последний upcoming-слот дня → щедрее вспышка при отметке.
   isLast?: boolean
-  // Порядковый номер среди upcoming (0 → голубая, 1 → розовая, прочие серые).
-  colorIndex?: number
-}
-
-// Классы пилюли по цветовому индексу — пары заливка+обводка из фрейма.
-function pillClass(colorIndex: number | undefined, isUpcoming: boolean): string {
-  if (!isUpcoming) return 'border-border bg-secondary'
-  if (colorIndex === 0) return 'border-chip-blue-border bg-chip-blue'
-  if (colorIndex === 1) return 'border-chip-pink-border bg-chip-pink'
-  return 'border-border bg-secondary'
 }
 
 export function SlotCard(props: SlotCardProps) {
@@ -56,7 +52,7 @@ export function SlotCard(props: SlotCardProps) {
 
   const {
     status, id, scheduledIso, timeStr, takenTimeStr,
-    medName, doseStr, formStr, timezone, isLast, colorIndex,
+    medName, doseStr, formStr, form, timezone, isLast,
   } = props
 
   const isUpcoming = status === 'upcoming'
@@ -101,14 +97,20 @@ export function SlotCard(props: SlotCardProps) {
     act(markTaken, t('takenBadge'))
   }
 
+  // Квадрат 17px, r:6 — замер эталона. Отмечено → сплошная зелёная заливка
+  // (в макете именно заливка, не галочка и не точка).
   const checkbox = (
-    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-card shadow-sm">
-      {/* Принято — тёмная точка (цвет из фрейма); пропуск — приглушённая. */}
-      {isTaken && <span className="size-3 rounded-full bg-foreground" />}
-      {(status === 'skipped' || status === 'missed') && (
-        <span className="size-3 rounded-full bg-muted-foreground/50" />
+    <span
+      className={cn(
+        'size-[17px] shrink-0 rounded-[6px] shadow-sm',
+        isTaken
+          ? ''
+          : status === 'skipped' || status === 'missed'
+            ? 'bg-muted-foreground/30'
+            : 'bg-card',
       )}
-    </span>
+      style={isTaken ? { backgroundColor: 'var(--kai-slot-check)' } : undefined}
+    />
   )
 
   const row = (
@@ -156,19 +158,24 @@ export function SlotCard(props: SlotCardProps) {
     <div
       data-slot-card=""
       className={cn(
-        'border shadow-card transition-[border-radius] duration-200',
-        expanded ? 'rounded-[25px]' : 'rounded-full',
-        pillClass(colorIndex, isUpcoming),
+        'shadow-card transition-[border-radius] duration-200',
+        expanded ? 'rounded-[27px]' : 'rounded-full',
         !isUpcoming && 'cursor-pointer opacity-80 transition-opacity hover:opacity-100',
       )}
+      // Лаймовый градиент — у всех строк одинаковый (замер эталона).
+      style={{ backgroundImage: 'var(--kai-grad-slot)' }}
     >
       {row}
 
-      {/* Разворот (только upcoming): детали + нейтральное «Пропустить». */}
+      {/* Разворот (только upcoming): детали + нейтральное «Пропустить».
+          Иконка формы слева — тот же MedFormIcon, что в карточке «Все». */}
       {isUpcoming && expanded && (
-        <div className="flex items-center justify-between gap-3 px-4 pb-3 pl-12">
-          <span className="text-[11px] leading-snug text-foreground/70">
-            {doseStr} · {formStr}
+        <div className="flex items-center justify-between gap-3 px-4 pb-3 pl-5">
+          <span className="flex min-w-0 items-center gap-3 text-[11px] leading-snug text-foreground/70">
+            {form && <MedFormIcon form={form} className="size-5 shrink-0 text-foreground" />}
+            <span className="min-w-0 truncate">
+              {doseStr} · {formStr}
+            </span>
           </span>
           <button
             type="button"

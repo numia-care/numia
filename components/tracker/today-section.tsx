@@ -17,37 +17,42 @@ export async function TodaySection({
   slots: TodaySlot[]
   timezone: string
 }) {
-  const t = await getTranslations('tracker.today')
+  // Заголовок секции теперь дата, а не строка из словаря — отсюда только
+  // переводы форм препаратов.
   const tMedForm = await getTranslations('tracker.medForm')
 
-  // Сколько приёмов ещё ждёт действия. Нужно для двух вещей:
-  //   • isLast (===1) — отметка этого слота закроет день → щедрее вспышка ✦;
-  //   • ===0 при непустом дне — показать «На сегодня всё ✦».
-  const upcoming = slots.filter((s) => s.status === 'upcoming')
-  const upcomingCount = upcoming.length
-  // Два ближайших приёма — голубая и розовая пилюли (по фрейму Кая).
-  const colorIndexById = new Map(upcoming.slice(0, 2).map((s, i) => [s.id, i]))
+  // Сколько приёмов ещё ждёт действия: isLast (===1) — отметка этого слота
+  // закроет день → щедрее вспышка ✦; ===0 при непустом дне — «день закрыт».
+  const upcomingCount = slots.filter((s) => s.status === 'upcoming').length
+
+  // Дата над списком — по эталону преппараты1 («23.09.26»), в таймзоне юзера.
+  // Раньше здесь стояла белая пилюля «Сегодня», в макете её нет.
+  const dateLabel = new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    timeZone: timezone,
+  }).format(new Date())
 
   return (
     <section className="mb-8">
-      {/* Ярлык-пилюля секции — по фрейму (белая, r:25, тонкая обводка). */}
-      <span className="inline-block rounded-full border border-border bg-white/90 px-4 py-1.5 text-sm text-foreground shadow-card">
-        {t('title')}
-      </span>
+      <p className="text-[17px] font-semibold tracking-[-0.01em] text-foreground">
+        {dateLabel}
+      </p>
 
       {slots.length === 0 ? (
-        <EmptyToday />
+        <NoneToday />
       ) : (
         <>
           {upcomingCount === 0 && <AllDoneToday />}
-          <div className="mt-3 grid gap-2.5">
+          {/* Зазор 4 — замер эталона (было 10). */}
+          <div className="mt-3 grid gap-1">
             {slots.map((slot) => (
               <SlotCardForSlot
                 key={slot.id}
                 slot={slot}
                 timezone={timezone}
                 isLast={upcomingCount === 1}
-                colorIndex={colorIndexById.get(slot.id)}
                 formStr={
                   slot.medication ? tMedForm(slot.medication.form) : ''
                 }
@@ -70,11 +75,15 @@ async function AllDoneToday() {
   )
 }
 
-async function EmptyToday() {
+// Слотов на сегодня нет — ПРИНИМАТЬ НЕЧЕГО. Состояние окончательное: слоты
+// генерируются синхронно до рендера (page.tsx), так что пустой список больше не
+// может означать «ещё не создались». Не путать с AllDoneToday: там приёмы были
+// и все отмечены, здесь их сегодня нет вовсе.
+async function NoneToday() {
   const t = await getTranslations('tracker.today')
   return (
-    <div className="rounded-2xl bg-card p-6 text-center text-foreground/80 ring-1 ring-border">
-      {t('empty')}
+    <div className="mt-3 rounded-2xl bg-card p-6 text-center text-foreground/80 ring-1 ring-border">
+      {t('none')}
     </div>
   )
 }
@@ -84,13 +93,11 @@ function SlotCardForSlot({
   timezone,
   formStr,
   isLast,
-  colorIndex,
 }: {
   slot: TodaySlot
   timezone: string
   formStr: string
   isLast: boolean
-  colorIndex?: number
 }) {
   const med = slot.medication
   const timeStr = formatSlotTime(slot.scheduled_at, timezone)
@@ -110,10 +117,10 @@ function SlotCardForSlot({
       medName={medName}
       doseStr={doseStr}
       formStr={formStr}
+      form={med?.form}
       status={slot.status}
       timezone={timezone}
       isLast={isLast}
-      colorIndex={colorIndex}
     />
   )
 }

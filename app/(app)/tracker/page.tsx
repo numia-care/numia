@@ -1,6 +1,5 @@
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
-import { after } from 'next/server'
 import { Suspense } from 'react'
 
 import { LabsHistory } from '@/components/labs/labs-history'
@@ -20,8 +19,10 @@ import { getTodaySlots } from '@/lib/tracker/today'
 // препараты с голубым градиентом. «Анализы» — таб внутри препаратов (IA Кая:
 // анализы живут здесь, не в отдельном разделе).
 //
-// Перф (репорт беты 2026-07-22): каркас отдаётся мгновенно, данные за Suspense;
-// генерация слотов — в after() (после ответа). auth/tz кэшированы на запрос.
+// Перф (репорт беты 2026-07-22): каркас отдаётся мгновенно, данные за Suspense.
+// auth/tz кэшированы на запрос. Генерация слотов с 2026-07-29 идёт синхронно
+// перед чтением списка — иначе «слоты ещё не создались» неотличимо от «приёмов
+// сегодня нет» (см. комментарий в TrackerData).
 export default async function TrackerPage() {
   const t = await getTranslations('tracker')
 
@@ -38,7 +39,7 @@ export default async function TrackerPage() {
         style={{ filter: 'blur(90px)' }}
       />
 
-      <div className="relative mx-auto w-full max-w-2xl px-5 py-6 sm:py-10">
+      <div className="page-shell relative py-6 sm:py-10">
         {/* Заголовок по фрейму: по центру, Inter Medium ~28px. */}
         <h1 className="mb-6 text-center text-[28px] font-medium tracking-[-0.02em] text-foreground">
           {t('title')}
@@ -65,15 +66,29 @@ async function TrackerData() {
     listLabResults(),
   ])
 
-  // Клиент создаём ДО after() (внутри after cookies() недоступны).
   const supabase = await createClient()
-  after(async () => {
+
+  // Генерация слотов идёт СИНХРОННО, до чтения списка (решение 2026-07-29).
+  //
+  // Раньше она стояла в after(), то есть выполнялась уже после ответа: на
+  // первом заходе слотов в БД ещё не было, и пустой список был неотличим от
+  // «на сегодня приёмов нет». Из-за этого экран показывал «расписание
+  // готовится» тем, у кого приёмов сегодня действительно нет.
+  //
+  // Теперь к моменту getTodaySlots результат окончательный, и slots.length === 0
+  // значит ровно одно: принимать сегодня нечего.
+  //
+  // Цена — 3 последовательных запроса (препараты, сверка, upsert) на пути
+  // данных вкладки. Каркас страницы это не задерживает: TrackerData за
+  // Suspense-границей. Ошибку глотаем — показать список из того, что уже есть
+  // в БД, лучше, чем уронить вкладку целиком.
+  if (meds.length > 0) {
     try {
       await generateSlotsForActiveMeds(supabase, user.id, tz, 1)
     } catch (e) {
-      console.error('slot generation after tracker render failed:', e)
+      console.error('slot generation before tracker render failed:', e)
     }
-  })
+  }
 
   const slots = meds.length > 0 ? await getTodaySlots(tz) : []
   const hasMeds = meds.length > 0
@@ -113,7 +128,8 @@ function AllMeds({
   meds: Awaited<ReturnType<typeof listActiveMedications>>
 }) {
   return (
-    <div className="grid gap-2.5">
+    // Зазор 4 — замер эталона преппараты2 (3.3–4.6), было 10.
+    <div className="grid gap-1">
       {meds.map((m) => (
         <MedicationCard key={m.id} med={m} />
       ))}
@@ -160,11 +176,13 @@ async function AnalysesEmpty() {
 function TrackerSkeleton() {
   return (
     <div aria-hidden className="animate-pulse">
-      <div className="mb-6 flex items-center gap-2">
-        <div className="h-[52px] flex-1 rounded-[24px] bg-black/[0.06]" />
-        <div className="h-[52px] flex-1 rounded-[24px] bg-black/[0.06]" />
-        <div className="h-[52px] flex-1 rounded-[24px] bg-black/[0.06]" />
-        <div className="size-[50px] rounded-full bg-black/[0.06]" />
+      {/* Геометрия — как у настоящих табов (62×57 r:16, «+» d=47), иначе при
+          подмене скелетона на контент ряд прыгает. */}
+      <div className="mb-6 flex items-center gap-[9px]">
+        <div className="h-[57px] w-[62px] rounded-[16px] bg-black/[0.06]" />
+        <div className="h-[57px] w-[62px] rounded-[16px] bg-black/[0.06]" />
+        <div className="h-[57px] w-[62px] rounded-[16px] bg-black/[0.06]" />
+        <div className="ml-auto size-[47px] rounded-full bg-black/[0.06]" />
       </div>
       <div className="grid gap-2.5">
         <div className="h-[52px] rounded-[25px] bg-black/[0.06]" />

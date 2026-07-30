@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDownIcon, PencilIcon } from 'lucide-react'
+import { ChevronDownIcon, SquarePenIcon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import Link from 'next/link'
@@ -11,21 +11,27 @@ import type { Schedule } from '@/lib/tracker/schedule'
 import { formatDoseWithUnit } from '@/lib/tracker/units'
 import { cn } from '@/lib/utils'
 
+import { MedFormIcon } from './med-form-icon'
 import { MedicationDeleteButton } from './medication-delete-button'
 
-// Карточка препарата по макету Кая (фрейм «препараты кнопки - все», 571:18–47):
+// Карточка препарата — ЗАМЕР эталона преппараты2:
 //   [название … доза] [белый круг-шеврон]
-// Заливка — фирменный градиент белый→бледно-голубой (--kai-grad-med, токен),
-// r:25, тень-card. Свёрнуто ~52px, развёрнуто ~93px; радиус постоянный 25px —
-// «капсульного» эффекта при развороте нет. Разворот: расписание, ближайший
-// приём, бейдж типа, действия «Изменить»/«Убрать».
+// Заливка — фирменный градиент белый→бледно-голубой (--kai-grad-med, токен).
+// Свёрнуто 53.7 (полная пилюля), развёрнуто 93.5 при r:27, зазор между
+// карточками 4 (замер 3.3–4.6).
+// Разворот: иконка формы слева, расписание и ближайший приём, справа — две
+// пилюли-действия: белая с карандашом и розовая с корзиной (в макете это
+// иконки, а не текстовые «Изменить»/«Убрать»).
 export function MedicationCard({ med }: { med: MedicationRow }) {
   const t = useTranslations('tracker')
   const [expanded, setExpanded] = useState(false)
 
   return (
     <div
-      className="shadow-card rounded-[25px]"
+      className={cn(
+        'shadow-card transition-[border-radius] duration-200',
+        expanded ? 'rounded-[27px]' : 'rounded-full',
+      )}
       // Градиент — из токена-примитива (тема может переопределить --kai-grad-med).
       style={{ backgroundImage: 'var(--kai-grad-med)' }}
     >
@@ -54,20 +60,28 @@ export function MedicationCard({ med }: { med: MedicationRow }) {
 
       {expanded && (
         <div className="flex flex-wrap items-center justify-between gap-2 px-5 pb-4">
-          <div className="min-w-0">
-            <p className="text-[11px] leading-snug text-foreground/70">
-              {formatSchedule(med.schedule, t)}
-            </p>
-            <NextIntakeLine med={med} />
-            <KindBadge kind={med.kind} />
+          {/* Иконка формы слева от описания — по макету. */}
+          <div className="flex min-w-0 items-center gap-3">
+            <MedFormIcon form={med.form} className="size-5 shrink-0 text-foreground" />
+            <div className="min-w-0">
+              <p className="text-[11px] leading-snug text-foreground/70">
+                {formatSchedule(med.schedule, t)}
+              </p>
+              <NextIntakeLine med={med} />
+              <KindBadge kind={med.kind} />
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+
+          {/* Пилюли-действия 47×29, r:14 (замер). Подписи ушли в aria-label —
+              в макете это иконки без текста. */}
+          <div className="flex shrink-0 items-center gap-2">
             <Link
               href={`/tracker/${med.id}/edit`}
-              className="flex items-center gap-1 rounded-full bg-card/70 px-3 py-1.5 text-xs text-foreground/70 transition-colors hover:bg-card hover:text-foreground"
+              aria-label={t('card.editButton')}
+              title={t('card.editButton')}
+              className="shadow-soft flex h-[29px] w-[47px] items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-white"
             >
-              <PencilIcon className="size-3.5" />
-              {t('card.editButton')}
+              <SquarePenIcon className="size-[18px]" strokeWidth={1.8} />
             </Link>
             <MedicationDeleteButton id={med.id} name={med.name} />
           </div>

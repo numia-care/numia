@@ -1,5 +1,6 @@
 'use client'
 
+import { Trash2Icon } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
@@ -43,11 +44,20 @@ export function MedicationDeleteButton({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {/* Розовая пилюля 47×29 с красной корзиной — замер эталона преппараты2
+          (заливка #FEDADA, глиф #CF3A40). Подпись ушла в aria-label: в макете
+          это иконка без текста. */}
       <DialogTrigger
         render={
-          <Button variant="ghost" size="sm" className="text-muted-foreground">
-            {t('deleteButton')}
-          </Button>
+          <button
+            type="button"
+            aria-label={t('deleteButton')}
+            title={t('deleteButton')}
+            className="shadow-soft flex h-[29px] w-[47px] items-center justify-center rounded-full transition-opacity hover:opacity-80"
+            style={{ backgroundColor: 'var(--kai-danger-soft)', color: 'var(--kai-danger)' }}
+          >
+            <Trash2Icon className="size-[18px]" strokeWidth={1.8} />
+          </button>
         }
       />
       <DialogContent>
