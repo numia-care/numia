@@ -1,6 +1,5 @@
 'use server'
 
-import { headers } from 'next/headers'
 import { z } from 'zod'
 
 import { createClient } from '@/lib/supabase/server'
@@ -44,10 +43,20 @@ export async function subscribeToPush(
   } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'not_authenticated' }
 
-  // User-Agent для отображения в /settings (этап 1b шаг 3): «iPhone PWA»,
-  // «Chrome on Mac». Для отправки push не используется.
-  const ua = (await headers()).get('user-agent') ?? null
-
+  // User-Agent БОЛЬШЕ НЕ ПИШЕМ (privacy-аудит 2026-08-02).
+  //
+  // Собирался под экран устройств в /settings («iPhone PWA», «Chrome on Mac»,
+  // отозвать подписку с конкретного телефона). Экран так и не сделали, поле
+  // никто не читал — данные копились впустую.
+  //
+  // Цена была высокой: полная строка UA — это модель устройства, версия ОС и
+  // браузера, режим PWA. Рядом лежит user_id, а он FK на auth.users, то есть
+  // на email. Получалась прямая связка «email ↔ конкретный телефон» — самое
+  // чувствительное сочетание в базе для нашей модели угроз.
+  //
+  // Для отправки пуша UA не нужен вообще: хватает endpoint + p256dh + auth.
+  // Если экран устройств появится — писать обобщённый тип (ios/android/
+  // desktop), а не сырую строку.
   const { data, error } = await supabase
     .from('push_subscriptions')
     .upsert(
@@ -56,7 +65,6 @@ export async function subscribeToPush(
         endpoint: parsed.data.endpoint,
         p256dh: parsed.data.keys.p256dh,
         auth: parsed.data.keys.auth,
-        user_agent: ua,
         last_seen_at: new Date().toISOString(),
       },
       { onConflict: 'endpoint' },

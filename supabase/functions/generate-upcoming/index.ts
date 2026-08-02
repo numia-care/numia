@@ -33,6 +33,12 @@ const DAYS_AHEAD = 3
 // payload'а когда юзеров станет много.
 const UPSERT_CHUNK = 500
 
+// Короткая ссылка на юзера для логов: первые 8 символов uuid. Логи Edge
+// Functions хранит Supabase, и полный user_id там связывается с email через
+// ту же базу — поэтому в логи он не попадает нигде (privacy-аудит 2026-08-02,
+// та же минимизация, что в send-reminders).
+const userRef = (id: string) => String(id).slice(0, 8)
+
 type Schedule =
   | { kind: 'daily'; times: string[] }
   | { kind: 'interval'; every_days: number; time: string; anchor_date: string }
@@ -163,7 +169,10 @@ Deno.serve(async (req) => {
     if (!schedule) {
       skippedInvalid += 1
       usersWithInvalid.add(med.user_id as string)
-      console.error(`medication ${med.id}: invalid schedule json, skipped`)
+      // Идентификаторы в логи не пишем (privacy-аудит 2026-08-02): счётчика
+      // skippedInvalid хватает, чтобы заметить проблему, а конкретный ряд
+      // ищется запросом к БД, а не по логам Supabase.
+      console.error('medication with invalid schedule json, skipped')
       continue
     }
     const timezone = tzByUser.get(med.user_id as string) ?? 'UTC'
@@ -220,7 +229,9 @@ Deno.serve(async (req) => {
       .lt('scheduled_at', windowEnd.toISOString())
 
     if (existingError) {
-      console.error(`reconcile select failed for user ${userId}:`, existingError.message)
+      // Первые 8 символов user_id — как в send-reminders: для дебага хватает,
+      // полный идентификатор в логи Supabase не утекает (privacy-аудит).
+      console.error(`reconcile select failed for ${userRef(userId)}…:`, existingError.message)
       continue
     }
 
@@ -241,7 +252,7 @@ Deno.serve(async (req) => {
         .delete()
         .in('id', staleIds)
       if (deleteError) {
-        console.error(`reconcile delete failed for user ${userId}:`, deleteError.message)
+        console.error(`reconcile delete failed for ${userRef(userId)}…:`, deleteError.message)
         continue
       }
       deletedStale += staleIds.length
