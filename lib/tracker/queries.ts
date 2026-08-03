@@ -1,4 +1,3 @@
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
 import { createClient, getAuthUser } from '@/lib/supabase/server'
@@ -140,31 +139,14 @@ export async function getMedicationForEdit(
   return { ...data, schedule: parseSchedule(data.schedule) } as MedicationRow
 }
 
-/**
- * Слоты приёмов на конкретный календарный день в tz юзера.
- * Возвращает события со status='upcoming'|'taken'|'skipped'|'missed',
- * отсортированные по scheduled_at ASC. Используется на главной трекера.
- *
- * Диапазон: [startOfDayUtc, endOfDayUtc) — вычисляется на вызывающей
- * стороне через date-fns-tz (startOfDay в tz юзера → fromZonedTime).
- */
-export async function getIntakeEventsForRange(
-  _supabase: SupabaseClient,
-  _userId: string,
-  _fromUtc: Date,
-  _toUtc: Date,
-): Promise<IntakeEventRow[]> {
-  throw new Error('TODO: реализовать в (app)/tracker page')
-}
-
-/**
- * История приёмов конкретного препарата за последние N дней.
- * Для деталки препарата и графика регулярности.
- */
-export async function getIntakeHistoryForMedication(
-  _supabase: SupabaseClient,
-  _medicationId: string,
-  _sinceUtc: Date,
-): Promise<IntakeEventRow[]> {
-  throw new Error('TODO: реализовать на странице деталки препарата')
-}
+// Здесь были две заглушки, обе снесены (заход 2 по Истории приёмов):
+//
+//   getIntakeEventsForRange — переросла в getSlotsInRange (lib/tracker/today.ts).
+//     Заглушка возвращала IntakeEventRow[], то есть голое событие без названия
+//     препарата — отрисовать по нему список было нельзя. Живая функция отдаёт
+//     IntakeSlot[] с джойном medications и параметром порядка.
+//
+//   getIntakeHistoryForMedication — история одного препарата для деталки.
+//     Экрана деталки нет, потребителей у функции не было; писать её вперёд
+//     экрана значит гадать о сигнатуре. Вернётся, когда появится экран:
+//     это тот же getSlotsInRange с фильтром по medication_id.
