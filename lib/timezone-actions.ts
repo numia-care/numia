@@ -2,7 +2,11 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { isValidIanaTimezone } from '@/lib/timezone'
-import { SLOT_GEN_DAYS, generateSlotsForActiveMeds } from '@/lib/tracker/slot-generator'
+import {
+  SLOT_GEN_DAYS,
+  generateSlotsForActiveMeds,
+  startOfUserDayUtc,
+} from '@/lib/tracker/slot-generator'
 
 /**
  * Server actions для работы с profiles.timezone.
@@ -88,8 +92,18 @@ export async function syncUserTimezone(
   // После смены tz они «уезжают» на разницу зон и висят дублями рядом с
   // новыми: unique-индекс (medication_id, scheduled_at) такие пары не
   // склеивает (баг 22:00/23:00 — профиль флипался
-  // между таймзонами разных устройств). Поэтому сносим все upcoming и
-  // генерим заново в новой tz. История (taken/skipped/missed) не трогается.
+  // между таймзонами разных устройств). Поэтому сносим upcoming и генерим
+  // заново в новой tz. История (taken/skipped/missed) не трогается.
+  //
+  // Граница снизу — начало СЕГОДНЯШНЕГО дня юзера. Без неё этот делит был
+  // самым опасным местом в трекере: ни фильтра по препарату, ни по времени,
+  // то есть один автоматический флип tz (а он случался сам собой между
+  // устройствами) стирал всё неотмеченное прошлое юзера насовсем.
+  // Фикс с сиротой 22:00/23:00 граница не задевает — та сирота
+  // внутридневная (22:00 и 23:00 ОДНОГО дня), она остаётся под удалением.
+  //
+  // Считаем границу в НОВОЙ зоне (detected), а не в старой: пересобираем
+  // слоты тоже в ней, так что окно удаления и окно генерации совпадают.
   // Best-effort: сбой не валит sync — сверка в генераторах добьёт позже.
   try {
     const { error: delError } = await supabase
@@ -97,6 +111,7 @@ export async function syncUserTimezone(
       .delete()
       .eq('user_id', user.id)
       .eq('status', 'upcoming')
+      .gte('scheduled_at', startOfUserDayUtc(detected).toISOString())
     if (delError) {
       console.error('upcoming cleanup after tz change failed:', delError.message)
     } else {

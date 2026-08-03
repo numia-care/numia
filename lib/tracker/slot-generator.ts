@@ -10,6 +10,26 @@ import { computeSlotsForDay, parseSchedule } from './schedule'
 export const SLOT_GEN_DAYS = 3
 
 /**
+ * Начало сегодняшнего дня юзера (его локальная полночь) в UTC.
+ *
+ * Нижняя граница для всех удалений upcoming-слотов: сегодняшние слоты
+ * пересобирать можно, вчерашние и старше — это уже история, даже если юзер
+ * их не отметил. Раньше границы не было вообще, и один флип таймзоны или
+ * правка расписания сметали неотмеченное прошлое насовсем.
+ *
+ * Считается от ТЕКУЩЕГО момента, а не от startOfDay(new Date()) как в окне
+ * сверки ниже. Разница принципиальная: startOfDay даёт полночь в таймзоне
+ * СЕРВЕРА (на Vercel это UTC), и для юзера западнее UTC формат в его зоне
+ * отдаёт вчерашнюю дату — граница уехала бы на сутки назад и перестала
+ * защищать ровно то, ради чего она нужна. Здесь берём now(), форматируем
+ * сразу в зоне юзера — тот же приём, что в getTodayRange (lib/tracker/today.ts).
+ */
+export function startOfUserDayUtc(timezone: string, now: Date = new Date()): Date {
+  const ymd = formatInTimeZone(now, timezone, 'yyyy-MM-dd')
+  return fromZonedTime(`${ymd}T00:00:00`, timezone)
+}
+
+/**
  * Чистая (без 'use server') функция генерации слотов.
  *
  * Зачем отдельный файл: server action из intake.ts можно дёрнуть с
