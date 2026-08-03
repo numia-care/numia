@@ -5,7 +5,11 @@ import { z } from 'zod'
 
 import { createClient } from '@/lib/supabase/server'
 import { MedicationInputSchema } from './medication-schema'
-import { SLOT_GEN_DAYS, generateSlotsForActiveMeds } from './slot-generator'
+import {
+  SLOT_GEN_DAYS,
+  generateSlotsForActiveMeds,
+  startOfUserDayUtc,
+} from './slot-generator'
 
 /**
  * CRUD-server actions для medications.
@@ -76,7 +80,7 @@ export async function createMedication(
   // Сразу генерим слоты на ближайшие ~48ч, чтобы напоминания работали не
   // дожидаясь суточного cron generate-upcoming или переоткрытия трекера.
   // Без этого свежесозданный препарат с приёмом сегодня пуш бы не получил.
-  await regenerateUpcomingSlots(supabase, user.id)
+  await regenerateUpcomingSlots(supabase, user.id, await getProfileTimezone(supabase, user.id))
 
   revalidatePath('/tracker')
   return { ok: true, data: { id: data.id } }
@@ -122,27 +126,54 @@ export async function updateMedication(
 
   if (error) return { ok: false, error: error.message }
 
+  const timezone = await getProfileTimezone(supabase, user.id)
+
   // Если поменялось расписание — неотмеченные слоты больше ему не
-  // соответствуют. Удаляем ВСЕ upcoming этого препарата и генерим заново —
-  // ровно как softDeleteMedication (и по той же причине): прошедшие
-  // неотмеченные слоты — тоже напоминалки старого расписания, не история.
-  // Раньше стоял фильтр .gte(scheduled_at, now) — из-за него просроченный
-  // upcoming старого расписания оставался сиротой в «Сегодня» (баг с
-  // 22:00/23:00). История (taken/skipped/missed) не трогается.
+  // соответствуют. Удаляем upcoming этого препарата начиная с сегодняшнего
+  // дня юзера и генерим заново.
+  //
+  // История границы: сначала здесь стоял фильтр .gte(scheduled_at, now) —
+  // из-за него просроченный upcoming старого расписания оставался сиротой в
+  // «Сегодня» (баг 22:00/23:00). Границу убрали совсем, и
+  // это ушло в другую крайность: сносило неотмеченные слоты любой давности.
+  // Теперь граница по началу дня юзера — середина между двумя: сирота
+  // внутридневная, она под удаление попадает; позавчерашний неотмеченный
+  // приём — нет. История (taken/skipped/missed) не трогается как и раньше.
   if ('schedule' in parsed.data) {
     const { error: slotsError } = await supabase
       .from('intake_events')
       .delete()
       .eq('medication_id', id)
       .eq('status', 'upcoming')
+      .gte('scheduled_at', startOfUserDayUtc(timezone).toISOString())
     // Не молчим (как раньше): осиротевшие слоты хуже, чем ошибка формы.
     if (slotsError) return { ok: false, error: slotsError.message }
   }
 
-  await regenerateUpcomingSlots(supabase, user.id)
+  await regenerateUpcomingSlots(supabase, user.id, timezone)
 
   revalidatePath('/tracker')
   return { ok: true, data: undefined }
+}
+
+/**
+ * Таймзона юзера из profiles. 'UTC' если ряда нет — тот же дефолт, что в
+ * колонке и в getUserTimezoneServer.
+ *
+ * Вынесено из regenerateUpcomingSlots, потому что теперь tz нужна раньше и
+ * не только генератору: по ней считается нижняя граница удаления слотов
+ * (см. startOfUserDayUtc). Один запрос на действие вместо двух.
+ */
+async function getProfileTimezone(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<string> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('timezone')
+    .eq('id', userId)
+    .maybeSingle()
+  return data?.timezone ?? 'UTC'
 }
 
 /**
@@ -153,15 +184,10 @@ export async function updateMedication(
 async function regenerateUpcomingSlots(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
+  timezone: string,
 ): Promise<void> {
   try {
-    const { data } = await supabase
-      .from('profiles')
-      .select('timezone')
-      .eq('id', userId)
-      .maybeSingle()
-    const tz = data?.timezone ?? 'UTC'
-    await generateSlotsForActiveMeds(supabase, userId, tz, SLOT_GEN_DAYS)
+    await generateSlotsForActiveMeds(supabase, userId, timezone, SLOT_GEN_DAYS)
   } catch (e) {
     console.error('slot generation failed:', e)
   }
@@ -182,13 +208,19 @@ function normalizeNotes(notes: string | undefined): string | null {
  * listActiveMedications, но история intake_events ссылается на него как и
  * раньше — график регулярности не теряет данных.
  *
- * Заодно убираем будущие/неотмеченные напоминалки. Без этого слоты status=
- * 'upcoming' оставались: висели в «Сегодня» (getTodaySlots не фильтрует
- * deleted_at) и пушились (send-reminders читает upcoming-слоты у времени).
- * Удаляем ВСЕ upcoming этого препарата (и прошлые неотмеченные — это тоже
- * напоминалки, не история), а taken/skipped/missed НЕ трогаем — это история.
+ * Заодно убираем будущие напоминалки. Без этого слоты status='upcoming'
+ * оставались: висели в «Сегодня» (getTodaySlots не фильтрует deleted_at) и
+ * пушились (send-reminders читает upcoming-слоты у времени). Удаляем начиная
+ * с сегодняшнего дня юзера, а taken/skipped/missed НЕ трогаем — это история.
  * Воссоздания не будет: и cron generate-upcoming, и on-demand slot-generator
  * фильтруют deleted_at IS NULL.
+ *
+ * Прошлые неотмеченные слоты удалённого препарата теперь ОСТАЮТСЯ (раньше
+ * сносились вместе с остальными). Это намеренно и согласуется с моделью из
+ * миграции этапа 1a: история приёмов переживает удаление препарата. Развёртка
+ * mark_missed_intakes пометит их 'missed', а medication_id при soft-delete
+ * никуда не девается — значит в «Истории» они покажутся с названием, а не как
+ * «удалённый препарат».
  *
  * Восстановление (flip deleted_at → NULL) пока не реализовано в UI, но БД
  * поддерживает (см. CLAUDE.md). После восстановления будущие слоты заведёт
@@ -210,11 +242,13 @@ export async function softDeleteMedication(
   // 1. Сначала убираем upcoming-слоты. Порядок важен: если этот шаг упадёт,
   //    препарат ещё активен → состояние консистентно (слоты при необходимости
   //    переродятся), а не «препарат удалён, но пуши идут».
+  const timezone = await getProfileTimezone(supabase, user.id)
   const { error: slotsError } = await supabase
     .from('intake_events')
     .delete()
     .eq('medication_id', id)
     .eq('status', 'upcoming')
+    .gte('scheduled_at', startOfUserDayUtc(timezone).toISOString())
 
   if (slotsError) return { ok: false, error: slotsError.message }
 
