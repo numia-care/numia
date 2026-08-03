@@ -52,10 +52,12 @@
   --color-cyan: var(--kai-cyan);
   --color-cyan-tab: var(--kai-cyan-tab);
 
-  /* Активные табы «Препаратов» (bg-tab-today / bg-tab-all / bg-tab-analyses). */
+  /* Активные табы «Препаратов» (bg-tab-today / bg-tab-all / bg-tab-analyses
+     / bg-tab-history). */
   --color-tab-today: var(--kai-tab-today);
   --color-tab-all: var(--kai-tab-all);
   --color-tab-analyses: var(--kai-tab-analyses);
+  --color-tab-history: var(--kai-tab-history);
 
   /* Навигация (в дроби 1 остаётся тёмной пилюлей; светлое стекло — дробь 4). */
   --color-nav: #1A1A1A;
@@ -174,6 +176,11 @@
   --kai-tab-today: #C8F5A0;        /* лайм — активный «Сегодня» */
   --kai-tab-all: #CBF5F4;          /* голубой — активный «Все» */
   --kai-tab-analyses: #FCDCF4;     /* розовый — активный «Анализы» */
+  /* TODO(Кай): «История» — четвёртая вкладка, эталона под неё НЕТ. Это НЕ
+     замер, а подбор: лаванда из палитры проекта (#B8A5C4 / fairy #C9B6E4),
+     осветлённая до той же светлоты, что у трёх соседей. Заменить на пиксель
+     из макета, когда он появится. */
+  --kai-tab-history: #E0D7F7;      /* лаванда — активный «История» */
 
   /* чипы (пастельные пары Кая) */
   --kai-chip-pink: #FFD5EF;   --kai-chip-pink-bd: #FFBFDE;

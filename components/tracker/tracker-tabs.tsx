@@ -1,24 +1,31 @@
 'use client'
 
-import { CircleIcon, PlusIcon, TrendingUpIcon } from 'lucide-react'
+import { CircleIcon, HistoryIcon, TrendingUpIcon } from 'lucide-react'
 import { useState } from 'react'
-import Link from 'next/link'
 
 import { TodayIcon } from '@/components/icons/kai'
 import { cn } from '@/lib/utils'
 
 // Табы экрана «Препараты» — ЗАМЕР эталонов преппараты1/2/3:
 //   пилюля 62×57, радиус ~16, зазор 9 (замер 8.6–9.9), прижаты ВЛЕВО;
-//   круглый «+» d=47 отдельно справа;
 //   активный таб залит своим цветом (--kai-tab-*, замер из центра пилюли).
 //
 // Раньше пилюли были на flex-1 и растягивались на всю ширину (~110 каждая) —
 // это и было главное расхождение с макетом, цвета вторичны.
 //
+// Круглый «+» d=47 ЖИЛ ЗДЕСЬ, справа в этом же ряду через ml-auto. С
+// появлением четвёртой вкладки он переехал в строку заголовка (page.tsx).
+// Причина — арифметика: 4×62 + 4×9 + 47 = 331px, а поле страницы даёт
+// 319px на 375px-экране и 304px на 360px — «плюс» обрезался бы (все
+// элементы shrink-0, родитель overflow-hidden). Из вариантов «сузить
+// пилюлю», «сузить зазор» и «увести плюс» выбран последний: он
+// единственный не трогает ни одного замеренного числа. Ряд из четырёх
+// пилюль — 4×62 + 3×9 = 275px, влезает с запасом 44px даже на 375.
+//
 // Панели приходят готовыми server-компонентами (рендерятся на сервере, клиент
-// переключает видимую) — данные для всех трёх табов уже в разметке.
+// переключает видимую) — данные для всех вкладок уже в разметке.
 
-type TabKey = 'today' | 'all' | 'analyses'
+type TabKey = 'today' | 'all' | 'analyses' | 'history'
 
 interface TabDef {
   key: TabKey
@@ -31,20 +38,25 @@ export function TrackerTabs({
   today,
   all,
   analyses,
+  history,
   labels,
-  addHref,
-  addLabel,
   initial = 'today',
 }: {
   today: React.ReactNode
   all: React.ReactNode
   analyses: React.ReactNode
-  labels: { today: string; all: string; analyses: string }
-  addHref: string
-  addLabel: string
+  history: React.ReactNode
+  labels: { today: string; all: string; analyses: string; history: string }
   initial?: TabKey
 }) {
   const [tab, setTab] = useState<TabKey>(initial)
+
+  const panels: Record<TabKey, React.ReactNode> = {
+    today,
+    all,
+    analyses,
+    history,
+  }
 
   const tabs: TabDef[] = [
     {
@@ -67,6 +79,14 @@ export function TrackerTabs({
       // TODO: заменить на иконку Кая — в наборе /icons графика пока нет.
       icon: (p) => <TrendingUpIcon {...p} strokeWidth={2.4} />,
       active: 'bg-tab-analyses',
+    },
+    {
+      key: 'history',
+      label: labels.history,
+      // TODO: заменить на иконку Кая — в наборе /icons истории пока нет,
+      // как и у двух соседей выше. Временно lucide.
+      icon: (p) => <HistoryIcon {...p} strokeWidth={2.4} />,
+      active: 'bg-tab-history',
     },
   ]
 
@@ -95,18 +115,9 @@ export function TrackerTabs({
             </button>
           )
         })}
-
-        {/* Круглый «+» d=47 (замер), прижат вправо. */}
-        <Link
-          href={addHref}
-          aria-label={addLabel}
-          className="shadow-card ml-auto flex size-[47px] shrink-0 items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-secondary"
-        >
-          <PlusIcon className="size-5" />
-        </Link>
       </div>
 
-      {tab === 'today' ? today : tab === 'all' ? all : analyses}
+      {panels[tab]}
     </>
   )
 }

@@ -1,9 +1,11 @@
+import { PlusIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { Suspense } from 'react'
 
 import { LabsHistory } from '@/components/labs/labs-history'
 import { PushPromptCard } from '@/components/push/push-prompt-card'
+import { HistorySection } from '@/components/tracker/history-section'
 import { MedicationCard } from '@/components/tracker/medication-card'
 import { TodaySection } from '@/components/tracker/today-section'
 import { TrackerTabs } from '@/components/tracker/tracker-tabs'
@@ -12,7 +14,12 @@ import { createClient, getAuthUser } from '@/lib/supabase/server'
 import { getUserTimezoneServer } from '@/lib/timezone-server'
 import { listActiveMedications } from '@/lib/tracker/queries'
 import { generateSlotsForActiveMeds } from '@/lib/tracker/slot-generator'
-import { getTodaySlots } from '@/lib/tracker/today'
+import { getSlotsInRange, getTodayRange, getTodaySlots } from '@/lib/tracker/today'
+
+// Нижняя граница «всей истории». Эпоха, а не вычисленная дата первого приёма:
+// иначе понадобился бы отдельный запрос min(scheduled_at) ради значения,
+// которое Postgres и так отфильтрует по индексу.
+const HISTORY_START = new Date(0)
 
 // Экран «Препараты» по финальному макету Кая (фрейм 571:2): центрированный
 // заголовок, сегмент-контрол Сегодня/Все/Анализы + круглый «+», карточки-
@@ -40,10 +47,25 @@ export default async function TrackerPage() {
       />
 
       <div className="page-shell relative py-6 sm:py-10">
-        {/* Заголовок по фрейму: по центру, Inter Medium ~28px. */}
-        <h1 className="mb-6 text-center text-[28px] font-medium tracking-[-0.02em] text-foreground">
-          {t('title')}
-        </h1>
+        {/* Заголовок по фрейму: по центру, Inter Medium ~28px.
+            Круглый «+» d=47 (замер) — справа в этой же строке. Переехал сюда
+            из ряда табов, когда вкладок стало четыре: в ряду он переставал
+            влезать на 375px и обрезался (расклад в tracker-tabs.tsx).
+            Паттерн «контент по центру, действие absolute справа» — тот же,
+            что в шапке карточки препаратов на дашборде (today-meds.tsx).
+            Стоит ВНЕ Suspense, поэтому появляется сразу со скелетоном. */}
+        <div className="relative mb-6 flex min-h-[47px] items-center justify-center">
+          <h1 className="text-[28px] font-medium tracking-[-0.02em] text-foreground">
+            {t('title')}
+          </h1>
+          <Link
+            href="/tracker/new"
+            aria-label={t('addButton')}
+            className="shadow-card absolute right-0 flex size-[47px] items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-secondary"
+          >
+            <PlusIcon className="size-5" />
+          </Link>
+        </div>
 
         <Suspense fallback={<TrackerSkeleton />}>
           <TrackerData />
@@ -90,7 +112,15 @@ async function TrackerData() {
     }
   }
 
-  const slots = meds.length > 0 ? await getTodaySlots(tz) : []
+  // «Сегодня» и «История» читаются параллельно — история не удлиняет путь.
+  // Её читаем всегда, даже без активных препаратов: приёмы остановленного или
+  // удалённого препарата — тоже история, и пропадать вместе с ним не должны.
+  // Верхняя граница — конец сегодняшнего дня юзера: будущие слоты это ещё не
+  // история.
+  const [slots, historySlots] = await Promise.all([
+    meds.length > 0 ? getTodaySlots(tz) : Promise.resolve([]),
+    getSlotsInRange(HISTORY_START, getTodayRange(tz).end, 'desc'),
+  ])
   const hasMeds = meds.length > 0
   const labsEmpty = labs.numeric.length === 0 && labs.photoOnly.length === 0
 
@@ -103,9 +133,8 @@ async function TrackerData() {
           today: t('tabToday'),
           all: t('tabAll'),
           analyses: t('tabAnalyses'),
+          history: t('tabHistory'),
         }}
-        addHref="/tracker/new"
-        addLabel={t('addButton')}
         today={
           hasMeds ? <TodaySection slots={slots} timezone={tz} /> : <MedsEmpty />
         }
@@ -117,6 +146,7 @@ async function TrackerData() {
             <LabsHistory numeric={labs.numeric} photoOnly={labs.photoOnly} />
           )
         }
+        history={<HistorySection slots={historySlots} timezone={tz} />}
       />
     </>
   )
@@ -176,13 +206,14 @@ async function AnalysesEmpty() {
 function TrackerSkeleton() {
   return (
     <div aria-hidden className="animate-pulse">
-      {/* Геометрия — как у настоящих табов (62×57 r:16, «+» d=47), иначе при
-          подмене скелетона на контент ряд прыгает. */}
+      {/* Геометрия — как у настоящих табов (62×57 r:16, зазор 9), иначе при
+          подмене скелетона на контент ряд прыгает. Четыре пилюли, без «+»:
+          он теперь в строке заголовка, вне Suspense, и рисуется сразу. */}
       <div className="mb-6 flex items-center gap-[9px]">
         <div className="h-[57px] w-[62px] rounded-[16px] bg-black/[0.06]" />
         <div className="h-[57px] w-[62px] rounded-[16px] bg-black/[0.06]" />
         <div className="h-[57px] w-[62px] rounded-[16px] bg-black/[0.06]" />
-        <div className="ml-auto size-[47px] rounded-full bg-black/[0.06]" />
+        <div className="h-[57px] w-[62px] rounded-[16px] bg-black/[0.06]" />
       </div>
       <div className="grid gap-2.5">
         <div className="h-[52px] rounded-[25px] bg-black/[0.06]" />
