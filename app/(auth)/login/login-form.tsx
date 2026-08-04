@@ -205,7 +205,7 @@ export function LoginForm() {
             <p className="mt-6 text-xs leading-relaxed text-muted-foreground">
               Почта нужна только для входа. Это единственное, что связывает
               аккаунт с тобой, поэтому можно любую, хоть одноразовую
-              (SimpleLogin, AnonAddy). Не блокируем ✦
+              (SimpleLogin, AnonAddy). Не блокируем
             </p>
           </>
         ) : (

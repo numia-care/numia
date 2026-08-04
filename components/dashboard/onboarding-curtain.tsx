@@ -208,8 +208,6 @@ export function OnboardingCurtain() {
         key={step}
         className="relative flex flex-1 flex-col items-center justify-center px-8 pb-24 text-center animate-in fade-in slide-in-from-bottom-3 duration-500"
       >
-        <div className="mb-6 text-4xl text-moss">✦</div>
-
         {step === 0 && (
           <>
             <h2 className="mb-6 font-heading text-3xl text-foreground">

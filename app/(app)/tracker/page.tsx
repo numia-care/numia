@@ -35,18 +35,9 @@ export default async function TrackerPage() {
   const t = await getTranslations('tracker')
 
   return (
+    // Фон ровный: размытые пятна убраны в полировке «убрать лишнее»
+    // (заход 1, 2026-08-04). На «Пути» они сохранены намеренно.
     <div className="relative overflow-hidden">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-36 left-1/2 h-80 w-[480px] -translate-x-1/2 rounded-full bg-white/70"
-        style={{ filter: 'blur(90px)' }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-[-60px] left-[-80px] h-80 w-[460px] rounded-full bg-accent/60"
-        style={{ filter: 'blur(90px)' }}
-      />
-
       <div className="page-shell relative py-6 sm:py-10">
         {/* Провайдер оборачивает и заголовок, и Suspense: активную вкладку
             читают оба — пилюли внутри Suspense и круглый «+» снаружи.
@@ -175,7 +166,6 @@ async function MedsEmpty() {
   const t = await getTranslations('tracker')
   return (
     <div className="card-glass p-8 text-center">
-      <div className="mb-3 text-3xl">{t('emptyIcon')}</div>
       <p className="mx-auto max-w-sm text-foreground/80">{t('emptyText')}</p>
       <div className="mt-6">
         <Link

@@ -136,8 +136,7 @@ export function MoodQuickEntry() {
               {t('doneWithMood')}{' '}
               <span className="text-foreground/90">
                 {tMood(`level.${state.mood}`)}
-              </span>{' '}
-              ✦
+              </span>
             </>
           ) : (
             t('doneNoMood')
@@ -174,14 +173,11 @@ export function MoodQuickEntry() {
           </div>
         </div>
       ) : (
-        // Градиентная полоса-подложка из макета (Rectangle 56).
-        <div
-          className="mt-2.5 rounded-[18px] p-1"
-          style={{
-            background:
-              'linear-gradient(90deg, #B1D7E7 0%, #E6D7F6 50%, #FFB3D9 100%)',
-          }}
-        >
+        // Голубо-фиолетово-розовая полоса-подложка под иконками настроения
+        // убрана в полировке «убрать лишнее» (заход 1, 2026-08-04): она
+        // занимала половину виджета и спорила с его собственным фоном.
+        // Отступы сохранены, чтобы дуга не прыгнула.
+        <div className="mt-2.5 rounded-[18px] p-1">
           <MoodScale value={null} onChange={onPick} disabled={busy} layout="arc" />
         </div>
       )}

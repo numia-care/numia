@@ -68,12 +68,12 @@ export function RecoveryKeyCard({ phrase, onDone, onRemindLater }: Props) {
   return (
     <>
       <h1 className="mb-1 text-2xl font-medium text-foreground">
-        Ключ восстановления ✦
+        Ключ восстановления
       </h1>
       <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
         Если потеряешь телефон или забудешь PIN — этот ключ вернёт твои фото и
         записи. Сохрани его надёжно: в заметках, менеджере паролей. Мы не сможем
-        восстановить его за тебя — так твои данные защищены даже от нас ✦
+        восстановить его за тебя — так твои данные защищены даже от нас
       </p>
 
       {/* 12 слов, пронумерованы — читаемо и для переписывания, и для проверки */}
@@ -119,7 +119,7 @@ export function RecoveryKeyCard({ phrase, onDone, onRemindLater }: Props) {
           onChange={(e) => setConfirmed(e.target.checked)}
           className="mt-0.5 h-4 w-4 accent-primary"
         />
-        <span>Ключ сохранён в надёжном месте ✦</span>
+        <span>Ключ сохранён в надёжном месте</span>
       </label>
 
       <button

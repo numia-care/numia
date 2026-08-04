@@ -268,7 +268,7 @@ export function PinUnlockForm() {
         ) : step === 'bio-done' ? (
           <>
             <h1 className="mb-1 text-2xl font-medium text-foreground">
-              Новый PIN сохранён ✦
+              Новый PIN сохранён
             </h1>
             <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
               Записи на месте. Дальше входи по биометрии или новому PIN.
@@ -376,7 +376,7 @@ export function PinUnlockForm() {
         ) : (
           <>
         <h1 className="mb-1 text-2xl font-medium text-foreground">
-          {bioAvailable ? 'С возвращением ✦' : 'Введи PIN'}
+          {bioAvailable ? 'С возвращением' : 'Введи PIN'}
         </h1>
         <p className="mb-6 text-sm text-muted-foreground">
           {bioAvailable
@@ -438,7 +438,7 @@ export function PinUnlockForm() {
                     ![12, 13, 14].includes(lockoutLeft % 100)
                   ? 'секунды'
                   : 'секунд'}{' '}
-              — а если PIN не вспоминается, ниже есть выход ✦
+              — а если PIN не вспоминается, ниже есть выход
             </p>
           ) : (
             error && <p className="text-sm text-rose-600">{error}</p>
@@ -485,7 +485,7 @@ export function PinUnlockForm() {
               onClick={() => setEnrollOpen(true)}
               className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
             >
-              Настроить вход по Face ID ✦
+              Настроить вход по Face ID
             </button>
           )}
         </div>

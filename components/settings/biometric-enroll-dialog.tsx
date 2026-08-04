@@ -143,7 +143,7 @@ export function BiometricEnrollDialog({
         {/* Двойной системный запрос биометрии — так надо, предупреждаем
             заранее, чтобы второй шит не выглядел сбоем. */}
         <p className="rounded-xl bg-fairy/15 px-4 py-3 text-xs leading-relaxed text-foreground/80">
-          ✦ {t('doublePromptWarning')}
+          {t('doublePromptWarning')}
         </p>
 
         <form

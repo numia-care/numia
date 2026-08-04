@@ -88,9 +88,7 @@ export function PhotoForm() {
             />
           </div>
         ) : (
-          <div className="shadow-soft flex aspect-[4/5] max-h-[48vh] w-full items-center justify-center rounded-[30px] bg-card text-3xl text-foreground/25">
-            ✦
-          </div>
+          <div className="shadow-soft aspect-[4/5] max-h-[48vh] w-full rounded-[30px] bg-card" />
         )}
         {/* accept=image/* без capture: на мобильном даёт выбор камера/галерея. */}
         <input

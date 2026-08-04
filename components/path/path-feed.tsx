@@ -263,7 +263,6 @@ function EmptyState() {
   const t = useTranslations('path')
   return (
     <div className="rounded-2xl bg-card p-8 text-center ring-1 ring-border">
-      <div className="mb-3 text-3xl">✦</div>
       <h2 className="mb-2 font-heading text-xl text-foreground">
         {t('emptyTitle')}
       </h2>

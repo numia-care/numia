@@ -18,7 +18,7 @@ export default async function OfflinePage() {
 
         <h1 className="mb-3 text-2xl font-medium text-foreground">Без сети</h1>
         <p className="mb-6 text-sm text-muted-foreground">
-          Соединения нет. Numia подождёт ✦
+          Соединения нет. Numia подождёт
         </p>
         {/* Намеренно hard navigation (<a>, не <Link>): нужен полный page reload
             чтобы SW перехватил запрос и отдал кеш или сходил в сеть свежим. */}

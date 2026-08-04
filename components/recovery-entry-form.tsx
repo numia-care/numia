@@ -74,7 +74,7 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
     return (
       <>
         <h1 className="mb-1 text-2xl font-medium text-foreground">
-          Доступ восстановлен ✦
+          Доступ восстановлен
         </h1>
         <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
           Записи на месте. Новый PIN сохранён на этом устройстве — дальше входи
@@ -117,7 +117,7 @@ export function RecoveryEntryForm({ onSuccess, onBack }: Props) {
       <p className="mb-4 rounded-xl bg-accent px-4 py-3 text-sm leading-relaxed text-foreground">
         Заходишь из другого браузера или после переустановки? Это нормально — для
         приложения это новое устройство. Введи ключ восстановления, и данные
-        будут на месте ✦
+        будут на месте
       </p>
       <p className="mb-5 text-sm leading-relaxed text-muted-foreground">
         Введи 12 слов ключа — можно вставить целиком или по одному, через пробел.

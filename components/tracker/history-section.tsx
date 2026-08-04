@@ -260,9 +260,7 @@ function describeStatus(
 async function HistoryEmpty() {
   const t = await getTranslations('tracker.history')
   return (
-    <div className="card-glass p-8 text-center">
-      <div className="mb-3 text-3xl">✦</div>
-      <p className="mx-auto max-w-sm text-foreground/80">{t('empty')}</p>
+    <div className="card-glass p-8 text-center">      <p className="mx-auto max-w-sm text-foreground/80">{t('empty')}</p>
     </div>
   )
 }
