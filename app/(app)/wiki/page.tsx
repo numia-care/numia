@@ -15,7 +15,7 @@ export default async function WikiPage() {
 
   return (
     <div className="page-shell py-10 sm:py-14">
-      <h1 className="mb-8 text-center text-[28px] font-medium tracking-[-0.02em] text-foreground">
+      <h1 className="mb-6 text-center text-[28px] font-medium tracking-[-0.02em] text-foreground">
         {t('title')}
       </h1>
 

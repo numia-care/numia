@@ -46,7 +46,10 @@ export function Greeting() {
     // (решение 2026-07-30): в эталоне её нет, но она даёт экрану голос.
     // Кегля для неё в макете нет, поэтому взят обычный мелкий текст.
     <div suppressHydrationWarning className="text-center">
-      <h1 className="text-[33px] leading-[0.87] tracking-[-0.03em] text-foreground">
+      {/* leading было 0.87: строка-бокс 28.7px под глифы 33px, из-за чего при
+          переносе «Привет,» / «{имя}» буквы почти соприкасались (выносные
+          элементы «р» и «й» налезали). 1.1 разводит строки, не трогая кегль. */}
+      <h1 className="text-[33px] leading-[1.1] tracking-[-0.03em] text-foreground">
         {data.name ? (
           <>
             Привет,

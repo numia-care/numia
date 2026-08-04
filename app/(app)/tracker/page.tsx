@@ -38,7 +38,7 @@ export default async function TrackerPage() {
     // Фон ровный: размытые пятна убраны в полировке «убрать лишнее»
     // (заход 1, 2026-08-04). На «Пути» они сохранены намеренно.
     <div className="relative overflow-hidden">
-      <div className="page-shell relative py-6 sm:py-10">
+      <div className="page-shell relative py-10 sm:py-14">
         {/* Провайдер оборачивает и заголовок, и Suspense: активную вкладку
             читают оба — пилюли внутри Suspense и круглый «+» снаружи.
             TrackerData проезжает сквозь клиентский провайдер как children,

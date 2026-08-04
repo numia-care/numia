@@ -8,7 +8,7 @@ export default async function NewMedicationPage() {
 
   return (
     <div className="page-shell py-10 sm:py-14">
-      <header className="mb-8">
+      <header className="mb-6">
         <Link
           href="/tracker"
           className="mb-3 inline-block text-sm text-muted-foreground hover:text-foreground"

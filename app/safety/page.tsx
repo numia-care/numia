@@ -23,7 +23,7 @@ export default function SafetyPage() {
     <div>
       <StickyBackBar />
       <div className="page-shell py-10 sm:py-14">
-      <header className="mb-10">
+      <header className="mb-6">
         <div className="mb-6 flex items-center gap-2 text-moss">
           <span className="text-2xl">✦</span>
           <span className="text-sm uppercase tracking-widest">Numia</span>

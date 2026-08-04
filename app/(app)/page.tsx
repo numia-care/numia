@@ -21,7 +21,7 @@ export default async function TodayPage() {
     <div className="relative overflow-hidden">
       {/* Занавес первого входа — сам решает, показываться ли (клиент). */}
       <OnboardingCurtain />
-      <div className="page-shell relative space-y-6 py-6 sm:py-10">
+      <div className="page-shell relative space-y-6 py-10 sm:py-14">
         <FadeIn>
           {/* Шапка: ✦ и кнопка профиля убраны в полировке. Профиль и так есть
               в таб-баре внизу — кнопка сверху его дублировала. */}

@@ -11,10 +11,8 @@ import {
   decryptNote,
   listEntries,
   loadMediaUrl,
-  type MoodLevel,
   type PathEntry,
 } from '@/lib/path/entries'
-import { MOOD_COLOR } from '@/lib/path/mood'
 
 // Превью «Пути» — ПРАВАЯ из двух нижних карточек дашборда (ЗАМЕР эталона
 // today.jpg: высота 154.5, в шапке иконка-узел слева и белый кружок-шеврон
@@ -148,19 +146,13 @@ function PathTile({ entry }: { entry: PathEntry }) {
       ) : entry.entryType === 'voice' ? (
         <MicIcon className="size-5 text-muted-foreground" />
       ) : (
-        <div className="flex size-full flex-col items-center justify-center gap-1 p-1.5">
-          <span
-            aria-hidden
-            className="text-lg leading-none"
-            style={{
-              color:
-                entry.mood != null ? MOOD_COLOR[entry.mood as MoodLevel] : '#8F8F8F',
-            }}
-          >
-            ✦
-          </span>
+        // ✦-маркер записи дневника убран в полировке (заход 2): он был
+        // единственным цветным пятном в плитке и читался как случайный декор.
+        // Вместе с ним ушла и подсветка настроения цветом — вернуть её стоит
+        // осознанной формой (точка/полоска), это заход 3.
+        <div className="flex size-full flex-col items-center justify-center p-1.5">
           {note && (
-            <span className="line-clamp-2 text-center text-[10px] leading-tight text-foreground/80">
+            <span className="line-clamp-3 text-center text-[10px] leading-tight text-foreground/80">
               {note}
             </span>
           )}
