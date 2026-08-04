@@ -35,7 +35,16 @@ export class PinRequiredError extends Error {
 
 // DEK из сессии или PinRequiredError. Все крипто-операции идут через него —
 // один источник правды «разблокированы ли мы».
-function requireDek(): CryptoKey {
+//
+// Экспортируется, потому что этим источником пользуется не только «Путь»:
+// заметки анализов расшифровываются тем же DEK (lib/labs/notes.ts). Держать
+// в labs собственную копию проверки значило бы завести второй ответ на
+// вопрос «разблокированы ли мы».
+//
+// TODO: крипто-плумбинг (requireDek + PinRequiredError) логичнее вынести в
+// lib/crypto — сейчас labs зависит от path только ради него. Отдельная
+// задача, сознательно не в этом заходе.
+export function requireDek(): CryptoKey {
   const dek = getCryptoKey()
   if (!dek) throw new PinRequiredError()
   return dek

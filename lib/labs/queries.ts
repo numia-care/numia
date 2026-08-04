@@ -2,10 +2,12 @@ import { createClient } from '@/lib/supabase/server'
 
 // Серверное чтение анализов для рендера списка/истории.
 //
-// Читаем только ОТКРЫТЫЕ поля (числа, единица, дата) — они под RLS, не E2E.
-// note_ciphertext / blank_photo_path берём лишь чтобы показать наличие
-// вложений (бейдж), сам контент тут не расшифровываем. Мутации и E2E-запись —
-// в lib/labs/records.ts (клиент).
+// Открытые поля (числа, единица, дата) — под RLS, не E2E.
+// note_ciphertext отдаём наружу шифротекстом: расшифровать его может только
+// клиент, у которого DEK в памяти сессии (decryptLabNote в lib/labs/notes.ts).
+// Здесь ничего не расшифровывается и расшифровано быть не может — ключа на
+// сервере нет. blank_photo_path — по-прежнему только флагом наличия.
+// Мутации и E2E-запись — в lib/labs/records.ts (клиент).
 //
 // Гибкий ввод (миграция 20260723): ряд бывает числовым (value задан) или
 // «только фото бланка» (value/analyte/unit = null, есть фото). Дата тоже
@@ -18,6 +20,15 @@ export interface LabResultRow {
   value: number | null
   unit: string | null
   measured_at: string | null // 'yyyy-MM-dd' или null (дата не указана)
+  /**
+   * E2E-заметка как есть: base64(iv‖ct) из encryptText. Сервер её прочитать
+   * не может — DEK живёт только в памяти вкладки, — поэтому отдавать её на
+   * клиент безопасно, и только так заметку вообще можно показать. Ровно то
+   * же делает лента «Пути» (lib/path/entries.ts). Расшифровка —
+   * decryptLabNote (lib/labs/notes.ts), исключительно в браузере.
+   */
+  note_ciphertext: string | null
+  /** Производное от note_ciphertext — для бейджа, чтобы не тянуть строку. */
   has_note: boolean
   has_photo: boolean
   created_at: string
@@ -56,8 +67,13 @@ export async function listLabResults(): Promise<LabResults> {
     value: r.value == null ? null : Number(r.value),
     unit: (r.unit as string | null) ?? null,
     measured_at: (r.measured_at as string | null) ?? null,
-    // Только наличие вложений — сам шифротекст наружу не отдаём.
+    // Шифротекст заметки отдаём как есть — расшифровать его может только
+    // клиент с DEK в памяти. Раньше здесь оставался лишь флаг, и заметку
+    // физически нечем было открыть: запись работала, чтения не было.
+    note_ciphertext: (r.note_ciphertext as string | null) ?? null,
     has_note: r.note_ciphertext != null,
+    // Фото по-прежнему только флагом: его блоб лежит в Storage и тянется
+    // отдельным запросом, а не этим списком.
     has_photo: r.blank_photo_path != null,
     created_at: r.created_at as string,
   }))

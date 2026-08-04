@@ -4,6 +4,7 @@ import { ImageIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 
 import { LabChart } from '@/components/labs/lab-chart'
+import { LabNote } from '@/components/labs/lab-note'
 import { ANALYTES, getAnalyte, unitLabel } from '@/lib/labs/catalog'
 import type { LabResultRow } from '@/lib/labs/queries'
 
@@ -32,34 +33,38 @@ export async function LabsHistory({
 
           <div className="space-y-2">
             {group.rows.map((row) => (
+              // Карточка стала колонкой: значение и дата в верхней строке как
+              // раньше, раскрытая заметка — под ними. Иначе развёрнутому тексту
+              // некуда встать, он ломал бы ряд по базовой линии.
               <div
                 key={row.id}
-                className="flex items-baseline justify-between gap-4 rounded-2xl bg-card px-4 py-3 ring-1 ring-border"
+                className="rounded-2xl bg-card px-4 py-3 ring-1 ring-border"
               >
-                <div className="flex items-baseline gap-2">
-                  <span className="text-lg text-foreground">
-                    {formatNumber(row.value)}
-                  </span>
-                  <span className="text-sm text-foreground/60">
-                    {displayUnit(row)}
-                  </span>
-                  {(row.has_note || row.has_photo) && (
-                    <span className="text-xs text-foreground/40">
-                      {[
-                        row.has_note ? t('noteBadge') : null,
-                        row.has_photo ? t('photoBadge') : null,
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
+                <div className="flex items-baseline justify-between gap-4">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-lg text-foreground">
+                      {formatNumber(row.value)}
                     </span>
-                  )}
+                    <span className="text-sm text-foreground/60">
+                      {displayUnit(row)}
+                    </span>
+                    {/* Фото по-прежнему просто бейджем: его блоб лежит в
+                        Storage, открытие — отдельная задача. */}
+                    {row.has_photo && (
+                      <span className="text-xs text-foreground/40">
+                        {t('photoBadge')}
+                      </span>
+                    )}
+                  </div>
+                  <time
+                    className="shrink-0 text-sm text-foreground/60"
+                    dateTime={row.measured_at ?? undefined}
+                  >
+                    {formatDate(row.measured_at, t('noDate'))}
+                  </time>
                 </div>
-                <time
-                  className="shrink-0 text-sm text-foreground/60"
-                  dateTime={row.measured_at ?? undefined}
-                >
-                  {formatDate(row.measured_at, t('noDate'))}
-                </time>
+
+                <LabNote ciphertext={row.note_ciphertext} />
               </div>
             ))}
           </div>
@@ -75,23 +80,22 @@ export async function LabsHistory({
             {photoOnly.map((row) => (
               <div
                 key={row.id}
-                className="flex items-center justify-between gap-4 rounded-2xl bg-card px-4 py-3 ring-1 ring-border"
+                className="rounded-2xl bg-card px-4 py-3 ring-1 ring-border"
               >
-                <div className="flex items-center gap-2 text-foreground">
-                  <ImageIcon className="size-4 text-lavender-deep" />
-                  <span className="text-sm">{t('photoOnlyCard')}</span>
-                  {row.has_note && (
-                    <span className="text-xs text-foreground/40">
-                      {t('noteBadge')}
-                    </span>
-                  )}
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-2 text-foreground">
+                    <ImageIcon className="size-4 text-lavender-deep" />
+                    <span className="text-sm">{t('photoOnlyCard')}</span>
+                  </div>
+                  <time
+                    className="shrink-0 text-sm text-foreground/60"
+                    dateTime={row.measured_at ?? undefined}
+                  >
+                    {formatDate(row.measured_at, t('noDate'))}
+                  </time>
                 </div>
-                <time
-                  className="shrink-0 text-sm text-foreground/60"
-                  dateTime={row.measured_at ?? undefined}
-                >
-                  {formatDate(row.measured_at, t('noDate'))}
-                </time>
+
+                <LabNote ciphertext={row.note_ciphertext} />
               </div>
             ))}
           </div>

@@ -260,6 +260,8 @@
     "emptyByValues": "Внести показателями",
     "emptyByPhoto": "Загрузить фото бланка",
     "noteBadge": "заметка",
+    "noteError": "Не получилось открыть заметку ✦",
+    "notePinNeeded": "Нужно ввести PIN — открываю…",
     "photoBadge": "фото бланка",
     "noDate": "дата не указана",
     "photoSectionTitle": "Снимки бланков",
