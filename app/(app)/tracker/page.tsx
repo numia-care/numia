@@ -1,4 +1,3 @@
-import { PlusIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { Suspense } from 'react'
@@ -8,6 +7,8 @@ import { PushPromptCard } from '@/components/push/push-prompt-card'
 import { HistorySection } from '@/components/tracker/history-section'
 import { MedicationCard } from '@/components/tracker/medication-card'
 import { TodaySection } from '@/components/tracker/today-section'
+import { TrackerAddButton } from '@/components/tracker/tracker-add-button'
+import { TrackerTabProvider } from '@/components/tracker/tracker-tab-context'
 import { TrackerTabs } from '@/components/tracker/tracker-tabs'
 import { listLabResults } from '@/lib/labs/queries'
 import { createClient, getAuthUser } from '@/lib/supabase/server'
@@ -47,29 +48,33 @@ export default async function TrackerPage() {
       />
 
       <div className="page-shell relative py-6 sm:py-10">
-        {/* Заголовок по фрейму: по центру, Inter Medium ~28px.
-            Круглый «+» d=47 (замер) — справа в этой же строке. Переехал сюда
-            из ряда табов, когда вкладок стало четыре: в ряду он переставал
-            влезать на 375px и обрезался (расклад в tracker-tabs.tsx).
-            Паттерн «контент по центру, действие absolute справа» — тот же,
-            что в шапке карточки препаратов на дашборде (today-meds.tsx).
-            Стоит ВНЕ Suspense, поэтому появляется сразу со скелетоном. */}
-        <div className="relative mb-6 flex min-h-[47px] items-center justify-center">
-          <h1 className="text-[28px] font-medium tracking-[-0.02em] text-foreground">
-            {t('title')}
-          </h1>
-          <Link
-            href="/tracker/new"
-            aria-label={t('addButton')}
-            className="shadow-card absolute right-0 flex size-[47px] items-center justify-center rounded-full bg-card text-foreground transition-colors hover:bg-secondary"
-          >
-            <PlusIcon className="size-5" />
-          </Link>
-        </div>
+        {/* Провайдер оборачивает и заголовок, и Suspense: активную вкладку
+            читают оба — пилюли внутри Suspense и круглый «+» снаружи.
+            TrackerData проезжает сквозь клиентский провайдер как children,
+            поэтому остаётся серверным компонентом. */}
+        <TrackerTabProvider>
+          {/* Заголовок по фрейму: по центру, Inter Medium ~28px.
+              Круглый «+» d=47 (замер) — справа в этой же строке. Переехал
+              сюда из ряда табов, когда вкладок стало четыре: в ряду он
+              переставал влезать на 375px и обрезался (расклад в
+              tracker-tabs.tsx). Паттерн «контент по центру, действие absolute
+              справа» — тот же, что в шапке карточки препаратов на дашборде
+              (today-meds.tsx). Стоит ВНЕ Suspense, поэтому появляется сразу
+              со скелетоном. */}
+          <div className="relative mb-6 flex min-h-[47px] items-center justify-center">
+            <h1 className="text-[28px] font-medium tracking-[-0.02em] text-foreground">
+              {t('title')}
+            </h1>
+            <TrackerAddButton
+              medicationLabel={t('addButton')}
+              labLabel={t('addLabButton')}
+            />
+          </div>
 
-        <Suspense fallback={<TrackerSkeleton />}>
-          <TrackerData />
-        </Suspense>
+          <Suspense fallback={<TrackerSkeleton />}>
+            <TrackerData />
+          </Suspense>
+        </TrackerTabProvider>
       </div>
     </div>
   )
@@ -128,7 +133,6 @@ async function TrackerData() {
     <>
       {hasMeds && <PushPromptCard />}
       <TrackerTabs
-        initial={hasMeds ? 'today' : 'all'}
         labels={{
           today: t('tabToday'),
           all: t('tabAll'),

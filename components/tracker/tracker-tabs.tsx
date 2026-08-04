@@ -1,10 +1,11 @@
 'use client'
 
 import { CircleIcon, HistoryIcon, TrendingUpIcon } from 'lucide-react'
-import { useState } from 'react'
 
 import { TodayIcon } from '@/components/icons/kai'
 import { cn } from '@/lib/utils'
+
+import { useTrackerTab, type TabKey } from './tracker-tab-context'
 
 // Табы экрана «Препараты» — ЗАМЕР эталонов преппараты1/2/3:
 //   пилюля 62×57, радиус ~16, зазор 9 (замер 8.6–9.9), прижаты ВЛЕВО;
@@ -24,8 +25,10 @@ import { cn } from '@/lib/utils'
 //
 // Панели приходят готовыми server-компонентами (рендерятся на сервере, клиент
 // переключает видимую) — данные для всех вкладок уже в разметке.
-
-type TabKey = 'today' | 'all' | 'analyses' | 'history'
+//
+// Активная вкладка живёт в TrackerTabProvider, а не в локальном useState:
+// её же читает круглый «+» из строки заголовка, чтобы вести на добавление
+// анализа с «Анализов» и препарата — с остальных вкладок.
 
 interface TabDef {
   key: TabKey
@@ -40,16 +43,14 @@ export function TrackerTabs({
   analyses,
   history,
   labels,
-  initial = 'today',
 }: {
   today: React.ReactNode
   all: React.ReactNode
   analyses: React.ReactNode
   history: React.ReactNode
   labels: { today: string; all: string; analyses: string; history: string }
-  initial?: TabKey
 }) {
-  const [tab, setTab] = useState<TabKey>(initial)
+  const { tab, setTab } = useTrackerTab()
 
   const panels: Record<TabKey, React.ReactNode> = {
     today,

@@ -24,6 +24,7 @@
   "tracker": {
     "title": "Препараты",
     "addButton": "Добавить препарат",
+    "addLabButton": "Добавить анализ",
     "allLabel": "Все препараты",
     "tabToday": "Сегодня",
     "tabAll": "Все",
