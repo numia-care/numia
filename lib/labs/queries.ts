@@ -1,4 +1,8 @@
+import { z } from 'zod'
+
 import { createClient } from '@/lib/supabase/server'
+
+const ID_SCHEMA = z.string().uuid()
 
 // Серверное чтение анализов для рендера списка/истории.
 //
@@ -81,5 +85,64 @@ export async function listLabResults(): Promise<LabResults> {
   return {
     numeric: rows.filter((r) => r.value != null),
     photoOnly: rows.filter((r) => r.value == null),
+  }
+}
+
+/**
+ * Одна запись целиком — для экрана редактирования.
+ *
+ * В отличие от списка отдаёт и blank_photo_path/blank_photo_iv: удалению нужен
+ * путь блоба, чтобы снести его из Storage вслед за рядом (каскада из Postgres
+ * в Storage не существует). Заметка — по-прежнему шифротекстом: расшифровать
+ * её может только клиент.
+ *
+ * Аналог getMedicationForEdit из трекера. Чужой ряд не отдаст RLS; на всякий
+ * случай отсекаем и мусорный id, чтобы не ходить в БД впустую.
+ */
+export interface LabResultForEdit {
+  id: string
+  analyte: string | null
+  analyte_custom_name: string | null
+  value: number | null
+  unit: string | null
+  measured_at: string | null
+  note_ciphertext: string | null
+  blank_photo_path: string | null
+  blank_photo_iv: string | null
+  created_at: string
+}
+
+export async function getLabResultForEdit(
+  id: string,
+): Promise<LabResultForEdit | null> {
+  if (!ID_SCHEMA.safeParse(id).success) return null
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data, error } = await supabase
+    .from('lab_results')
+    .select(
+      'id, analyte, analyte_custom_name, value, unit, measured_at, note_ciphertext, blank_photo_path, blank_photo_iv, created_at',
+    )
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error || !data) return null
+
+  return {
+    id: data.id as string,
+    analyte: (data.analyte as string | null) ?? null,
+    analyte_custom_name: (data.analyte_custom_name as string | null) ?? null,
+    value: data.value == null ? null : Number(data.value),
+    unit: (data.unit as string | null) ?? null,
+    measured_at: (data.measured_at as string | null) ?? null,
+    note_ciphertext: (data.note_ciphertext as string | null) ?? null,
+    blank_photo_path: (data.blank_photo_path as string | null) ?? null,
+    blank_photo_iv: (data.blank_photo_iv as string | null) ?? null,
+    created_at: data.created_at as string,
   }
 }

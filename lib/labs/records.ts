@@ -98,3 +98,41 @@ export async function addLabResult(input: NewLabResult): Promise<string> {
 
   return id
 }
+
+/**
+ * Удалить показатель. Удаление ЖЁСТКОЕ, не мягкое: колонки deleted_at у
+ * lab_results нет и заводить её незачем — на запись ничего не ссылается.
+ * (У препаратов иначе: там soft-delete нужен, чтобы не осиротела история
+ * приёмов в intake_events.)
+ *
+ * Порядок — как в deleteEntry «Пути» (lib/path/entries.ts): сначала ряд,
+ * потом блоб фото best-effort. Каскада из Postgres в Storage не существует:
+ * это разные подсистемы, внешних ключей туда нет и триггер их не заменит,
+ * поэтому блоб приходится сносить руками. Если снести не вышло — остаётся
+ * осиротевший шифроблоб: он безвреден (зашифрован, а путь к нему знал только
+ * удалённый ряд), просто занимает место. Обратный порядок был бы хуже —
+ * запись со сломанным фото в списке.
+ *
+ * Клиентская, потому что чистит Storage браузерным клиентом — тем же, что
+ * грузил блоб. DEK при этом НЕ нужен: удаление ничего не расшифровывает, так
+ * что запись можно убрать и с истёкшей PIN-сессией. Это осознанно: гейт на
+ * PIN здесь не защитил бы ничего (аккаунт уже аутентифицирован), а мешал бы.
+ *
+ * Чужую запись не даст удалить RLS — политика lab_results_delete_own, плюс
+ * storage-политика path_media_delete_own по префиксу пути с auth.uid().
+ * Новых прав не требуется.
+ */
+export async function deleteLabResult(row: {
+  id: string
+  blank_photo_path: string | null
+}): Promise<void> {
+  const supabase = createClient()
+
+  const { error } = await supabase.from('lab_results').delete().eq('id', row.id)
+  if (error) throw new Error(`lab_delete_failed: ${error.message}`)
+
+  if (row.blank_photo_path) {
+    // best-effort: ошибку не пробрасываем, ряд уже удалён.
+    await supabase.storage.from(BUCKET).remove([row.blank_photo_path])
+  }
+}

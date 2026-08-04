@@ -1,7 +1,8 @@
 import { format, parse } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { ImageIcon } from 'lucide-react'
+import { ImageIcon, PencilIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
+import Link from 'next/link'
 
 import { LabChart } from '@/components/labs/lab-chart'
 import { LabNote } from '@/components/labs/lab-note'
@@ -56,12 +57,15 @@ export async function LabsHistory({
                       </span>
                     )}
                   </div>
-                  <time
-                    className="shrink-0 text-sm text-foreground/60"
-                    dateTime={row.measured_at ?? undefined}
-                  >
-                    {formatDate(row.measured_at, t('noDate'))}
-                  </time>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <time
+                      className="text-sm text-foreground/60"
+                      dateTime={row.measured_at ?? undefined}
+                    >
+                      {formatDate(row.measured_at, t('noDate'))}
+                    </time>
+                    <EditLink id={row.id} label={t('editLink')} />
+                  </div>
                 </div>
 
                 <LabNote ciphertext={row.note_ciphertext} />
@@ -87,12 +91,15 @@ export async function LabsHistory({
                     <ImageIcon className="size-4 text-lavender-deep" />
                     <span className="text-sm">{t('photoOnlyCard')}</span>
                   </div>
-                  <time
-                    className="shrink-0 text-sm text-foreground/60"
-                    dateTime={row.measured_at ?? undefined}
-                  >
-                    {formatDate(row.measured_at, t('noDate'))}
-                  </time>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <time
+                      className="text-sm text-foreground/60"
+                      dateTime={row.measured_at ?? undefined}
+                    >
+                      {formatDate(row.measured_at, t('noDate'))}
+                    </time>
+                    <EditLink id={row.id} label={t('editLink')} />
+                  </div>
                 </div>
 
                 <LabNote ciphertext={row.note_ciphertext} />
@@ -141,6 +148,27 @@ function groupTitle(row: LabResultRow): string {
     return row.analyte_custom_name?.trim() || getAnalyte('other')?.name || 'Другое'
   }
   return getAnalyte(row.analyte!)?.name ?? row.analyte!
+}
+
+/**
+ * Точка входа в редактирование — отдельная иконка, а НЕ ссылка на всю строку.
+ *
+ * Обернуть строку целиком нельзя: внутри неё живёт кнопка раскрытия заметки
+ * (LabNote). Интерактивный элемент внутри ссылки — невалидная разметка, и тап
+ * по заметке уводил бы на другой экран вместо того, чтобы её показать.
+ */
+function EditLink({ id, label }: { id: string; label: string }) {
+  return (
+    <Link
+      href={`/labs/${id}/edit`}
+      aria-label={label}
+      title={label}
+      // Тач-зона больше глифа: -m-2/p-2 дают 32px вокруг иконки 16px.
+      className="-m-2 flex size-8 items-center justify-center p-2 text-foreground/35 transition-colors hover:text-foreground/70"
+    >
+      <PencilIcon className="size-4" strokeWidth={1.8} />
+    </Link>
+  )
 }
 
 // ── Форматирование ───────────────────────────────────────────────────────────
