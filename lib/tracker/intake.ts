@@ -1,5 +1,6 @@
 'use server'
 
+import { formatInTimeZone } from 'date-fns-tz'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
@@ -52,6 +53,66 @@ export async function markSkipped(eventId: string): Promise<ActionResult> {
   const { error } = await supabase
     .from('intake_events')
     .update({ status: 'skipped', taken_at: null })
+    .eq('id', eventId)
+
+  if (error) return { ok: false, error: error.message }
+  revalidatePath('/tracker')
+  return { ok: true, data: undefined }
+}
+
+/**
+ * Снять отметку с прошлого слота — «нет, не принято».
+ *
+ * Не то же самое, что undoIntake. Тот всегда возвращает в 'upcoming', и для
+ * прошлого дня это состояние нежизнеспособно: развёртка mark_missed_intakes
+ * в ближайшие 15 минут пометит слот 'missed', и юзер увидит, как отметка
+ * «сама поменялась». Поэтому целевой статус зависит от того, кончился ли
+ * день слота в таймзоне юзера:
+ *
+ *   день уже прошёл  → 'missed'   (то же, что поставила бы развёртка)
+ *   день ещё идёт    → 'upcoming' (сегодня приём ещё можно отметить)
+ *
+ * Правило намеренно совпадает с SQL-развёрткой, чтобы UI не показывал
+ * состояние, которое cron через четверть часа перепишет.
+ */
+export async function unmarkIntake(eventId: string): Promise<ActionResult> {
+  if (!ID_SCHEMA.safeParse(eventId).success) {
+    return { ok: false, error: 'invalid_id' }
+  }
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'not_authenticated' }
+
+  // RLS отдаст ряд только если он свой — отдельной проверки user_id не нужно.
+  const { data: slot } = await supabase
+    .from('intake_events')
+    .select('scheduled_at')
+    .eq('id', eventId)
+    .maybeSingle()
+  if (!slot) return { ok: false, error: 'not_found' }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('timezone')
+    .eq('id', user.id)
+    .maybeSingle()
+  const timezone = profile?.timezone ?? 'UTC'
+
+  // Сравнение календарных дат в зоне юзера — строки YYYY-MM-DD сравниваются
+  // лексикографически, что здесь то же самое, что хронологически.
+  const slotDay = formatInTimeZone(
+    new Date(slot.scheduled_at as string),
+    timezone,
+    'yyyy-MM-dd',
+  )
+  const today = formatInTimeZone(new Date(), timezone, 'yyyy-MM-dd')
+  const nextStatus = slotDay < today ? 'missed' : 'upcoming'
+
+  const { error } = await supabase
+    .from('intake_events')
+    .update({ status: nextStatus, taken_at: null })
     .eq('id', eventId)
 
   if (error) return { ok: false, error: error.message }

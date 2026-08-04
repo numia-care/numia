@@ -17,7 +17,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { backfillTaken } from '@/lib/tracker/intake'
+import { backfillTaken, unmarkIntake } from '@/lib/tracker/intake'
 
 import { TimeSelect } from './time-select'
 
@@ -31,10 +31,19 @@ interface Props {
 }
 
 /**
- * Диалог backfill — «приём был в [время]». Открывается тапом по карточке
- * прошлого слота (taken / skipped / missed).
+ * Диалог отметки прошлого слота. Открывается тапом по карточке слота со
+ * статусом taken / skipped / missed.
  *
- * Логика времени:
+ * ДВА СОСТОЯНИЯ, переключаются в обе стороны:
+ *   не принят (missed/skipped/upcoming) → выбор времени + «Отметить принятым»
+ *   принят (taken)                      → «Не принято», отметка снимается
+ *
+ * Раньше действие было одно — «Отметить». Из-за этого диалог выглядел
+ * неработающим ровно там, где по нему чаще всего кликают: у слота, который
+ * УЖЕ taken, единственная кнопка переписывала статус на тот же самый, и на
+ * экране не менялось ничего. Обратного хода не было вовсе.
+ *
+ * Логика времени (состояние «не принят»):
  *   - YMD берём из scheduled_at в tz юзера (день слота).
  *   - HH:mm — то что ввёл юзер.
  *   - Собираем wall-clock '{ymd}T{hh:mm}:00' и конвертим в UTC через
@@ -61,40 +70,71 @@ export function SlotBackfillDialog({
 
   const ymd = formatInTimeZone(new Date(scheduledIso), timezone, 'yyyy-MM-dd')
 
-  const onConfirm = () => {
+  const isTaken = currentStatus === 'taken'
+
+  const onMarkTaken = () => {
     // Валидация HH:mm на клиенте (Zod на сервере страхует).
-    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(time)) return
+    if (!/^([01]\d|2[0-3]):([0-5]\d)$/.test(time)) {
+      toast.error(t('invalidTime'))
+      return
+    }
 
     const takenIso = fromZonedTime(`${ymd}T${time}:00`, timezone).toISOString()
     startTransition(async () => {
       const result = await backfillTaken(id, takenIso)
-      if (result.ok) {
-        router.refresh()
-        toast.success(t('takenAtBadge', { time }))
-        setOpen(false)
+      // Раньше ветки !ok не было вовсе: при ошибке диалог молча оставался
+      // открытым, и это было неотличимо от «кнопка не нажалась».
+      if (!result.ok) {
+        toast.error(t('actionFailed'))
+        return
       }
+      router.refresh()
+      toast.success(t('takenAtBadge', { time }))
+      setOpen(false)
     })
   }
 
-  // Если уже taken и юзер открыл диалог снова — даём изменить время.
-  // Если skipped/missed — даём отметить как taken.
-  void currentStatus // оставлено для возможной расширенной логики
+  const onUnmark = () => {
+    startTransition(async () => {
+      const result = await unmarkIntake(id)
+      if (!result.ok) {
+        toast.error(t('actionFailed'))
+        return
+      }
+      // router.refresh() перерисовывает серверные панели — и список Истории,
+      // и шапку статистики над ним: они считаются из одного набора слотов,
+      // так что обе обновляются одним запросом.
+      router.refresh()
+      toast.message(t('unmarked'))
+      setOpen(false)
+    })
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<div />}>{children}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{t('backfillTitle')}</DialogTitle>
-          <DialogDescription>{t('backfillDescription')}</DialogDescription>
+          <DialogTitle>
+            {isTaken ? t('unmarkTitle') : t('backfillTitle')}
+          </DialogTitle>
+          <DialogDescription>
+            {isTaken
+              ? t('unmarkDescription', { time: defaultTimeStr })
+              : t('backfillDescription')}
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="py-2">
-          <Label>{t('backfillTimeLabel')}</Label>
-          <div className="mt-2">
-            <TimeSelect value={time} onChange={setTime} />
+        {/* Выбор времени нужен только когда отмечаем принятым. У снятия
+            отметки времени нет — снимать нечего, кроме самого факта. */}
+        {!isTaken && (
+          <div className="py-2">
+            <Label>{t('backfillTimeLabel')}</Label>
+            <div className="mt-2">
+              <TimeSelect value={time} onChange={setTime} />
+            </div>
           </div>
-        </div>
+        )}
 
         <DialogFooter>
           <Button
@@ -104,8 +144,8 @@ export function SlotBackfillDialog({
           >
             {tc('cancel')}
           </Button>
-          <Button onClick={onConfirm} disabled={isPending}>
-            {t('backfillConfirm')}
+          <Button onClick={isTaken ? onUnmark : onMarkTaken} disabled={isPending}>
+            {isTaken ? t('unmark') : t('backfillConfirm')}
           </Button>
         </DialogFooter>
       </DialogContent>

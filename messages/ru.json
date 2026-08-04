@@ -66,7 +66,13 @@
       "backfillTitle": "Когда был приём?",
       "backfillDescription": "Время в течение дня, на который был назначен приём.",
       "backfillTimeLabel": "Время",
-      "backfillConfirm": "Отметить"
+      "backfillConfirm": "Отметить принятым",
+      "unmarkTitle": "Отметка о приёме",
+      "unmarkDescription": "Сейчас отмечено принятым в {time}.",
+      "unmark": "Не принято",
+      "unmarked": "Отметка снята ✦",
+      "invalidTime": "Проверь время — нужен формат ЧЧ:ММ",
+      "actionFailed": "Не получилось сохранить. Попробуй ещё раз ✦"
     },
     "kind": {
       "estrogen": "эстроген",
