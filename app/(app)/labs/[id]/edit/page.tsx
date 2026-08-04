@@ -1,20 +1,22 @@
-import { format, parse } from 'date-fns'
-import { ru } from 'date-fns/locale'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { LabDeleteButton } from '@/components/labs/lab-delete-button'
-import { LabNote } from '@/components/labs/lab-note'
-import { getAnalyte, unitLabel } from '@/lib/labs/catalog'
+import { LabForm, type LabFormValues } from '@/components/labs/lab-form'
+import { ANALYTES, defaultUnitCode, getAnalyte } from '@/lib/labs/catalog'
 import { getLabResultForEdit, type LabResultForEdit } from '@/lib/labs/queries'
 
-// Экран одного показателя. В ЭТОМ заходе — каркас: показывает запись и даёт
-// её удалить. Форма редактирования приезжает следующим заходом (B), тогда
-// сюда встанет <LabForm mode="edit" .../> по образцу /tracker/[id]/edit.
+// Редактирование показателя. Калька с /tracker/[id]/edit: серверная страница
+// читает ряд, notFound() если нет, маппит в значения формы.
 //
-// Заметка показывается тем же раскрывающимся LabNote, что и в списке:
-// расшифровать её можно только на клиенте, серверу шифротекст нечитаем.
+// ОТЛИЧИЕ ОТ ФОРМЫ ПРЕПАРАТА: заметку сюда подставить нельзя — она E2E, и
+// сервер её не читает. Отдаём форме ШИФРОТЕКСТ, форма расшифровывает его на
+// клиенте при монтировании. Отсюда же PIN-гейт: у записи с заметкой без
+// разблокированного хранилища форму открыть нечем, и LabForm уводит на /pin.
+//
+// Фото в этом заходе не редактируется (заход C), но и не страдает:
+// updateLabResult не трогает колонки blank_photo_*.
 export default async function EditLabResultPage({
   params,
 }: {
@@ -25,7 +27,6 @@ export default async function EditLabResultPage({
   if (!row) notFound()
 
   const t = await getTranslations('labs.edit')
-  const tLabs = await getTranslations('labs')
 
   return (
     <div className="page-shell py-10 sm:py-14">
@@ -41,67 +42,54 @@ export default async function EditLabResultPage({
         </h1>
       </header>
 
-      <div className="rounded-2xl bg-card px-4 py-4 ring-1 ring-border">
-        <p className="text-sm text-foreground/60">{displayName(row, tLabs)}</p>
+      <LabForm mode="edit" editId={row.id} initialValues={toFormValues(row)} />
 
-        {row.value != null && (
-          <p className="mt-1 flex items-baseline gap-2">
-            <span className="text-2xl text-foreground">
-              {numberFmt.format(row.value)}
-            </span>
-            <span className="text-sm text-foreground/60">
-              {displayUnit(row)}
-            </span>
-          </p>
-        )}
-
-        <p className="mt-2 text-sm text-foreground/60">
-          {formatDate(row.measured_at, tLabs('noDate'))}
-        </p>
-
-        {row.blank_photo_path && (
-          <p className="mt-2 text-xs text-foreground/40">{tLabs('photoBadge')}</p>
-        )}
-
-        <LabNote ciphertext={row.note_ciphertext} />
-      </div>
-
-      {/* Форма редактирования — заход B. Пока только удаление. */}
-      <div className="mt-8">
+      {/* Удаление — из захода A, остаётся на этом же экране. Отделено от
+          формы: это не часть сохранения, а отдельное необратимое действие. */}
+      <div className="mt-10 border-t border-border pt-6">
         <LabDeleteButton id={row.id} blankPhotoPath={row.blank_photo_path} />
       </div>
     </div>
   )
 }
 
-// Ниже — та же логика отображения, что в labs-history.tsx (groupTitle /
-// displayUnit / formatDate). Сознательно продублирована, а не вынесена в
-// общий модуль: в заходе B эта страница станет формой, и показывать она
-// будет поля ввода, а не эти строки. Выносить общее ради временного каркаса
-// значило бы создавать абстракцию, которая через заход исчезнет.
-
-// Название показателя: из каталога, своё для analyte='other', либо «фото
-// бланка» у записи без чисел.
-function displayName(
-  row: LabResultForEdit,
-  tLabs: Awaited<ReturnType<typeof getTranslations>>,
-): string {
-  if (!row.analyte) return tLabs('photoOnlyCard')
-  if (row.analyte === 'other') {
-    return row.analyte_custom_name?.trim() || getAnalyte('other')?.name || 'Другое'
-  }
-  return getAnalyte(row.analyte)?.name ?? row.analyte
-}
-
-function displayUnit(row: LabResultForEdit): string {
+/**
+ * Ряд БД → значения формы.
+ *
+ * Тонкости раскладки:
+ *   • Запись без числа — это «только фото бланка», у неё formMode='photo' и
+ *     числовые поля не показываются. Значения для них всё равно заполняем
+ *     дефолтами, чтобы форма не работала с пустым каталогом.
+ *   • У analyte='other' единица хранится свободной строкой — она едет в
+ *     customUnit, а не в unitCode (там код из каталога).
+ *   • measured_at = null значит «дата не указана» → noDate=true, а в поле
+ *     даты кладём сегодняшнюю, чтобы календарь не открывался пустым, если
+ *     галочку снимут.
+ *   • Заметка НЕ расшифровывается: отдаём шифротекст как есть.
+ */
+function toFormValues(row: LabResultForEdit): LabFormValues {
+  const isNumeric = row.value != null
   const analyte = row.analyte ? getAnalyte(row.analyte) : undefined
-  const unit = row.unit ?? ''
-  return analyte ? unitLabel(analyte, unit) : unit
+  const isOther = Boolean(analyte?.allowCustom)
+
+  return {
+    formMode: isNumeric ? 'values' : 'photo',
+    analyteCode: analyte?.code ?? ANALYTES[0].code,
+    customName: row.analyte_custom_name ?? '',
+    value: row.value == null ? '' : String(row.value),
+    unitCode: isOther
+      ? (defaultUnitCode(analyte ?? ANALYTES[0]) ?? '')
+      : (row.unit ?? defaultUnitCode(analyte ?? ANALYTES[0]) ?? ''),
+    customUnit: isOther ? (row.unit ?? '') : '',
+    date: row.measured_at ?? today(),
+    noDate: row.measured_at == null,
+    noteCiphertext: row.note_ciphertext,
+  }
 }
 
-const numberFmt = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 })
-
-function formatDate(ymd: string | null, noDateLabel: string): string {
-  if (!ymd) return noDateLabel
-  return format(parse(ymd, 'yyyy-MM-dd', new Date()), 'd MMMM yyyy', { locale: ru })
+function today(): string {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
 }

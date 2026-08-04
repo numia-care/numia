@@ -57,7 +57,7 @@ export async function LabsHistory({
                       </span>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-2">
                     <time
                       className="text-sm text-foreground/60"
                       dateTime={row.measured_at ?? undefined}
@@ -91,7 +91,7 @@ export async function LabsHistory({
                     <ImageIcon className="size-4 text-lavender-deep" />
                     <span className="text-sm">{t('photoOnlyCard')}</span>
                   </div>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <div className="flex shrink-0 items-center gap-2">
                     <time
                       className="text-sm text-foreground/60"
                       dateTime={row.measured_at ?? undefined}

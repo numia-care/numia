@@ -99,6 +99,70 @@ export async function addLabResult(input: NewLabResult): Promise<string> {
   return id
 }
 
+export interface UpdateLabResult {
+  analyte?: string // опускается для записи «только фото»
+  analyteCustomName?: string // только для analyte='other'
+  value?: number // опускается для записи «только фото»
+  unit?: string
+  measuredAt?: string | null // null = дата не указана
+  note?: string // E2E; пусто/не задано = заметку стереть
+}
+
+/**
+ * Обновить показатель.
+ *
+ * ЗАМЕТКА ПЕРЕЗАПИСЫВАЕТСЯ ЦЕЛИКОМ, не патчится. encryptText генерит новый IV
+ * на каждый вызов и возвращает единый base64(iv‖ct) — патчить там нечего в
+ * принципе. И это не деталь реализации, а требование: повтор пары (ключ, IV)
+ * в AES-GCM ломает и конфиденциальность, и аутентичность, так что
+ * переиспользовать старый IV было бы уязвимостью, а не экономией.
+ *
+ * Пустая заметка пишется как NULL, а НЕ как шифротекст пустой строки: иначе
+ * has_note остался бы true и бейдж в списке открывал бы пустоту.
+ *
+ * DEK нужен только когда заметка непустая. Стереть заметку или поправить одни
+ * числа можно и с истёкшей PIN-сессией — расшифровывать нечего. (Префилл
+ * заметки в форме — другое дело, там DEK нужен, и форма гейтит вход сама.)
+ *
+ * ФОТО НЕ ТРОГАЕМ: blank_photo_path и blank_photo_iv не входят в патч и
+ * остаются как были. Показ, замена и удаление фото — отдельный заход.
+ * Не перечисляем их в update намеренно: PostgREST обновляет только
+ * переданные колонки, так что существующий блоб в Storage в безопасности.
+ *
+ * Чужой ряд не даст тронуть RLS (lab_results_update_own). Новых прав не нужно.
+ */
+export async function updateLabResult(
+  id: string,
+  input: UpdateLabResult,
+): Promise<void> {
+  const supabase = createClient()
+
+  const note = input.note?.trim()
+  const dek = note ? getCryptoKey() : null
+  if (note && !dek) throw new PinRequiredError()
+
+  const noteCiphertext = dek && note ? await encryptText(dek, note) : null
+
+  const hasValue = typeof input.value === 'number' && isFinite(input.value)
+
+  const { error } = await supabase
+    .from('lab_results')
+    .update({
+      analyte: hasValue ? (input.analyte ?? null) : null,
+      analyte_custom_name:
+        hasValue && input.analyte === 'other'
+          ? input.analyteCustomName?.trim() || null
+          : null,
+      value: hasValue ? input.value : null,
+      unit: hasValue ? (input.unit ?? null) : null,
+      measured_at: input.measuredAt ?? null,
+      note_ciphertext: noteCiphertext,
+    })
+    .eq('id', id)
+
+  if (error) throw new Error(`lab_update_failed: ${error.message}`)
+}
+
 /**
  * Удалить показатель. Удаление ЖЁСТКОЕ, не мягкое: колонки deleted_at у
  * lab_results нет и заводить её незачем — на запись ничего не ссылается.

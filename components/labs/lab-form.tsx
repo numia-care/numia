@@ -12,7 +12,12 @@ import { buttonVariants } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ANALYTES, defaultUnitCode, getAnalyte } from '@/lib/labs/catalog'
-import { addLabResult } from '@/lib/labs/records'
+import { decryptLabNote } from '@/lib/labs/notes'
+import {
+  addLabResult,
+  updateLabResult,
+  type NewLabResult,
+} from '@/lib/labs/records'
 import { PinRequiredError } from '@/lib/path/entries'
 import { cn } from '@/lib/utils'
 
@@ -32,29 +37,112 @@ const UNIT_MAX_LEN = 20
 
 type Mode = 'values' | 'photo'
 
-export function LabForm({ initialMode = 'values' }: { initialMode?: Mode }) {
+/**
+ * Значения для префилла в режиме редактирования. Заметка приходит
+ * ШИФРОТЕКСТОМ: сервер её расшифровать не может, это делает форма при
+ * монтировании (см. эффект ниже).
+ */
+export interface LabFormValues {
+  formMode: Mode
+  analyteCode: string
+  customName: string
+  value: string
+  unitCode: string
+  customUnit: string
+  date: string
+  noDate: boolean
+  noteCiphertext: string | null
+}
+
+export function LabForm({
+  initialMode = 'values',
+  mode: formMode = 'create',
+  editId,
+  initialValues,
+}: {
+  initialMode?: Mode
+  mode?: 'create' | 'edit'
+  editId?: string
+  initialValues?: LabFormValues
+}) {
   const t = useTranslations('labs.new')
+  const tEdit = useTranslations('labs.edit')
   const router = useRouter()
 
-  const [mode, setMode] = useState<Mode>(initialMode)
+  const isEdit = formMode === 'edit'
 
-  const [analyteCode, setAnalyteCode] = useState(ANALYTES[0].code)
-  const [customName, setCustomName] = useState('')
-  const [value, setValue] = useState('')
-  const [unitCode, setUnitCode] = useState(defaultUnitCode(ANALYTES[0]) ?? '')
-  const [customUnit, setCustomUnit] = useState('')
-  const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [mode, setMode] = useState<Mode>(initialValues?.formMode ?? initialMode)
+
+  const [analyteCode, setAnalyteCode] = useState(
+    initialValues?.analyteCode ?? ANALYTES[0].code,
+  )
+  const [customName, setCustomName] = useState(initialValues?.customName ?? '')
+  const [value, setValue] = useState(initialValues?.value ?? '')
+  const [unitCode, setUnitCode] = useState(
+    initialValues?.unitCode ?? defaultUnitCode(ANALYTES[0]) ?? '',
+  )
+  const [customUnit, setCustomUnit] = useState(initialValues?.customUnit ?? '')
+  const [date, setDate] = useState(
+    initialValues?.date ?? (() => format(new Date(), 'yyyy-MM-dd')),
+  )
   // Дату можно не указывать — не заставляем выдумывать.
-  const [noDate, setNoDate] = useState(false)
+  const [noDate, setNoDate] = useState(initialValues?.noDate ?? false)
   const [note, setNote] = useState('')
   const [photo, setPhoto] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const analyte = getAnalyte(analyteCode)!
+  // Заметка расшифровывается на клиенте — до этого поле нельзя показывать
+  // пустым, иначе сохранение затёрло бы существующий текст.
+  const hasEncryptedNote = Boolean(initialValues?.noteCiphertext)
+  const [noteLoading, setNoteLoading] = useState(hasEncryptedNote)
+  const [noteFailed, setNoteFailed] = useState(false)
+
+  // Каталог мог измениться (или в ряду лежит код, которого уже нет) —
+  // не роняем форму на non-null assertion, а откатываемся к первому показателю.
+  const analyte = getAnalyte(analyteCode) ?? ANALYTES[0]
   const isOther = Boolean(analyte.allowCustom)
   const isPhotoMode = mode === 'photo'
+
+  /**
+   * ПИН-ГЕЙТ НА ВХОДЕ. Заметку надо расшифровать для префилла, а ключ живёт
+   * только в памяти вкладки. Нет ключа — форму открыть нечем: показать поле
+   * пустым значило бы предложить сохранить и стереть текст, которого юзер не
+   * видел. Поэтому уводим на /pin.
+   *
+   * У записи без заметки расшифровывать нечего — PIN на входе не нужен, и
+   * редактировать числа можно с истёкшей сессией.
+   */
+  useEffect(() => {
+    const ciphertext = initialValues?.noteCiphertext
+    if (!ciphertext) return
+
+    let active = true
+    async function load() {
+      try {
+        const text = await decryptLabNote(ciphertext!)
+        if (!active) return
+        setNote(text ?? '')
+        setNoteLoading(false)
+      } catch (err) {
+        if (!active) return
+        if (err instanceof PinRequiredError) {
+          toast(t('pinNeeded'))
+          router.push('/pin')
+          return
+        }
+        setNoteFailed(true)
+        setNoteLoading(false)
+      }
+    }
+    load()
+    return () => {
+      active = false
+    }
+    // initialValues приходит из серверного рендера и за жизнь формы не меняется.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Превью фото бланка — отзываем при смене/размонтировании.
   useEffect(() => {
@@ -85,14 +173,34 @@ export function LabForm({ initialMode = 'values' }: { initialMode?: Mode }) {
     }
     const measuredAt = noDate ? null : date
 
-    // Собираем ввод в зависимости от режима.
-    let payload
+    // Пока заметка не расшифровалась — сохранять нельзя: в поле пусто не
+    // потому что юзер стёр текст, а потому что мы его ещё не показали.
+    if (noteLoading) {
+      setError(tEdit('noteStillLoading'))
+      return
+    }
+    if (noteFailed) {
+      setError(tEdit('noteBroken'))
+      return
+    }
+
+    // Собираем ввод в зависимости от режима. Тип объявлен явно: без него TS
+    // выводит объединение двух литералов, и до payload.analyte не дотянуться.
+    let payload: NewLabResult
     if (isPhotoMode) {
-      if (!photo) {
+      // В режиме редактирования фото не трогаем (отдельный заход), поэтому и
+      // требовать его нельзя: запись «только фото» правится по дате и заметке.
+      if (!isEdit && !photo) {
         setError(t('photoRequired'))
         return
       }
-      payload = { measuredAt, note: note.trim() || undefined, photo }
+      // photo ?? undefined — как в числовой ветке ниже: NewLabResult ждёт
+      // File | undefined, а состояние формы держит null для «не выбрано».
+      payload = {
+        measuredAt,
+        note: note.trim() || undefined,
+        photo: photo ?? undefined,
+      }
     } else {
       const num = parseFloat(value.replace(',', '.'))
       if (!isFinite(num) || num <= 0) {
@@ -125,8 +233,22 @@ export function LabForm({ initialMode = 'values' }: { initialMode?: Mode }) {
 
     setSaving(true)
     try {
-      await addLabResult(payload)
-      toast.success(t('success'))
+      if (isEdit && editId) {
+        // photo из payload сюда не уходит: updateLabResult его не принимает и
+        // колонки blank_photo_* не трогает — существующий блоб цел.
+        await updateLabResult(editId, {
+          analyte: payload.analyte,
+          analyteCustomName: payload.analyteCustomName,
+          value: payload.value,
+          unit: payload.unit,
+          measuredAt: payload.measuredAt,
+          note: payload.note,
+        })
+        toast.success(tEdit('success'))
+      } else {
+        await addLabResult(payload)
+        toast.success(t('success'))
+      }
       router.push('/labs')
       router.refresh()
     } catch (err) {
@@ -143,23 +265,29 @@ export function LabForm({ initialMode = 'values' }: { initialMode?: Mode }) {
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      {/* Переключатель режима: показателями / фото бланка. */}
-      <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1">
-        <ModeTab
-          active={!isPhotoMode}
-          onClick={() => setMode('values')}
-          icon={LineChartIcon}
-          label={t('modeValues')}
-        />
-        <ModeTab
-          active={isPhotoMode}
-          onClick={() => setMode('photo')}
-          icon={ImageIcon}
-          label={t('modePhoto')}
-        />
-      </div>
+      {/* Переключатель режима: показателями / фото бланка.
+          В редактировании скрыт: переключение меняет саму природу записи
+          (числовая ↔ только фото), а работа с фото — отдельный заход. Пока
+          менять природу нечем, честнее не показывать переключатель вовсе,
+          чем показывать наполовину рабочий. */}
+      {!isEdit && (
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1">
+          <ModeTab
+            active={!isPhotoMode}
+            onClick={() => setMode('values')}
+            icon={LineChartIcon}
+            label={t('modeValues')}
+          />
+          <ModeTab
+            active={isPhotoMode}
+            onClick={() => setMode('photo')}
+            icon={ImageIcon}
+            label={t('modePhoto')}
+          />
+        </div>
+      )}
 
-      {isPhotoMode && (
+      {isPhotoMode && !isEdit && (
         <p className="text-sm leading-relaxed text-muted-foreground">
           {t('photoModeHint')}
         </p>
@@ -286,17 +414,34 @@ export function LabForm({ initialMode = 'values' }: { initialMode?: Mode }) {
           {t('noteLabel')}{' '}
           <span className="font-normal text-muted-foreground">{t('noteOptional')}</span>
         </Label>
-        <Textarea
-          id="note"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder={t('notePlaceholder')}
-          rows={2}
-          disabled={saving}
-        />
+        {noteLoading ? (
+          // Пока не расшифровали — поле не показываем: пустая textarea
+          // прочиталась бы как «заметки нет», и сохранение стёрло бы текст.
+          <div
+            className="h-[62px] animate-pulse rounded-lg bg-foreground/5"
+            aria-label={tEdit('noteLoading')}
+          />
+        ) : noteFailed ? (
+          <p className="text-sm text-rose-600">{tEdit('noteBroken')}</p>
+        ) : (
+          <Textarea
+            id="note"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={t('notePlaceholder')}
+            rows={2}
+            disabled={saving}
+          />
+        )}
       </div>
 
-      {/* ── Фото бланка (E2E). В фото-режиме обязательно, иначе опц. ── */}
+      {/* ── Фото бланка (E2E). В фото-режиме обязательно, иначе опц. ──
+          В редактировании блок скрыт целиком: показ существующего фото
+          требует скачать блоб и расшифровать, а замена — снести старый и
+          загрузить новый по тому же пути. Это заход C. Существующее фото
+          при сохранении не страдает: updateLabResult не трогает колонки
+          blank_photo_*. */}
+      {!isEdit && (
       <div className="space-y-2">
         <Label>
           {t('photoLabel')}{' '}
@@ -324,15 +469,28 @@ export function LabForm({ initialMode = 'values' }: { initialMode?: Mode }) {
           />
         </label>
       </div>
+      )}
+
+      {/* У записи с фото в режиме правки — тихая строчка, что фото на месте
+          и никуда не денется. Иначе скрытый блок читается как «фото пропало». */}
+      {isEdit && initialValues?.formMode === 'photo' && (
+        <p className="text-sm text-muted-foreground">{tEdit('photoKept')}</p>
+      )}
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
       <button
         type="submit"
-        disabled={saving}
+        disabled={saving || noteLoading}
         className={cn(buttonVariants({ size: 'lg' }), 'w-full')}
       >
-        {saving ? t('saving') : t('submit')}
+        {saving
+          ? isEdit
+            ? tEdit('saving')
+            : t('saving')
+          : isEdit
+            ? tEdit('submit')
+            : t('submit')}
       </button>
     </form>
   )
