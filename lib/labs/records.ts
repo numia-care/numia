@@ -106,6 +106,14 @@ export interface UpdateLabResult {
   unit?: string
   measuredAt?: string | null // null = дата не указана
   note?: string // E2E; пусто/не задано = заметку стереть
+  // ── фото бланка (E2E) ──
+  // photo задан        → заменить существующее
+  // removePhoto = true → убрать
+  // ни то, ни другое   → НЕ ТРОГАТЬ (колонки не попадут в патч)
+  photo?: File
+  removePhoto?: boolean
+  /** Текущий путь блоба — нужен, чтобы снести старый файл при замене/удалении. */
+  currentPhotoPath?: string | null
 }
 
 /**
@@ -124,26 +132,69 @@ export interface UpdateLabResult {
  * числа можно и с истёкшей PIN-сессией — расшифровывать нечего. (Префилл
  * заметки в форме — другое дело, там DEK нужен, и форма гейтит вход сама.)
  *
- * ФОТО НЕ ТРОГАЕМ: blank_photo_path и blank_photo_iv не входят в патч и
- * остаются как были. Показ, замена и удаление фото — отдельный заход.
- * Не перечисляем их в update намеренно: PostgREST обновляет только
- * переданные колонки, так что существующий блоб в Storage в безопасности.
+ * ФОТО — три случая, см. UpdateLabResult. Если ни photo, ни removePhoto не
+ * заданы, колонки blank_photo_* в патч не попадают вовсе: PostgREST обновляет
+ * только переданные, так что существующий блоб в безопасности.
  *
- * Чужой ряд не даст тронуть RLS (lab_results_update_own). Новых прав не нужно.
+ * ЗАМЕНА ФОТО идёт через НОВЫЙ ПУТЬ, а не перезапись старого:
+ *   1. залить новый блоб по {user_id}/{id}-{uuid}, старый не трогать
+ *   2. UPDATE ряда: новый путь + новый IV (пара согласована — CHECK доволен)
+ *   3. снести старый блоб best-effort
+ * Так ряд ни в один момент не указывает на отсутствующее или
+ * нерасшифровываемое. Перезапись по тому же пути (upsert) была бы хуже: IV
+ * меняется при каждом шифровании, и сбой UPDATE после успешной загрузки дал
+ * бы новый блоб при старом IV — фото не расшифровалось бы никогда, тихо.
+ * Вариант «снести, потом залить» хуже тем же, чем в deleteEntry: между
+ * операциями ряд указывает на пустоту.
+ *
+ * Чужой ряд не даст тронуть RLS (lab_results_update_own), чужой блоб —
+ * storage-политики path_media_*. Новых прав не нужно.
  */
 export async function updateLabResult(
   id: string,
   input: UpdateLabResult,
 ): Promise<void> {
   const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('not_authenticated')
 
   const note = input.note?.trim()
-  const dek = note ? getCryptoKey() : null
-  if (note && !dek) throw new PinRequiredError()
+  const needsDek = Boolean(note || input.photo)
+  const dek = needsDek ? getCryptoKey() : null
+  if (needsDek && !dek) throw new PinRequiredError()
 
   const noteCiphertext = dek && note ? await encryptText(dek, note) : null
-
   const hasValue = typeof input.value === 'number' && isFinite(input.value)
+
+  // Патч колонок фото собираем отдельно: пустой объект = «не трогать».
+  let photoPatch: {
+    blank_photo_path?: string | null
+    blank_photo_iv?: string | null
+  } = {}
+  let newPhotoPath: string | null = null
+
+  if (dek && input.photo) {
+    const compressed = await compressImage(input.photo)
+    const bytes = new Uint8Array(await compressed.arrayBuffer())
+    const { iv, ciphertext } = await encryptBytes(dek, bytes)
+    // Новый путь на каждую замену — обоснование в шапке функции.
+    newPhotoPath = `${user.id}/${id}-${crypto.randomUUID()}`
+    const { error: upErr } = await supabase.storage
+      .from(BUCKET)
+      .upload(
+        newPhotoPath,
+        new Blob([ciphertext], { type: 'application/octet-stream' }),
+        { contentType: 'application/octet-stream', upsert: false },
+      )
+    if (upErr) throw new Error(`blank_photo_upload_failed: ${upErr.message}`)
+    photoPatch = { blank_photo_path: newPhotoPath, blank_photo_iv: bytesToBase64(iv) }
+  } else if (input.removePhoto) {
+    // Оба поля обнуляем ВМЕСТЕ: констрейнт blank_photo_path_iv_together
+    // требует, чтобы они были NULL только парой, иначе UPDATE отвалится.
+    photoPatch = { blank_photo_path: null, blank_photo_iv: null }
+  }
 
   const { error } = await supabase
     .from('lab_results')
@@ -157,10 +208,23 @@ export async function updateLabResult(
       unit: hasValue ? (input.unit ?? null) : null,
       measured_at: input.measuredAt ?? null,
       note_ciphertext: noteCiphertext,
+      ...photoPatch,
     })
     .eq('id', id)
 
-  if (error) throw new Error(`lab_update_failed: ${error.message}`)
+  if (error) {
+    // Ряд не обновился — только что залитый блоб осиротел, убираем его.
+    // Старый при этом цел, и ряд по-прежнему указывает на него.
+    if (newPhotoPath) await supabase.storage.from(BUCKET).remove([newPhotoPath])
+    throw new Error(`lab_update_failed: ${error.message}`)
+  }
+
+  // Ряд уже не ссылается на старый блоб — сносим его best-effort. Не вышло —
+  // остаётся осиротевший шифроблоб: безвреден, прочитать его нечем.
+  const replacedOrRemoved = Boolean(newPhotoPath) || Boolean(input.removePhoto)
+  if (replacedOrRemoved && input.currentPhotoPath) {
+    await supabase.storage.from(BUCKET).remove([input.currentPhotoPath])
+  }
 }
 
 /**

@@ -3,6 +3,7 @@
 import { format } from 'date-fns'
 import { ImageIcon, LineChartIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
@@ -13,6 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { ANALYTES, defaultUnitCode, getAnalyte } from '@/lib/labs/catalog'
 import { decryptLabNote } from '@/lib/labs/notes'
+import { loadBlankPhotoUrl } from '@/lib/labs/photo'
 import {
   addLabResult,
   updateLabResult,
@@ -52,6 +54,10 @@ export interface LabFormValues {
   date: string
   noDate: boolean
   noteCiphertext: string | null
+  /** Путь шифроблоба фото бланка в Storage; null — фото нет. */
+  blankPhotoPath: string | null
+  /** base64 nonce для расшифровки блоба; ходит парой с путём. */
+  blankPhotoIv: string | null
 }
 
 export function LabForm({
@@ -99,6 +105,21 @@ export function LabForm({
   const [noteLoading, setNoteLoading] = useState(hasEncryptedNote)
   const [noteFailed, setNoteFailed] = useState(false)
 
+  // Существующее фото бланка: путь и IV приходят из ряда, сама картинка
+  // скачивается и расшифровывается на клиенте.
+  const storedPhotoPath = initialValues?.blankPhotoPath ?? null
+  const storedPhotoIv = initialValues?.blankPhotoIv ?? null
+  const [storedPhotoUrl, setStoredPhotoUrl] = useState<string | null>(null)
+  const [photoLoading, setPhotoLoading] = useState(Boolean(storedPhotoPath))
+  const [photoFailed, setPhotoFailed] = useState(false)
+  const [photoNeedsPin, setPhotoNeedsPin] = useState(false)
+  // Юзер нажал «убрать фото». Отдельный флаг, потому что «фото не выбрано»
+  // и «фото надо удалить» — разные намерения.
+  const [photoRemoved, setPhotoRemoved] = useState(false)
+
+  // Существующее фото считается имеющимся, пока его не убрали и не заменили.
+  const hasStoredPhoto = Boolean(storedPhotoPath) && !photoRemoved
+
   // Каталог мог измениться (или в ряду лежит код, которого уже нет) —
   // не роняем форму на non-null assertion, а откатываемся к первому показателю.
   const analyte = getAnalyte(analyteCode) ?? ANALYTES[0]
@@ -144,6 +165,50 @@ export function LabForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /**
+   * Показ существующего фото: скачать шифроблоб, расшифровать, отдать object URL.
+   *
+   * PIN здесь МЯГКИЙ, в отличие от заметки: нет ключа — показываем строчку
+   * «нужен PIN, чтобы открыть фото», а форму не бросаем. У заметки жёсткий
+   * редирект нужен потому, что пустое поле при сохранении стёрло бы текст;
+   * у фото такого риска нет — колонки blank_photo_* меняются только по явному
+   * действию. Иначе запись с фото, но без заметки, стала бы нередактируемой
+   * по дате из-за истёкшей сессии, без всякого выигрыша в безопасности.
+   */
+  useEffect(() => {
+    if (!storedPhotoPath || !storedPhotoIv) return
+
+    let active = true
+    let created: string | null = null
+
+    async function load() {
+      try {
+        const url = await loadBlankPhotoUrl(storedPhotoPath!, storedPhotoIv!)
+        if (!active) {
+          // Размонтировались, пока расшифровывали — блоб всё равно надо отпустить.
+          URL.revokeObjectURL(url)
+          return
+        }
+        created = url
+        setStoredPhotoUrl(url)
+        setPhotoLoading(false)
+      } catch (err) {
+        if (!active) return
+        if (err instanceof PinRequiredError) setPhotoNeedsPin(true)
+        else setPhotoFailed(true)
+        setPhotoLoading(false)
+      }
+    }
+    load()
+
+    return () => {
+      active = false
+      // Расшифрованный блоб не должен пережить компонент: это и утечка памяти,
+      // и лишнее время жизни открытых данных в памяти вкладки.
+      if (created) URL.revokeObjectURL(created)
+    }
+  }, [storedPhotoPath, storedPhotoIv])
+
   // Превью фото бланка — отзываем при смене/размонтировании.
   useEffect(() => {
     if (!previewUrl) return
@@ -159,6 +224,16 @@ export function LabForm({
     const picked = e.target.files?.[0] ?? null
     setPhoto(picked)
     setPreviewUrl(picked ? URL.createObjectURL(picked) : null)
+    // Выбрали файл — значит не «убрать», а «заменить»: снимаем флаг удаления.
+    if (picked) setPhotoRemoved(false)
+  }
+
+  function onRemovePhoto() {
+    // Свежевыбранный файл просто отменяем; существующее помечаем к удалению —
+    // фактически оно снесётся при сохранении, а не сейчас.
+    setPhoto(null)
+    setPreviewUrl(null)
+    if (storedPhotoPath) setPhotoRemoved(true)
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -188,9 +263,9 @@ export function LabForm({
     // выводит объединение двух литералов, и до payload.analyte не дотянуться.
     let payload: NewLabResult
     if (isPhotoMode) {
-      // В режиме редактирования фото не трогаем (отдельный заход), поэтому и
-      // требовать его нельзя: запись «только фото» правится по дате и заметке.
-      if (!isEdit && !photo) {
+      // Запись «только фото» обязана иметь фото. В правке засчитывается и
+      // существующее — если его не убрали и не заменили.
+      if (!photo && !hasStoredPhoto) {
         setError(t('photoRequired'))
         return
       }
@@ -234,8 +309,6 @@ export function LabForm({
     setSaving(true)
     try {
       if (isEdit && editId) {
-        // photo из payload сюда не уходит: updateLabResult его не принимает и
-        // колонки blank_photo_* не трогает — существующий блоб цел.
         await updateLabResult(editId, {
           analyte: payload.analyte,
           analyteCustomName: payload.analyteCustomName,
@@ -243,6 +316,11 @@ export function LabForm({
           unit: payload.unit,
           measuredAt: payload.measuredAt,
           note: payload.note,
+          // Фото: выбран файл → заменить; нажали «убрать» → удалить;
+          // ни того, ни другого → колонки не тронутся.
+          photo: photo ?? undefined,
+          removePhoto: photoRemoved && !photo,
+          currentPhotoPath: storedPhotoPath,
         })
         toast.success(tEdit('success'))
       } else {
@@ -265,29 +343,25 @@ export function LabForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      {/* Переключатель режима: показателями / фото бланка.
-          В редактировании скрыт: переключение меняет саму природу записи
-          (числовая ↔ только фото), а работа с фото — отдельный заход. Пока
-          менять природу нечем, честнее не показывать переключатель вовсе,
-          чем показывать наполовину рабочий. */}
-      {!isEdit && (
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1">
-          <ModeTab
-            active={!isPhotoMode}
-            onClick={() => setMode('values')}
-            icon={LineChartIcon}
-            label={t('modeValues')}
-          />
-          <ModeTab
-            active={isPhotoMode}
-            onClick={() => setMode('photo')}
-            icon={ImageIcon}
-            label={t('modePhoto')}
-          />
-        </div>
-      )}
+      {/* Переключатель режима: показателями / фото бланка. В правке снова
+          рабочий — природу записи (числовая ↔ только фото) теперь есть чем
+          менять. */}
+      <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1">
+        <ModeTab
+          active={!isPhotoMode}
+          onClick={() => setMode('values')}
+          icon={LineChartIcon}
+          label={t('modeValues')}
+        />
+        <ModeTab
+          active={isPhotoMode}
+          onClick={() => setMode('photo')}
+          icon={ImageIcon}
+          label={t('modePhoto')}
+        />
+      </div>
 
-      {isPhotoMode && !isEdit && (
+      {isPhotoMode && (
         <p className="text-sm leading-relaxed text-muted-foreground">
           {t('photoModeHint')}
         </p>
@@ -435,13 +509,7 @@ export function LabForm({
         )}
       </div>
 
-      {/* ── Фото бланка (E2E). В фото-режиме обязательно, иначе опц. ──
-          В редактировании блок скрыт целиком: показ существующего фото
-          требует скачать блоб и расшифровать, а замена — снести старый и
-          загрузить новый по тому же пути. Это заход C. Существующее фото
-          при сохранении не страдает: updateLabResult не трогает колонки
-          blank_photo_*. */}
-      {!isEdit && (
+      {/* ── Фото бланка (E2E). В фото-режиме обязательно, иначе опц. ── */}
       <div className="space-y-2">
         <Label>
           {t('photoLabel')}{' '}
@@ -449,33 +517,73 @@ export function LabForm({
             {isPhotoMode ? t('photoEncrypted') : t('photoOptional')}
           </span>
         </Label>
-        {previewUrl && (
+        {/* Свежевыбранный файл показывается вместо существующего: он и
+            заменит его при сохранении. */}
+        {previewUrl ? (
           <div className="overflow-hidden rounded-2xl bg-card ring-1 ring-border">
             {/* object URL выбранного файла — next/image не применим (не http). */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={previewUrl} alt="" className="block max-h-[40vh] w-full object-contain" />
           </div>
-        )}
-        <label
-          className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'cursor-pointer')}
-        >
-          {photo ? t('changePhoto') : t('pickPhoto')}
-          <input
-            type="file"
-            accept="image/*"
-            onChange={onPickPhoto}
-            disabled={saving}
-            className="sr-only"
-          />
-        </label>
-      </div>
-      )}
+        ) : hasStoredPhoto ? (
+          photoLoading ? (
+            <div
+              className="h-40 animate-pulse rounded-2xl bg-foreground/5"
+              aria-label={tEdit('photoLoading')}
+            />
+          ) : photoNeedsPin ? (
+            <p className="text-sm text-muted-foreground">
+              {tEdit('photoNeedsPin')}{' '}
+              <Link href="/pin" className="underline">
+                {tEdit('photoNeedsPinLink')}
+              </Link>
+            </p>
+          ) : photoFailed ? (
+            <p className="text-sm text-rose-600">{tEdit('photoBroken')}</p>
+          ) : storedPhotoUrl ? (
+            <div className="overflow-hidden rounded-2xl bg-card ring-1 ring-border">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={storedPhotoUrl}
+                alt=""
+                className="block max-h-[40vh] w-full object-contain"
+              />
+            </div>
+          ) : null
+        ) : null}
 
-      {/* У записи с фото в режиме правки — тихая строчка, что фото на месте
-          и никуда не денется. Иначе скрытый блок читается как «фото пропало». */}
-      {isEdit && initialValues?.formMode === 'photo' && (
-        <p className="text-sm text-muted-foreground">{tEdit('photoKept')}</p>
-      )}
+        <div className="flex flex-wrap gap-2">
+          <label
+            className={cn(buttonVariants({ variant: 'outline', size: 'lg' }), 'cursor-pointer')}
+          >
+            {photo || hasStoredPhoto ? t('changePhoto') : t('pickPhoto')}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={onPickPhoto}
+              disabled={saving}
+              className="sr-only"
+            />
+          </label>
+
+          {/* Убрать фото можно только когда оно есть — существующее или
+              только что выбранное. */}
+          {(hasStoredPhoto || photo) && (
+            <button
+              type="button"
+              onClick={onRemovePhoto}
+              disabled={saving}
+              className={cn(buttonVariants({ variant: 'ghost', size: 'lg' }))}
+            >
+              {tEdit('photoRemove')}
+            </button>
+          )}
+        </div>
+
+        {photoRemoved && !photo && (
+          <p className="text-sm text-muted-foreground">{tEdit('photoWillRemove')}</p>
+        )}
+      </div>
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
 

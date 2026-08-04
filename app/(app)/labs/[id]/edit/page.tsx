@@ -84,6 +84,10 @@ function toFormValues(row: LabResultForEdit): LabFormValues {
     date: row.measured_at ?? today(),
     noDate: row.measured_at == null,
     noteCiphertext: row.note_ciphertext,
+    // Путь и IV — форма по ним скачает и расшифрует картинку на клиенте.
+    // Ходят парой (констрейнт blank_photo_path_iv_together).
+    blankPhotoPath: row.blank_photo_path,
+    blankPhotoIv: row.blank_photo_iv,
   }
 }
 
