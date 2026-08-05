@@ -8,7 +8,10 @@ import { HistorySection } from '@/components/tracker/history-section'
 import { MedicationCard } from '@/components/tracker/medication-card'
 import { TodaySection } from '@/components/tracker/today-section'
 import { TrackerAddButton } from '@/components/tracker/tracker-add-button'
-import { TrackerTabProvider } from '@/components/tracker/tracker-tab-context'
+import {
+  parseTabKey,
+  TrackerTabProvider,
+} from '@/components/tracker/tracker-tab-context'
 import { TrackerTabs } from '@/components/tracker/tracker-tabs'
 import { listLabResults } from '@/lib/labs/queries'
 import { createClient, getAuthUser } from '@/lib/supabase/server'
@@ -31,8 +34,19 @@ const HISTORY_START = new Date(0)
 // auth/tz кэшированы на запрос. Генерация слотов с 2026-07-29 идёт синхронно
 // перед чтением списка — иначе «слоты ещё не создались» неотличимо от «приёмов
 // сегодня нет» (см. комментарий в TrackerData).
-export default async function TrackerPage() {
+export default async function TrackerPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>
+}) {
   const t = await getTranslations('tracker')
+
+  // ?tab=analyses — возврат на нужную вкладку после формы анализа. Читается
+  // ОДИН раз, здесь; дальше вкладки переключаются локально через setTab, без
+  // навигации. Мусор в параметре parseTabKey отсеет, и провайдер возьмёт свой
+  // дефолт «Сегодня».
+  const { tab } = await searchParams
+  const initialTab = parseTabKey(tab)
 
   return (
     // Фон ровный: размытые пятна убраны в полировке «убрать лишнее»
@@ -43,7 +57,7 @@ export default async function TrackerPage() {
             читают оба — пилюли внутри Suspense и круглый «+» снаружи.
             TrackerData проезжает сквозь клиентский провайдер как children,
             поэтому остаётся серверным компонентом. */}
-        <TrackerTabProvider>
+        <TrackerTabProvider initial={initialTab}>
           {/* Заголовок по фрейму: по центру, Inter Medium ~28px.
               Круглый «+» d=52 — справа в этой же строке. Переехал
               сюда из ряда табов, когда вкладок стало четыре: в ряду он

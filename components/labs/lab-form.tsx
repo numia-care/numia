@@ -327,7 +327,7 @@ export function LabForm({
         await addLabResult(payload)
         toast.success(t('success'))
       }
-      router.push('/labs')
+      router.push('/tracker?tab=analyses')
       router.refresh()
     } catch (err) {
       if (err instanceof PinRequiredError) {

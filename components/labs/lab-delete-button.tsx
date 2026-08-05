@@ -51,7 +51,7 @@ export function LabDeleteButton({
       }
       setOpen(false)
       toast.success(t('done'))
-      router.push('/labs')
+      router.push('/tracker?tab=analyses')
       router.refresh()
     })
   }

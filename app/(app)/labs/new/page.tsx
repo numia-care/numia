@@ -19,7 +19,7 @@ export default async function NewLabResultPage({
     <div className="page-shell py-10 sm:py-14">
       <header className="mb-6">
         <Link
-          href="/labs"
+          href="/tracker?tab=analyses"
           className="mb-3 inline-block text-sm text-muted-foreground hover:text-foreground"
         >
           {t('backLink')}
