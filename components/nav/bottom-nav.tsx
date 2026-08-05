@@ -31,15 +31,29 @@ type Tab = {
   match?: string[]
 }
 
+// match — под-страницы, которые живут НЕ на своём префиксе, но принадлежат
+// вкладке по смыслу. Правило простое: подсвечиваем ту вкладку, ИЗ КОТОРОЙ
+// на страницу реально ведёт ссылка.
+//
+// /tracker/* и /path/* сюда не входят намеренно: их накрывает совпадение по
+// собственному префиксу, отдельная строчка была бы дублем.
 const TABS: Tab[] = [
-  { href: '/', key: 'today', icon: SparklesIcon },
-  { href: '/tracker', key: 'tracker', icon: LeafIcon },
+  // /wiki — попадают из карточки «Вики» на дашборде (wiki-card.tsx), больше
+  // ниоткуда.
+  { href: '/', key: 'today', icon: SparklesIcon, match: ['/wiki'] },
+  // /labs* — «Анализы» это вкладка внутри «Препаратов» (IA Кая), и «+» с неё
+  // ведёт на /labs/new. Раньше строчка стояла у Профиля — верно для тех
+  // времён, когда «Анализы» были пунктом его меню. Пункт убрали в полировке
+  // 2026-08-04, а match забыли перенести, из-за чего на форме нового анализа
+  // подсвечивался «Профиль».
+  { href: '/tracker', key: 'tracker', icon: LeafIcon, match: ['/labs'] },
   { href: '/path', key: 'path', icon: RouteIcon },
   {
     href: '/profile',
     key: 'profile',
     icon: UserRoundIcon,
-    match: ['/labs', '/wiki', '/settings', '/safety', '/more'],
+    // /more — редирект на /profile для старых бандлов; строчка безвредна.
+    match: ['/settings', '/safety', '/more'],
   },
 ]
 
