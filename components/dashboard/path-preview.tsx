@@ -60,7 +60,7 @@ export function PathPreview() {
     >
       <div className="flex items-center justify-between">
         <PathIcon className="size-[19px] text-foreground" />
-        <span className="shadow-soft flex size-[34px] items-center justify-center rounded-full bg-white text-foreground">
+        <span className="shadow-soft flex size-[38px] items-center justify-center rounded-full bg-white text-foreground">
           <ChevronRightIcon className="size-[18px]" strokeWidth={1.8} />
         </span>
       </div>
@@ -87,8 +87,8 @@ export function PathPreview() {
 }
 
 // Квадратный тайл записи (структура ряда — по фрейму Кая; контент реальный):
-// фото — расшифрованная миниатюра; голос — иконка; дневник — ✦ в цвете
-// настроения + первые слова расшифрованного текста. Object URL отзываем при
+// фото — расшифрованная миниатюра; голос — иконка; дневник — первые слова
+// расшифрованного текста. Object URL отзываем при
 // размонтировании.
 function PathTile({ entry }: { entry: PathEntry }) {
   const [url, setUrl] = useState<string | null>(null)
@@ -112,7 +112,7 @@ function PathTile({ entry }: { entry: PathEntry }) {
           if (active) setNote(text)
         }
       } catch {
-        // Контент тайла не критичен — останется иконка/✦ без текста.
+        // Контент тайла не критичен — плитка останется пустой.
       }
     }
     load()

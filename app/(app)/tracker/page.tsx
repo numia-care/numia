@@ -45,14 +45,14 @@ export default async function TrackerPage() {
             поэтому остаётся серверным компонентом. */}
         <TrackerTabProvider>
           {/* Заголовок по фрейму: по центру, Inter Medium ~28px.
-              Круглый «+» d=47 (замер) — справа в этой же строке. Переехал
+              Круглый «+» d=52 — справа в этой же строке. Переехал
               сюда из ряда табов, когда вкладок стало четыре: в ряду он
               переставал влезать на 375px и обрезался (расклад в
               tracker-tabs.tsx). Паттерн «контент по центру, действие absolute
               справа» — тот же, что в шапке карточки препаратов на дашборде
               (today-meds.tsx). Стоит ВНЕ Suspense, поэтому появляется сразу
               со скелетоном. */}
-          <div className="relative mb-6 flex min-h-[47px] items-center justify-center">
+          <div className="relative mb-6 flex min-h-[52px] items-center justify-center">
             <h1 className="text-[28px] font-medium tracking-[-0.02em] text-foreground">
               {t('title')}
             </h1>

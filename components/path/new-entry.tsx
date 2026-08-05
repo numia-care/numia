@@ -38,7 +38,7 @@ export function NewEntry({ initialMode = 'photo' }: { initialMode?: Mode }) {
             aria-label={t(label)}
             title={t(label)}
             className={cn(
-              'shadow-soft flex size-[50px] items-center justify-center rounded-full transition-colors',
+              'shadow-soft flex size-[52px] items-center justify-center rounded-full transition-colors',
               mode === m
                 ? 'bg-lavender-soft text-foreground'
                 : 'bg-card text-foreground hover:bg-secondary',

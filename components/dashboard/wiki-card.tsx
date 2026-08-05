@@ -33,7 +33,7 @@ export async function WikiCard() {
             {t('wikiTitle')}
           </span>
         </span>
-        <span className="shadow-soft flex size-[34px] shrink-0 items-center justify-center rounded-full bg-white text-foreground">
+        <span className="shadow-soft flex size-[38px] shrink-0 items-center justify-center rounded-full bg-white text-foreground">
           <ChevronRightIcon className="size-[18px]" strokeWidth={1.8} />
         </span>
       </div>

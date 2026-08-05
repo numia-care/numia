@@ -48,7 +48,7 @@ export function MedicationCard({ med }: { med: MedicationRow }) {
           {formatDoseWithUnit(med.dose_amount, med.dose_unit)}
         </span>
         {/* Белый круг с шевроном — контрол разворота (по фрейму). */}
-        <span className="shadow-soft flex size-8 shrink-0 items-center justify-center rounded-full bg-card">
+        <span className="shadow-soft flex size-[38px] shrink-0 items-center justify-center rounded-full bg-card">
           <ChevronDownIcon
             className={cn(
               'size-4 text-foreground/70 transition-transform',

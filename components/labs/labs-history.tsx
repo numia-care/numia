@@ -164,7 +164,7 @@ function EditLink({ id, label }: { id: string; label: string }) {
       aria-label={label}
       title={label}
       // Тач-зона больше глифа: -m-2/p-2 дают 32px вокруг иконки 16px.
-      className="-m-2 flex size-8 items-center justify-center p-2 text-foreground/35 transition-colors hover:text-foreground/70"
+      className="-m-2 flex size-[38px] items-center justify-center text-foreground/35 transition-colors hover:text-foreground/70"
     >
       <PencilIcon className="size-4" strokeWidth={1.8} />
     </Link>

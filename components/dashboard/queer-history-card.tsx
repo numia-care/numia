@@ -61,7 +61,7 @@ export function QueerHistoryCard() {
             onClick={onShare}
             aria-label={t('historyShare')}
             title={t('historyShare')}
-            className="shadow-soft mt-3 flex size-[41px] items-center justify-center rounded-full bg-white text-foreground transition-colors hover:bg-secondary"
+            className="shadow-soft mt-3 flex size-[38px] items-center justify-center rounded-full bg-white text-foreground transition-colors hover:bg-secondary"
           >
             <ShareIcon className="size-[18px]" />
           </button>
