@@ -157,9 +157,13 @@ export function SlotCard(props: SlotCardProps) {
   const pill = (
     <div
       data-slot-card=""
+      // Радиус постоянный — тот же фикс, что в medication-card.tsx (там же
+      // подробное объяснение). Коротко: rounded-full в Tailwind 4 это
+      // border-radius: 3.40282e38px, и переход от него к 27px держал строку
+      // капсулой почти все 200мс. Строка свёрнута — min-h 52, половина 26,
+      // так что радиус 27 и здесь рисуется полной пилюлей, как было.
       className={cn(
-        'shadow-card transition-[border-radius] duration-200',
-        expanded ? 'rounded-[27px]' : 'rounded-full',
+        'shadow-card rounded-[27px]',
         !isUpcoming && 'cursor-pointer opacity-80 transition-opacity hover:opacity-100',
       )}
       // Лаймовый градиент — у всех строк одинаковый (замер эталона).
