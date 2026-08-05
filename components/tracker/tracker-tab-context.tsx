@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 
+import { DEFAULT_TAB, type TabKey } from '@/lib/tracker/tab-key'
+
 /**
  * Активная вкладка экрана «Препараты» — общее состояние для двух мест,
  * которые в DOM стоят далеко друг от друга.
@@ -30,23 +32,13 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
  * историю и ломать кнопку «назад». Next поддерживает это официально и
  * синхронизирует с роутером (docs: 02-guides/single-page-applications,
  * «Shallow routing on the client»).
+ *
+ * TabKey, TAB_KEYS, DEFAULT_TAB и parseTabKey переехали в
+ * lib/tracker/tab-key.ts — модуль БЕЗ 'use client'. Причина там же в шапке:
+ * серверная страница /tracker вызывает parseTabKey при рендере, а экспорт
+ * клиентского модуля вызвать с сервера нельзя — он подменяется заглушкой,
+ * которая бросает.
  */
-
-export type TabKey = 'today' | 'all' | 'analyses' | 'history'
-
-const TAB_KEYS: readonly TabKey[] = ['today', 'all', 'analyses', 'history']
-
-/** Вкладка по умолчанию — она же «параметра в URL нет». */
-const DEFAULT_TAB: TabKey = 'today'
-
-/**
- * ?tab=... → TabKey. Мусор и отсутствие параметра дают undefined, вызывающий
- * подставит дефолт. Отдельная функция, потому что парсить приходится на
- * сервере (страница читает searchParams), а список ключей живёт здесь.
- */
-export function parseTabKey(value: string | undefined): TabKey | undefined {
-  return TAB_KEYS.includes(value as TabKey) ? (value as TabKey) : undefined
-}
 
 interface TrackerTabValue {
   tab: TabKey

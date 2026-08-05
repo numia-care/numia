@@ -5,7 +5,9 @@ import { CircleIcon, HistoryIcon, TrendingUpIcon } from 'lucide-react'
 import { TodayIcon } from '@/components/icons/kai'
 import { cn } from '@/lib/utils'
 
-import { useTrackerTab, type TabKey } from './tracker-tab-context'
+import type { TabKey } from '@/lib/tracker/tab-key'
+
+import { useTrackerTab } from './tracker-tab-context'
 
 // Табы экрана «Препараты» — ЗАМЕР эталонов преппараты1/2/3:
 //   пилюля 62×57, радиус ~16, зазор 9 (замер 8.6–9.9), прижаты ВЛЕВО;

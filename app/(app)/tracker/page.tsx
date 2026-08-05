@@ -8,16 +8,16 @@ import { HistorySection } from '@/components/tracker/history-section'
 import { MedicationCard } from '@/components/tracker/medication-card'
 import { TodaySection } from '@/components/tracker/today-section'
 import { TrackerAddButton } from '@/components/tracker/tracker-add-button'
-import {
-  parseTabKey,
-  TrackerTabProvider,
-} from '@/components/tracker/tracker-tab-context'
+import { TrackerTabProvider } from '@/components/tracker/tracker-tab-context'
 import { TrackerTabs } from '@/components/tracker/tracker-tabs'
 import { listLabResults } from '@/lib/labs/queries'
 import { createClient, getAuthUser } from '@/lib/supabase/server'
 import { getUserTimezoneServer } from '@/lib/timezone-server'
 import { listActiveMedications } from '@/lib/tracker/queries'
 import { generateSlotsForActiveMeds } from '@/lib/tracker/slot-generator'
+// Модуль БЕЗ 'use client' — из клиентского контекста эту функцию звать нельзя,
+// см. шапку lib/tracker/tab-key.ts.
+import { parseTabKey } from '@/lib/tracker/tab-key'
 import { getSlotsInRange, getTodayRange, getTodaySlots } from '@/lib/tracker/today'
 
 // Нижняя граница «всей истории». Эпоха, а не вычисленная дата первого приёма:
