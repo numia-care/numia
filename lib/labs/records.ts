@@ -25,50 +25,75 @@ export interface NewLabResult {
   photo?: File // E2E (фото бланка)
 }
 
+/** Один показатель внутри сдачи. Числовой всегда: у «только фото» строк нет. */
+export interface NewLabSessionRow {
+  analyte: string
+  analyteCustomName?: string // только для analyte='other'
+  value: number
+  unit: string
+}
+
+export interface NewLabSession {
+  measuredAt?: string | null // null/undefined = дата не указана
+  note?: string // E2E, ОБЩАЯ на сдачу
+  photo?: File // E2E, ОДНО фото бланка на сдачу
+  /** Показатели сдачи. Пустой массив = сдача «только фото бланка». */
+  rows: NewLabSessionRow[]
+}
+
 /**
- * Сохранить показатель. Гибкий ввод (миграция 20260723): ряд может быть
- * «числовым» (value+unit+analyte, дата опциональна) ИЛИ «только фото бланка»
- * (числа не заданы — снимок на потом). Пустой ряд (ни чисел, ни фото)
- * отклоняем. Если есть заметка или фото — нужен DEK в памяти (иначе
- * PinRequiredError, форма попросит PIN). Фото сжимается, шифруется и грузится
- * в path-media ДО вставки ряда; при сбое вставки осиротевший блоб удаляем.
+ * Сохранить СДАЧУ: одна запись в lab_sessions + N показателей в lab_results.
  *
- * СДАЧА (lab_sessions). Создаётся здесь же, перед строкой: дата, заметка и
- * фото бланка логически принадлежат сдаче, а не отдельному показателю.
- * Пока идёт миграция параллельными колонками, те же значения ДУБЛИРУЮТСЯ в
- * старые колонки lab_results — читатели ещё берут их оттуда. Дубль уйдёт в
- * подшаге 6 вместе с колонками.
+ * Дата, заметка и фото бланка принадлежат сдаче — бланк физически один, на
+ * нём сразу все значения. Показатели различаются только тройкой
+ * analyte/value/unit.
  *
- * Форма пока отдаёт один показатель за раз, поэтому связь один-к-одному.
- * Несколько показателей на одну сдачу появятся в подшаге 3.
+ * Если есть заметка или фото — нужен DEK в памяти (иначе PinRequiredError,
+ * форма попросит PIN). Пустая сдача (ни показателей, ни фото) отклоняется.
+ * Фото сжимается, шифруется и грузится в path-media ДО вставки; при сбое
+ * осиротевший блоб удаляем.
+ *
+ * ДВОЙНАЯ ЗАПИСЬ. Общие поля дублируются в старые колонки КАЖДОГО из N рядов:
+ * читатели ещё не переведены на сдачи и берут дату/заметку/фото оттуда. Без
+ * дубля показатели 2…N остались бы в истории без даты и без бейджа фото.
+ * Дубль уйдёт в подшаге 6 вместе с самими колонками. Фото при этом
+ * НЕ дублируется — блоб один, в N рядов копируются только путь и IV.
  */
-export async function addLabResult(input: NewLabResult): Promise<string> {
+export async function addLabSession(
+  input: NewLabSession,
+): Promise<{ sessionId: string; resultIds: string[] }> {
   const supabase = createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) throw new Error('not_authenticated')
 
-  const hasValue = typeof input.value === 'number' && isFinite(input.value)
-  if (!hasValue && !input.photo) throw new Error('empty_record')
+  if (input.rows.length === 0 && !input.photo) throw new Error('empty_record')
 
   const note = input.note?.trim()
   const needsDek = Boolean(note || input.photo)
   const dek = needsDek ? getCryptoKey() : null
   if (needsDek && !dek) throw new PinRequiredError()
 
-  // ДВА идентификатора вместо одного: сдача и строка — разные сущности.
-  // Имя файла в Storage строится из id СДАЧИ: бланк один на сдачу, и когда
-  // у сдачи появится несколько показателей (подшаг 3), путь из id строки был
-  // бы произволом «а почему именно этой». Ничего в коде путь не выводит
-  // повторно — все читатели берут его из колонки, — поэтому переезда путей
-  // ни сейчас, ни позже не потребуется.
+  // Имя файла в Storage строится из id СДАЧИ: бланк один на сдачу, и путь из
+  // id какого-то одного показателя был бы произволом «а почему именно этого».
+  // Ничего в коде путь не выводит повторно — все читатели берут его из
+  // колонки, — поэтому переезда путей не потребуется.
   const sessionId = crypto.randomUUID()
-  const resultId = crypto.randomUUID()
 
-  // E2E-заметка: IV упакован внутрь (encryptText). Шифруем ОДИН раз, одна и
-  // та же строка base64(iv‖ct) ляжет в обе колонки — это копия шифротекста,
-  // а не второе шифрование, повтора пары (ключ, IV) не возникает.
+  // ВРЕМЕННО: у сдачи «только фото» (rows пуст) всё равно создаём одну
+  // строку-полупустышку с NULL в analyte/value/unit — ровно как было до сдач.
+  // Иначе фото пропало бы из истории: читатели ходят в lab_results и сдачу
+  // без строк не видят вовсе. Уходит в ПОДШАГЕ 4, когда читатели
+  // переключатся на сдачу и «сдача с нулём строк» станет видимой честно.
+  const isPhotoOnly = input.rows.length === 0
+  const resultIds = (isPhotoOnly ? [null] : input.rows).map(() =>
+    crypto.randomUUID(),
+  )
+
+  // E2E-заметка: IV упакован внутрь (encryptText). Шифруем ОДИН раз на сдачу,
+  // одна и та же строка base64(iv‖ct) копируется во все колонки — это копия
+  // шифротекста, а не повторное шифрование, лишних IV не появляется.
   const noteCiphertext = dek && note ? await encryptText(dek, note) : null
 
   // E2E-фото бланка: сжать → зашифровать (IV отдельно) → загрузить шифроблоб.
@@ -90,8 +115,8 @@ export async function addLabResult(input: NewLabResult): Promise<string> {
     blankPhotoIv = bytesToBase64(iv)
   }
 
-  // ── Сдача, потом строка ─────────────────────────────────────────────────
-  // Порядок задан внешним ключом: строка ссылается на сдачу, значит сдача
+  // ── Сдача, потом показатели ─────────────────────────────────────────────
+  // Порядок задан внешним ключом: строки ссылаются на сдачу, значит сдача
   // обязана существовать раньше. Транзакции нет — PostgREST шлёт по стейтменту
   // на HTTP-запрос, BEGIN/COMMIT через несколько вызовов недоступны. Поэтому
   // откат оркеструем сами, как уже сделано для блоба.
@@ -108,26 +133,59 @@ export async function addLabResult(input: NewLabResult): Promise<string> {
     throw new Error(`lab_session_insert_failed: ${sessErr.message}`)
   }
 
-  const { error: insErr } = await supabase.from('lab_results').insert({
-    id: resultId,
+  // Общая часть каждого ряда: ссылка на сдачу + ДУБЛЬ её полей в старые
+  // колонки. Дубль нужен, пока читатели не переведены на сдачи (подшаг 4):
+  // без него показатели 2…N остались бы без даты и без бейджа фото. Фото при
+  // этом не дублируется — блоб один, копируются только путь и IV.
+  const shared = {
     user_id: user.id,
     session_id: sessionId,
-    // Числовые поля — только у числового ряда; у «только фото» они NULL.
-    analyte: hasValue ? (input.analyte ?? null) : null,
-    analyte_custom_name:
-      hasValue && input.analyte === 'other'
-        ? input.analyteCustomName?.trim() || null
-        : null,
-    value: hasValue ? input.value : null,
-    unit: hasValue ? (input.unit ?? null) : null,
-    // ДУБЛЬ в старые колонки — миграция параллельными колонками. Читатели
-    // ещё не переведены на сдачи и берут дату/заметку/фото отсюда. Дубль
-    // уйдёт в подшаге 6 вместе с самими колонками.
     measured_at: input.measuredAt ?? null,
     note_ciphertext: noteCiphertext,
     blank_photo_path: blankPhotoPath,
     blank_photo_iv: blankPhotoIv,
-  })
+  }
+
+  // Тип объявлен явно: без него TS выводит объединение двух форм ряда
+  // (числовой со string/number и полупустышка с null) и не может свести их
+  // к одному аргументу insert. В самой таблице эти колонки nullable —
+  // гибкий ввод, миграция 20260723.
+  type LabResultInsert = typeof shared & {
+    id: string
+    analyte: string | null
+    analyte_custom_name: string | null
+    value: number | null
+    unit: string | null
+  }
+
+  const payload: LabResultInsert[] = isPhotoOnly
+    ? [
+        {
+          id: resultIds[0],
+          ...shared,
+          analyte: null,
+          analyte_custom_name: null,
+          value: null,
+          unit: null,
+        },
+      ]
+    : input.rows.map((row, i) => ({
+        id: resultIds[i],
+        ...shared,
+        analyte: row.analyte,
+        // Кастомное имя осмысленно только для 'other' — так требует
+        // констрейнт analyte_custom_name_only_other.
+        analyte_custom_name:
+          row.analyte === 'other' ? row.analyteCustomName?.trim() || null : null,
+        value: row.value,
+        unit: row.unit,
+      }))
+
+  // ВСЕ N рядов ОДНИМ вызовом. supabase-js шлёт массив одним POST, PostgREST
+  // превращает его в один INSERT с несколькими VALUES — то есть атомарно на
+  // уровне Postgres: либо все N, либо ни одного. Цикл дал бы частичную
+  // вставку и потребовал бы отката уже созданных строк.
+  const { error: insErr } = await supabase.from('lab_results').insert(payload)
   if (insErr) {
     // Третья ступень отката: сносим и сдачу, и блоб — иначе останется пустая
     // сдача, ссылающаяся на файл, о котором никто не знает.
@@ -136,7 +194,42 @@ export async function addLabResult(input: NewLabResult): Promise<string> {
     throw new Error(`lab_insert_failed: ${insErr.message}`)
   }
 
-  return resultId
+  return { sessionId, resultIds }
+}
+
+/**
+ * Сохранить ОДИН показатель — тонкая обёртка над addLabSession.
+ *
+ * Существует ради текущей формы и режима правки: они отдают по одному
+ * показателю за раз и ждут в ответ id строки. Гибкий ввод сохранён — запись
+ * может быть «числовой» (value+unit+analyte) ИЛИ «только фото бланка» (числа
+ * не заданы, rows уходит пустым).
+ *
+ * Вся логика — в addLabSession, здесь только раскладка входа. Приведения `as`
+ * стираются при компиляции: если поле придёт undefined, PostgREST его опустит
+ * и в колонку ляжет NULL — как и раньше при `input.analyte ?? null`. Поведение
+ * при неполном вводе не изменилось.
+ */
+export async function addLabResult(input: NewLabResult): Promise<string> {
+  const hasValue = typeof input.value === 'number' && isFinite(input.value)
+
+  const { resultIds } = await addLabSession({
+    measuredAt: input.measuredAt,
+    note: input.note,
+    photo: input.photo,
+    rows: hasValue
+      ? [
+          {
+            analyte: input.analyte as string,
+            analyteCustomName: input.analyteCustomName,
+            value: input.value as number,
+            unit: input.unit as string,
+          },
+        ]
+      : [],
+  })
+
+  return resultIds[0]
 }
 
 export interface UpdateLabResult {
