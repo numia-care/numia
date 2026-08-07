@@ -1,7 +1,7 @@
 'use client'
 
 import { format } from 'date-fns'
-import { ImageIcon, LineChartIcon } from 'lucide-react'
+import { ImageIcon, LineChartIcon, PlusIcon, XIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -16,19 +16,27 @@ import { ANALYTES, defaultUnitCode, getAnalyte } from '@/lib/labs/catalog'
 import { decryptLabNote } from '@/lib/labs/notes'
 import { loadBlankPhotoUrl } from '@/lib/labs/photo'
 import {
-  addLabResult,
+  addLabSession,
   updateLabResult,
-  type NewLabResult,
+  type NewLabSessionRow,
 } from '@/lib/labs/records'
 import { PinRequiredError } from '@/lib/path/entries'
 import { cn } from '@/lib/utils'
 
-// Форма добавления анализа. Два режима (фидбек тестера):
-//   'values' — внести показателями (число + единица + показатель), график.
-//   'photo'  — загрузить фото бланка без ручного ввода чисел (снимок на потом).
+// Форма анализа. Единица ввода — СДАЧА: одна дата, один бланк, одна заметка
+// и сколько угодно показателей за эту дату (запрос тестеров: сдали эстрадиол,
+// тестостерон и пролактин в один день — не вводить дату трижды).
+//
+// Два режима:
+//   'values' — список показателей (число + единица + показатель), даёт графики.
+//   'photo'  — только снимок бланка, без чисел: внести их можно потом.
+//
 // Числа уходят открыто (lab_results под RLS — нужны для графика), заметка и
-// фото бланка шифруются на устройстве (addLabResult). Дата опциональна: если
-// не помнит, «не указана» (measured_at = null).
+// фото бланка шифруются на устройстве. Дата опциональна: если не помнит,
+// «не указана» (measured_at = null).
+//
+// В режиме ПРАВКИ форма остаётся однозаписной: показатель ровно один, «+» и
+// «×» скрыты (canAddRows). Правка сдачи целиком — подшаг 5.
 
 const selectClass =
   'w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50'
@@ -38,6 +46,47 @@ const inputClass = selectClass
 const UNIT_MAX_LEN = 20
 
 type Mode = 'values' | 'photo'
+
+/**
+ * Одна строка списка показателей. key — только для React: при удалении из
+ * середины индекс съезжает, и без стабильного ключа React переиспользовал бы
+ * DOM не тех строк (введённые значения перескочили бы на соседей).
+ */
+interface AnalyteRow {
+  key: string
+  analyteCode: string
+  customName: string
+  value: string
+  unitCode: string
+  customUnit: string
+}
+
+function makeEmptyRow(): AnalyteRow {
+  return {
+    key: crypto.randomUUID(),
+    analyteCode: ANALYTES[0].code,
+    customName: '',
+    value: '',
+    unitCode: defaultUnitCode(ANALYTES[0]) ?? '',
+    customUnit: '',
+  }
+}
+
+function rowFromInitialValues(v: LabFormValues): AnalyteRow {
+  return {
+    key: crypto.randomUUID(),
+    analyteCode: v.analyteCode,
+    customName: v.customName,
+    value: v.value,
+    unitCode: v.unitCode,
+    customUnit: v.customUnit,
+  }
+}
+
+/** Показатель строки с подстановкой первого из каталога, если код неизвестен. */
+function rowAnalyte(row: AnalyteRow) {
+  return getAnalyte(row.analyteCode) ?? ANALYTES[0]
+}
 
 /**
  * Значения для префилла в режиме редактирования. Заметка приходит
@@ -79,15 +128,11 @@ export function LabForm({
 
   const [mode, setMode] = useState<Mode>(initialValues?.formMode ?? initialMode)
 
-  const [analyteCode, setAnalyteCode] = useState(
-    initialValues?.analyteCode ?? ANALYTES[0].code,
+  // Пять построчных полей схлопнуты в массив: одна сдача может нести
+  // несколько показателей. В режиме правки строка всегда одна — см. canAddRows.
+  const [rows, setRows] = useState<AnalyteRow[]>(() =>
+    initialValues ? [rowFromInitialValues(initialValues)] : [makeEmptyRow()],
   )
-  const [customName, setCustomName] = useState(initialValues?.customName ?? '')
-  const [value, setValue] = useState(initialValues?.value ?? '')
-  const [unitCode, setUnitCode] = useState(
-    initialValues?.unitCode ?? defaultUnitCode(ANALYTES[0]) ?? '',
-  )
-  const [customUnit, setCustomUnit] = useState(initialValues?.customUnit ?? '')
   const [date, setDate] = useState(
     initialValues?.date ?? (() => format(new Date(), 'yyyy-MM-dd')),
   )
@@ -120,11 +165,12 @@ export function LabForm({
   // Существующее фото считается имеющимся, пока его не убрали и не заменили.
   const hasStoredPhoto = Boolean(storedPhotoPath) && !photoRemoved
 
-  // Каталог мог измениться (или в ряду лежит код, которого уже нет) —
-  // не роняем форму на non-null assertion, а откатываемся к первому показателю.
-  const analyte = getAnalyte(analyteCode) ?? ANALYTES[0]
-  const isOther = Boolean(analyte.allowCustom)
   const isPhotoMode = mode === 'photo'
+
+  // Добавлять и удалять показатели можно только при создании. Правка осталась
+  // однозаписной: updateLabResult правит ОДНУ строку, а общие поля сдачи
+  // трогает через двойную запись. Переделка правки под сдачу — подшаг 5.
+  const canAddRows = !isEdit
 
   /**
    * ПИН-ГЕЙТ НА ВХОДЕ. Заметку надо расшифровать для префилла, а ключ живёт
@@ -215,9 +261,58 @@ export function LabForm({
     return () => URL.revokeObjectURL(previewUrl)
   }, [previewUrl])
 
-  function onAnalyteChange(code: string) {
-    setAnalyteCode(code)
-    setUnitCode(defaultUnitCode(getAnalyte(code)!) ?? '')
+  function updateRow(key: string, patch: Partial<AnalyteRow>) {
+    setRows((prev) => prev.map((r) => (r.key === key ? { ...r, ...patch } : r)))
+  }
+
+  // Смена показателя сбрасывает единицу на дефолтную для нового: у эстрадиола
+  // и тестостерона наборы единиц разные, оставлять чужую нельзя.
+  function onAnalyteChange(key: string, code: string) {
+    updateRow(key, {
+      analyteCode: code,
+      unitCode: defaultUnitCode(getAnalyte(code) ?? ANALYTES[0]) ?? '',
+    })
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, makeEmptyRow()])
+  }
+
+  function removeRow(key: string) {
+    // Минимум одна строка: пустой список нечего было бы сохранять.
+    setRows((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.key !== key)))
+  }
+
+  /**
+   * Проверка одной строки. Возвращает готовое сообщение или null.
+   * Когда строк несколько, к сообщению спереди клеится «Показатель N» —
+   * иначе при пяти показателях «Введи число больше нуля» не говорит, где.
+   */
+  function validateRow(row: AnalyteRow, index: number, total: number): string | null {
+    const isOther = Boolean(rowAnalyte(row).allowCustom)
+    const prefix = (msg: string) =>
+      total > 1 ? `${t('rowPrefix', { n: index + 1 })}${msg}` : msg
+
+    const num = parseFloat(row.value.replace(',', '.'))
+    if (!isFinite(num) || num <= 0) return prefix(t('valueInvalid'))
+    if (isOther && !row.customName.trim()) return prefix(t('customNameRequired'))
+
+    const unit = isOther ? row.customUnit.trim() : row.unitCode
+    if (!unit) return prefix(t('unitRequired'))
+    if (isOther && unit.length > UNIT_MAX_LEN) return prefix(t('unitInvalid'))
+
+    return null
+  }
+
+  /** Строка формы → показатель для addLabSession. Вызывать после validateRow. */
+  function toSessionRow(row: AnalyteRow): NewLabSessionRow {
+    const isOther = Boolean(rowAnalyte(row).allowCustom)
+    return {
+      analyte: row.analyteCode,
+      analyteCustomName: isOther ? row.customName.trim() : undefined,
+      value: parseFloat(row.value.replace(',', '.')),
+      unit: isOther ? row.customUnit.trim() : row.unitCode,
+    }
   }
 
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
@@ -259,63 +354,41 @@ export function LabForm({
       return
     }
 
-    // Собираем ввод в зависимости от режима. Тип объявлен явно: без него TS
-    // выводит объединение двух литералов, и до payload.analyte не дотянуться.
-    let payload: NewLabResult
     if (isPhotoMode) {
-      // Запись «только фото» обязана иметь фото. В правке засчитывается и
+      // Сдача «только бланк» обязана иметь фото. В правке засчитывается и
       // существующее — если его не убрали и не заменили.
       if (!photo && !hasStoredPhoto) {
         setError(t('photoRequired'))
         return
       }
-      // photo ?? undefined — как в числовой ветке ниже: NewLabResult ждёт
-      // File | undefined, а состояние формы держит null для «не выбрано».
-      payload = {
-        measuredAt,
-        note: note.trim() || undefined,
-        photo: photo ?? undefined,
-      }
     } else {
-      const num = parseFloat(value.replace(',', '.'))
-      if (!isFinite(num) || num <= 0) {
-        setError(t('valueInvalid'))
-        return
-      }
-      if (isOther && !customName.trim()) {
-        setError(t('customNameRequired'))
-        return
-      }
-      const unit = isOther ? customUnit.trim() : unitCode
-      if (!unit) {
-        setError(t('unitRequired'))
-        return
-      }
-      if (isOther && unit.length > UNIT_MAX_LEN) {
-        setError(t('unitInvalid'))
-        return
-      }
-      payload = {
-        analyte: analyteCode,
-        analyteCustomName: isOther ? customName : undefined,
-        value: num,
-        unit,
-        measuredAt,
-        note: note.trim() || undefined,
-        photo: photo ?? undefined,
+      // Проверяем ВСЕ строки и сообщаем о первой сломанной.
+      for (let i = 0; i < rows.length; i += 1) {
+        const rowError = validateRow(rows[i], i, rows.length)
+        if (rowError) {
+          setError(rowError)
+          return
+        }
       }
     }
+
+    const noteText = note.trim() || undefined
 
     setSaving(true)
     try {
       if (isEdit && editId) {
+        // Правка осталась однозаписной: строка ровно одна, «+»/«×» скрыты.
+        // Общие поля (дата, заметка, фото) updateLabResult пишет и в строку,
+        // и в сдачу — двойная запись из подшага 2.
+        const row = rows[0]
+        const sessionRow = isPhotoMode ? null : toSessionRow(row)
         await updateLabResult(editId, {
-          analyte: payload.analyte,
-          analyteCustomName: payload.analyteCustomName,
-          value: payload.value,
-          unit: payload.unit,
-          measuredAt: payload.measuredAt,
-          note: payload.note,
+          analyte: sessionRow?.analyte,
+          analyteCustomName: sessionRow?.analyteCustomName,
+          value: sessionRow?.value,
+          unit: sessionRow?.unit,
+          measuredAt,
+          note: noteText,
           // Фото: выбран файл → заменить; нажали «убрать» → удалить;
           // ни того, ни другого → колонки не тронутся.
           photo: photo ?? undefined,
@@ -324,7 +397,15 @@ export function LabForm({
         })
         toast.success(tEdit('success'))
       } else {
-        await addLabResult(payload)
+        // Создание идёт через сдачу: одна дата, одна заметка, один бланк и
+        // N показателей. В режиме «фото бланка» показателей нет вовсе —
+        // rows уходит пустым, addLabSession знает, что с этим делать.
+        await addLabSession({
+          measuredAt,
+          note: noteText,
+          photo: photo ?? undefined,
+          rows: isPhotoMode ? [] : rows.map(toSessionRow),
+        })
         toast.success(t('success'))
       }
       router.push('/tracker?tab=analyses')
@@ -367,92 +448,38 @@ export function LabForm({
         </p>
       )}
 
-      {/* ── Поля числового режима ── */}
+      {/* ── Показатели: список строк за одну дату ── */}
       {!isPhotoMode && (
-        <>
-          <div className="space-y-1.5">
-            <Label htmlFor="analyte">{t('analyteLabel')}</Label>
-            <select
-              id="analyte"
-              value={analyteCode}
-              onChange={(e) => onAnalyteChange(e.target.value)}
+        <div className="space-y-4">
+          {rows.map((row, index) => (
+            <AnalyteRowFields
+              key={row.key}
+              row={row}
+              index={index}
+              total={rows.length}
               disabled={saving}
-              className={selectClass}
-            >
-              {ANALYTES.map((a) => (
-                <option key={a.code} value={a.code}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          </div>
+              canRemove={canAddRows && rows.length > 1}
+              onChange={(patch) => updateRow(row.key, patch)}
+              onAnalyteChange={(code) => onAnalyteChange(row.key, code)}
+              onRemove={() => removeRow(row.key)}
+            />
+          ))}
 
-          {isOther && (
-            <div className="space-y-1.5">
-              <Label htmlFor="custom-name">{t('customNameLabel')}</Label>
-              <input
-                id="custom-name"
-                type="text"
-                value={customName}
-                onChange={(e) => setCustomName(e.target.value)}
-                placeholder={t('customNamePlaceholder')}
-                maxLength={60}
-                disabled={saving}
-                className={inputClass}
-              />
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="value">{t('valueLabel')}</Label>
-              <input
-                id="value"
-                type="text"
-                inputMode="decimal"
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                placeholder={t('valuePlaceholder')}
-                disabled={saving}
-                className={inputClass}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="unit">{t('unitLabel')}</Label>
-              {isOther ? (
-                <input
-                  id="unit"
-                  type="text"
-                  value={customUnit}
-                  onChange={(e) => setCustomUnit(e.target.value)}
-                  placeholder={t('unitPlaceholder')}
-                  maxLength={UNIT_MAX_LEN}
-                  disabled={saving}
-                  className={inputClass}
-                />
-              ) : analyte.units.length > 1 ? (
-                <select
-                  id="unit"
-                  value={unitCode}
-                  onChange={(e) => setUnitCode(e.target.value)}
-                  disabled={saving}
-                  className={selectClass}
-                >
-                  {analyte.units.map((u) => (
-                    <option key={u.code} value={u.code}>
-                      {u.label}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="flex h-[38px] items-center px-2.5 text-sm text-muted-foreground">
-                  {analyte.units[0]?.label}
-                </div>
+          {canAddRows && (
+            <button
+              type="button"
+              onClick={addRow}
+              disabled={saving}
+              className={cn(
+                buttonVariants({ variant: 'outline', size: 'lg' }),
+                'w-full gap-2',
               )}
-            </div>
-          </div>
-        </>
+            >
+              <PlusIcon className="size-4" />
+              {t('addRow')}
+            </button>
+          )}
+        </div>
       )}
 
       {/* ── Дата (опциональна в обоих режимах) ── */}
@@ -601,6 +628,147 @@ export function LabForm({
             : t('submit')}
       </button>
     </form>
+  )
+}
+
+/**
+ * Поля одного показателя. Вынесены из формы, чтобы их можно было повторять.
+ *
+ * Все id полей получают суффикс из row.key: при нескольких строках
+ * захардкоженные id задублировались бы, а дубликаты ломают связь
+ * <Label htmlFor> — скринридер и клик по подписи уводили бы на первую строку.
+ */
+function AnalyteRowFields({
+  row,
+  index,
+  total,
+  disabled,
+  canRemove,
+  onChange,
+  onAnalyteChange,
+  onRemove,
+}: {
+  row: AnalyteRow
+  index: number
+  total: number
+  disabled: boolean
+  canRemove: boolean
+  onChange: (patch: Partial<AnalyteRow>) => void
+  onAnalyteChange: (code: string) => void
+  onRemove: () => void
+}) {
+  const t = useTranslations('labs.new')
+  const analyte = rowAnalyte(row)
+  const isOther = Boolean(analyte.allowCustom)
+  const uid = row.key
+
+  return (
+    <div
+      className={cn(
+        'space-y-4',
+        // Разделитель между показателями — только когда их несколько.
+        total > 1 && 'rounded-2xl bg-muted/30 p-4',
+      )}
+    >
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor={`analyte-${uid}`}>
+            {total > 1 ? t('rowPrefix', { n: index + 1 }) : t('analyteLabel')}
+          </Label>
+          {canRemove && (
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={disabled}
+              aria-label={t('removeRow')}
+              title={t('removeRow')}
+              className="-m-2 flex size-8 items-center justify-center p-2 text-foreground/40 transition-colors hover:text-foreground/80"
+            >
+              <XIcon className="size-4" />
+            </button>
+          )}
+        </div>
+        <select
+          id={`analyte-${uid}`}
+          value={row.analyteCode}
+          onChange={(e) => onAnalyteChange(e.target.value)}
+          disabled={disabled}
+          className={selectClass}
+        >
+          {ANALYTES.map((a) => (
+            <option key={a.code} value={a.code}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {isOther && (
+        <div className="space-y-1.5">
+          <Label htmlFor={`custom-name-${uid}`}>{t('customNameLabel')}</Label>
+          <input
+            id={`custom-name-${uid}`}
+            type="text"
+            value={row.customName}
+            onChange={(e) => onChange({ customName: e.target.value })}
+            placeholder={t('customNamePlaceholder')}
+            maxLength={60}
+            disabled={disabled}
+            className={inputClass}
+          />
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor={`value-${uid}`}>{t('valueLabel')}</Label>
+          <input
+            id={`value-${uid}`}
+            type="text"
+            inputMode="decimal"
+            value={row.value}
+            onChange={(e) => onChange({ value: e.target.value })}
+            placeholder={t('valuePlaceholder')}
+            disabled={disabled}
+            className={inputClass}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor={`unit-${uid}`}>{t('unitLabel')}</Label>
+          {isOther ? (
+            <input
+              id={`unit-${uid}`}
+              type="text"
+              value={row.customUnit}
+              onChange={(e) => onChange({ customUnit: e.target.value })}
+              placeholder={t('unitPlaceholder')}
+              maxLength={UNIT_MAX_LEN}
+              disabled={disabled}
+              className={inputClass}
+            />
+          ) : analyte.units.length > 1 ? (
+            <select
+              id={`unit-${uid}`}
+              value={row.unitCode}
+              onChange={(e) => onChange({ unitCode: e.target.value })}
+              disabled={disabled}
+              className={selectClass}
+            >
+              {analyte.units.map((u) => (
+                <option key={u.code} value={u.code}>
+                  {u.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="flex h-[38px] items-center px-2.5 text-sm text-muted-foreground">
+              {analyte.units[0]?.label}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
