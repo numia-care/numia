@@ -23,6 +23,14 @@ export interface LabResultRow {
   analyte_custom_name: string | null
   value: number | null
   unit: string | null
+  /**
+   * id строки lab_results. NULL у сдачи «только бланк» — у неё показателей
+   * нет вовсе, редактировать нечего, и карандаш в истории для неё скрыт.
+   * Правка такой сдачи целиком появится в подшаге 5.
+   */
+  result_id: string | null
+  /** Сдача, к которой принадлежит запись. Общие поля ниже — её. */
+  session_id: string
   measured_at: string | null // 'yyyy-MM-dd' или null (дата не указана)
   /**
    * E2E-заметка как есть: base64(iv‖ct) из encryptText. Сервер её прочитать
@@ -35,6 +43,13 @@ export interface LabResultRow {
   /** Производное от note_ciphertext — для бейджа, чтобы не тянуть строку. */
   has_note: boolean
   has_photo: boolean
+  /**
+   * Путь и IV шифроблоба бланка. Как и заметка, едут на клиент шифротекстом:
+   * расшифровать может только браузер с DEK в памяти. Нужны, чтобы показать
+   * фото прямо в истории — сам показыватель приезжает следующим заходом.
+   */
+  blank_photo_path: string | null
+  blank_photo_iv: string | null
   created_at: string
 }
 
@@ -52,40 +67,103 @@ export async function listLabResults(): Promise<LabResults> {
   } = await supabase.auth.getUser()
   if (!user) return { numeric: [], photoOnly: [] }
 
-  // RLS отбивает чужие ряды. Сортировка по дате: новые сверху, записи без
-  // даты (nullsFirst:false) — в конце, тай-брейк по времени создания.
+  // ГЛАВНАЯ СУЩНОСТЬ ЗАПРОСА — СДАЧА, показатели эмбедятся. Обратный порядок
+  // (строки главные, сдача эмбедом) не годится по двум причинам: сортировать
+  // пришлось бы по колонке вложенной таблицы, и, главное, сдача БЕЗ строк —
+  // то есть «только бланк» — в такой запрос не попала бы никогда.
+  //
+  // RLS применяется к обеим таблицам автоматически (lab_sessions_select_own +
+  // lab_results_select_own). Новых прав не требуется.
+  //
+  // Сортировка по дате: новые сверху, сдачи без даты (nullsFirst:false) — в
+  // конце, тай-брейк по времени создания.
   const { data, error } = await supabase
-    .from('lab_results')
+    .from('lab_sessions')
+    // Одним строковым литералом, без конкатенации: supabase-js выводит форму
+    // ответа из ЛИТЕРАЛА select, а 'a' + 'b' даёт обычный string, и вывод
+    // ломается (тот же приём, что в lib/tracker/today.ts).
     .select(
-      'id, analyte, analyte_custom_name, value, unit, measured_at, note_ciphertext, blank_photo_path, created_at',
+      `
+      id, measured_at, note_ciphertext, blank_photo_path, blank_photo_iv, created_at,
+      results:lab_results(id, analyte, analyte_custom_name, value, unit, created_at)
+    `,
     )
     .order('measured_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false })
 
   if (error || !data) return { numeric: [], photoOnly: [] }
 
-  const rows: LabResultRow[] = data.map((r) => ({
-    id: r.id as string,
-    analyte: (r.analyte as string | null) ?? null,
-    analyte_custom_name: (r.analyte_custom_name as string | null) ?? null,
-    value: r.value == null ? null : Number(r.value),
-    unit: (r.unit as string | null) ?? null,
-    measured_at: (r.measured_at as string | null) ?? null,
-    // Шифротекст заметки отдаём как есть — расшифровать его может только
-    // клиент с DEK в памяти. Раньше здесь оставался лишь флаг, и заметку
-    // физически нечем было открыть: запись работала, чтения не было.
-    note_ciphertext: (r.note_ciphertext as string | null) ?? null,
-    has_note: r.note_ciphertext != null,
-    // Фото по-прежнему только флагом: его блоб лежит в Storage и тянется
-    // отдельным запросом, а не этим списком.
-    has_photo: r.blank_photo_path != null,
-    created_at: r.created_at as string,
-  }))
+  const numeric: LabResultRow[] = []
+  const photoOnly: LabResultRow[] = []
 
-  return {
-    numeric: rows.filter((r) => r.value != null),
-    photoOnly: rows.filter((r) => r.value == null),
+  for (const s of data) {
+    // Общие поля сдачи — они же попадут в каждую её запись.
+    const shared = {
+      session_id: s.id as string,
+      measured_at: (s.measured_at as string | null) ?? null,
+      // Шифротекст заметки отдаём как есть — расшифровать его может только
+      // клиент с DEK в памяти.
+      note_ciphertext: (s.note_ciphertext as string | null) ?? null,
+      has_note: s.note_ciphertext != null,
+      has_photo: s.blank_photo_path != null,
+      blank_photo_path: (s.blank_photo_path as string | null) ?? null,
+      blank_photo_iv: (s.blank_photo_iv as string | null) ?? null,
+    }
+
+    // Порядок показателей внутри сдачи задаём здесь, а не через referencedTable:
+    // история всё равно перегруппировывает всё по показателю, так что на экран
+    // он не попадает, а ошибка в имени вложенной таблицы уронила бы весь
+    // запрос — то есть историю целиком. Сортировка в коде безопаснее.
+    const results = [...((s.results ?? []) as SessionResult[])].sort((a, b) =>
+      String(a.created_at).localeCompare(String(b.created_at)),
+    )
+
+    if (results.length === 0) {
+      // Сдача «только бланк»: показателей нет вовсе. Синтезируем одну запись,
+      // чтобы история показала её в секции photoOnly. result_id = null —
+      // редактировать нечего, карандаш для неё скрыт.
+      photoOnly.push({
+        id: s.id as string,
+        result_id: null,
+        analyte: null,
+        analyte_custom_name: null,
+        value: null,
+        unit: null,
+        ...shared,
+        created_at: s.created_at as string,
+      })
+      continue
+    }
+
+    for (const r of results) {
+      const row: LabResultRow = {
+        id: r.id,
+        result_id: r.id,
+        analyte: r.analyte ?? null,
+        analyte_custom_name: r.analyte_custom_name ?? null,
+        value: r.value == null ? null : Number(r.value),
+        unit: r.unit ?? null,
+        ...shared,
+        created_at: r.created_at,
+      }
+      // Строки без числа — это старые полупустышки «только фото», созданные
+      // до подшага 4. Уживаются с новыми сдачами-без-строк в той же секции.
+      if (row.value != null) numeric.push(row)
+      else photoOnly.push(row)
+    }
   }
+
+  return { numeric, photoOnly }
+}
+
+/** Форма вложенной строки в ответе запроса выше. */
+interface SessionResult {
+  id: string
+  analyte: string | null
+  analyte_custom_name: string | null
+  value: number | string | null
+  unit: string | null
+  created_at: string
 }
 
 /**
@@ -123,15 +201,36 @@ export async function getLabResultForEdit(
   } = await supabase.auth.getUser()
   if (!user) return null
 
+  // Здесь эмбед сдачи уместен, в отличие от списка: выборка одной строки по
+  // id, сортировки нет, а сдачи без строк по определению не встречаются —
+  // мы ищем именно строку.
   const { data, error } = await supabase
     .from('lab_results')
     .select(
-      'id, analyte, analyte_custom_name, value, unit, measured_at, note_ciphertext, blank_photo_path, blank_photo_iv, created_at',
+      `
+      id, analyte, analyte_custom_name, value, unit, session_id, created_at,
+      session:lab_sessions(measured_at, note_ciphertext, blank_photo_path, blank_photo_iv)
+    `,
     )
     .eq('id', id)
     .maybeSingle()
 
   if (error || !data) return null
+
+  // Общие поля берём со сдачи. Двойная запись пока жива, так что старые
+  // колонки строки содержат то же самое — но читаем именно сдачу, чтобы не
+  // осталось читателя на старом источнике.
+  // supabase-js без сгенерённых Database-типов не знает, что связь «к одному»,
+  // и типизирует вложенный ресурс массивом. На рантайме PostgREST отдаёт
+  // объект. Разворачиваем оба варианта — тот же приём, что для medication в
+  // lib/tracker/today.ts.
+  const rawSession = data.session as unknown
+  const session = (Array.isArray(rawSession) ? (rawSession[0] ?? null) : rawSession) as {
+    measured_at: string | null
+    note_ciphertext: string | null
+    blank_photo_path: string | null
+    blank_photo_iv: string | null
+  } | null
 
   return {
     id: data.id as string,
@@ -139,10 +238,10 @@ export async function getLabResultForEdit(
     analyte_custom_name: (data.analyte_custom_name as string | null) ?? null,
     value: data.value == null ? null : Number(data.value),
     unit: (data.unit as string | null) ?? null,
-    measured_at: (data.measured_at as string | null) ?? null,
-    note_ciphertext: (data.note_ciphertext as string | null) ?? null,
-    blank_photo_path: (data.blank_photo_path as string | null) ?? null,
-    blank_photo_iv: (data.blank_photo_iv as string | null) ?? null,
+    measured_at: session?.measured_at ?? null,
+    note_ciphertext: session?.note_ciphertext ?? null,
+    blank_photo_path: session?.blank_photo_path ?? null,
+    blank_photo_iv: session?.blank_photo_iv ?? null,
     created_at: data.created_at as string,
   }
 }

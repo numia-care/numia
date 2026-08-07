@@ -64,7 +64,9 @@ export async function LabsHistory({
                     >
                       {formatDate(row.measured_at, t('noDate'))}
                     </time>
-                    <EditLink id={row.id} label={t('editLink')} />
+                    {row.result_id && (
+                      <EditLink id={row.result_id} label={t('editLink')} />
+                    )}
                   </div>
                 </div>
 
@@ -98,7 +100,9 @@ export async function LabsHistory({
                     >
                       {formatDate(row.measured_at, t('noDate'))}
                     </time>
-                    <EditLink id={row.id} label={t('editLink')} />
+                    {row.result_id && (
+                      <EditLink id={row.result_id} label={t('editLink')} />
+                    )}
                   </div>
                 </div>
 
@@ -152,6 +156,10 @@ function groupTitle(row: LabResultRow): string {
 
 /**
  * Точка входа в редактирование — отдельная иконка, а НЕ ссылка на всю строку.
+ *
+ * Рендерится только когда у записи есть строка lab_results (result_id). У сдачи
+ * «только бланк» показателей нет вовсе — редактировать нечего, и ссылка вела бы
+ * на 404. Правка такой сдачи целиком появится в подшаге 5.
  *
  * Обернуть строку целиком нельзя: внутри неё живёт кнопка раскрытия заметки
  * (LabNote). Интерактивный элемент внутри ссылки — невалидная разметка, и тап

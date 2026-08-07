@@ -15,16 +15,6 @@ import { PinRequiredError } from '@/lib/path/entries'
 
 const BUCKET = 'path-media'
 
-export interface NewLabResult {
-  analyte?: string // опускается для записи «только фото»
-  analyteCustomName?: string // только для analyte='other'
-  value?: number // опускается для записи «только фото»
-  unit?: string
-  measuredAt?: string | null // null/undefined = дата не указана
-  note?: string // E2E
-  photo?: File // E2E (фото бланка)
-}
-
 /** Один показатель внутри сдачи. Числовой всегда: у «только фото» строк нет. */
 export interface NewLabSessionRow {
   analyte: string
@@ -81,15 +71,15 @@ export async function addLabSession(
   // колонки, — поэтому переезда путей не потребуется.
   const sessionId = crypto.randomUUID()
 
-  // ВРЕМЕННО: у сдачи «только фото» (rows пуст) всё равно создаём одну
-  // строку-полупустышку с NULL в analyte/value/unit — ровно как было до сдач.
-  // Иначе фото пропало бы из истории: читатели ходят в lab_results и сдачу
-  // без строк не видят вовсе. Уходит в ПОДШАГЕ 4, когда читатели
-  // переключатся на сдачу и «сдача с нулём строк» станет видимой честно.
-  const isPhotoOnly = input.rows.length === 0
-  const resultIds = (isPhotoOnly ? [null] : input.rows).map(() =>
-    crypto.randomUUID(),
-  )
+  // Сдача «только бланк» (rows пуст) теперь НЕ создаёт строк вовсе — это
+  // честная «сдача с нулём показателей». Раньше приходилось вставлять
+  // строку-полупустышку с NULL в analyte/value/unit, потому что читатели
+  // ходили в lab_results и сдачу без строк не видели. С подшага 4 главная
+  // сущность чтения — сама сдача, полупустышка больше не нужна.
+  //
+  // Старые полупустышки в базе остаются и продолжают показываться: маппер
+  // кладёт в photoOnly и их (value == null), и сдачи без строк.
+  const resultIds = input.rows.map(() => crypto.randomUUID())
 
   // E2E-заметка: IV упакован внутрь (encryptText). Шифруем ОДИН раз на сдачу,
   // одна и та же строка base64(iv‖ct) копируется во все колонки — это копия
@@ -150,90 +140,44 @@ export async function addLabSession(
   // (числовой со string/number и полупустышка с null) и не может свести их
   // к одному аргументу insert. В самой таблице эти колонки nullable —
   // гибкий ввод, миграция 20260723.
-  type LabResultInsert = typeof shared & {
-    id: string
-    analyte: string | null
-    analyte_custom_name: string | null
-    value: number | null
-    unit: string | null
-  }
+  const payload = input.rows.map((row, i) => ({
+    id: resultIds[i],
+    ...shared,
+    analyte: row.analyte,
+    // Кастомное имя осмысленно только для 'other' — так требует
+    // констрейнт analyte_custom_name_only_other.
+    analyte_custom_name:
+      row.analyte === 'other' ? row.analyteCustomName?.trim() || null : null,
+    value: row.value,
+    unit: row.unit,
+  }))
 
-  const payload: LabResultInsert[] = isPhotoOnly
-    ? [
-        {
-          id: resultIds[0],
-          ...shared,
-          analyte: null,
-          analyte_custom_name: null,
-          value: null,
-          unit: null,
-        },
-      ]
-    : input.rows.map((row, i) => ({
-        id: resultIds[i],
-        ...shared,
-        analyte: row.analyte,
-        // Кастомное имя осмысленно только для 'other' — так требует
-        // констрейнт analyte_custom_name_only_other.
-        analyte_custom_name:
-          row.analyte === 'other' ? row.analyteCustomName?.trim() || null : null,
-        value: row.value,
-        unit: row.unit,
-      }))
-
-  // ВСЕ N рядов ОДНИМ вызовом. supabase-js шлёт массив одним POST, PostgREST
-  // превращает его в один INSERT с несколькими VALUES — то есть атомарно на
-  // уровне Postgres: либо все N, либо ни одного. Цикл дал бы частичную
-  // вставку и потребовал бы отката уже созданных строк.
-  const { error: insErr } = await supabase.from('lab_results').insert(payload)
-  if (insErr) {
-    // Третья ступень отката: сносим и сдачу, и блоб — иначе останется пустая
-    // сдача, ссылающаяся на файл, о котором никто не знает.
-    await supabase.from('lab_sessions').delete().eq('id', sessionId)
-    if (blankPhotoPath) await supabase.storage.from(BUCKET).remove([blankPhotoPath])
-    throw new Error(`lab_insert_failed: ${insErr.message}`)
+  // У сдачи «только бланк» показателей нет — вставлять нечего, сдача уже
+  // создана выше и этого достаточно.
+  if (payload.length > 0) {
+    // ВСЕ N рядов ОДНИМ вызовом. supabase-js шлёт массив одним POST, PostgREST
+    // превращает его в один INSERT с несколькими VALUES — то есть атомарно на
+    // уровне Postgres: либо все N, либо ни одного. Цикл дал бы частичную
+    // вставку и потребовал бы отката уже созданных строк.
+    const { error: insErr } = await supabase.from('lab_results').insert(payload)
+    if (insErr) {
+      // Третья ступень отката: сносим и сдачу, и блоб — иначе останется пустая
+      // сдача, ссылающаяся на файл, о котором никто не знает.
+      await supabase.from('lab_sessions').delete().eq('id', sessionId)
+      if (blankPhotoPath) await supabase.storage.from(BUCKET).remove([blankPhotoPath])
+      throw new Error(`lab_insert_failed: ${insErr.message}`)
+    }
   }
 
   return { sessionId, resultIds }
 }
 
-/**
- * Сохранить ОДИН показатель — тонкая обёртка над addLabSession.
- *
- * СЕЙЧАС НЕ ИСПОЛЬЗУЕТСЯ: форма перешла на addLabSession, когда научилась
- * вносить несколько показателей за одну дату. Оставлена как удобный вход для
- * одиночной записи — если окажется не нужна, снести можно в уборке подшага 6.
- *
- * Гибкий ввод сохранён — запись
- * может быть «числовой» (value+unit+analyte) ИЛИ «только фото бланка» (числа
- * не заданы, rows уходит пустым).
- *
- * Вся логика — в addLabSession, здесь только раскладка входа. Приведения `as`
- * стираются при компиляции: если поле придёт undefined, PostgREST его опустит
- * и в колонку ляжет NULL — как и раньше при `input.analyte ?? null`. Поведение
- * при неполном вводе не изменилось.
- */
-export async function addLabResult(input: NewLabResult): Promise<string> {
-  const hasValue = typeof input.value === 'number' && isFinite(input.value)
-
-  const { resultIds } = await addLabSession({
-    measuredAt: input.measuredAt,
-    note: input.note,
-    photo: input.photo,
-    rows: hasValue
-      ? [
-          {
-            analyte: input.analyte as string,
-            analyteCustomName: input.analyteCustomName,
-            value: input.value as number,
-            unit: input.unit as string,
-          },
-        ]
-      : [],
-  })
-
-  return resultIds[0]
-}
+// addLabResult (обёртка «одна запись») и её тип NewLabResult удалены здесь же,
+// в подшаге 4: форма перешла на addLabSession ещё в 3b, вызовов не осталось
+// (проверено грепом по репозиторию), а после снятия строки-полупустышки её
+// контракт всё равно ломался — для «только фото» она вернула бы undefined при
+// заявленном Promise<string>. Держать мёртвую функцию со сломанным контрактом
+// незачем. Понадобится одиночная вставка — это addLabSession с одной строкой.
 
 export interface UpdateLabResult {
   analyte?: string // опускается для записи «только фото»
