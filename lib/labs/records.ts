@@ -32,6 +32,15 @@ export interface NewLabResult {
  * отклоняем. Если есть заметка или фото — нужен DEK в памяти (иначе
  * PinRequiredError, форма попросит PIN). Фото сжимается, шифруется и грузится
  * в path-media ДО вставки ряда; при сбое вставки осиротевший блоб удаляем.
+ *
+ * СДАЧА (lab_sessions). Создаётся здесь же, перед строкой: дата, заметка и
+ * фото бланка логически принадлежат сдаче, а не отдельному показателю.
+ * Пока идёт миграция параллельными колонками, те же значения ДУБЛИРУЮТСЯ в
+ * старые колонки lab_results — читатели ещё берут их оттуда. Дубль уйдёт в
+ * подшаге 6 вместе с колонками.
+ *
+ * Форма пока отдаёт один показатель за раз, поэтому связь один-к-одному.
+ * Несколько показателей на одну сдачу появятся в подшаге 3.
  */
 export async function addLabResult(input: NewLabResult): Promise<string> {
   const supabase = createClient()
@@ -48,10 +57,18 @@ export async function addLabResult(input: NewLabResult): Promise<string> {
   const dek = needsDek ? getCryptoKey() : null
   if (needsDek && !dek) throw new PinRequiredError()
 
-  // id генерим заранее — он же имя файла фото в Storage ({user_id}/{id}).
-  const id = crypto.randomUUID()
+  // ДВА идентификатора вместо одного: сдача и строка — разные сущности.
+  // Имя файла в Storage строится из id СДАЧИ: бланк один на сдачу, и когда
+  // у сдачи появится несколько показателей (подшаг 3), путь из id строки был
+  // бы произволом «а почему именно этой». Ничего в коде путь не выводит
+  // повторно — все читатели берут его из колонки, — поэтому переезда путей
+  // ни сейчас, ни позже не потребуется.
+  const sessionId = crypto.randomUUID()
+  const resultId = crypto.randomUUID()
 
-  // E2E-заметка: IV упакован внутрь (encryptText).
+  // E2E-заметка: IV упакован внутрь (encryptText). Шифруем ОДИН раз, одна и
+  // та же строка base64(iv‖ct) ляжет в обе колонки — это копия шифротекста,
+  // а не второе шифрование, повтора пары (ключ, IV) не возникает.
   const noteCiphertext = dek && note ? await encryptText(dek, note) : null
 
   // E2E-фото бланка: сжать → зашифровать (IV отдельно) → загрузить шифроблоб.
@@ -61,7 +78,7 @@ export async function addLabResult(input: NewLabResult): Promise<string> {
     const compressed = await compressImage(input.photo)
     const bytes = new Uint8Array(await compressed.arrayBuffer())
     const { iv, ciphertext } = await encryptBytes(dek, bytes)
-    const path = `${user.id}/${id}`
+    const path = `${user.id}/${sessionId}`
     const { error: upErr } = await supabase.storage
       .from(BUCKET)
       .upload(path, new Blob([ciphertext], { type: 'application/octet-stream' }), {
@@ -73,9 +90,28 @@ export async function addLabResult(input: NewLabResult): Promise<string> {
     blankPhotoIv = bytesToBase64(iv)
   }
 
-  const { error: insErr } = await supabase.from('lab_results').insert({
-    id,
+  // ── Сдача, потом строка ─────────────────────────────────────────────────
+  // Порядок задан внешним ключом: строка ссылается на сдачу, значит сдача
+  // обязана существовать раньше. Транзакции нет — PostgREST шлёт по стейтменту
+  // на HTTP-запрос, BEGIN/COMMIT через несколько вызовов недоступны. Поэтому
+  // откат оркеструем сами, как уже сделано для блоба.
+  const { error: sessErr } = await supabase.from('lab_sessions').insert({
+    id: sessionId,
     user_id: user.id,
+    measured_at: input.measuredAt ?? null,
+    note_ciphertext: noteCiphertext,
+    blank_photo_path: blankPhotoPath,
+    blank_photo_iv: blankPhotoIv,
+  })
+  if (sessErr) {
+    if (blankPhotoPath) await supabase.storage.from(BUCKET).remove([blankPhotoPath])
+    throw new Error(`lab_session_insert_failed: ${sessErr.message}`)
+  }
+
+  const { error: insErr } = await supabase.from('lab_results').insert({
+    id: resultId,
+    user_id: user.id,
+    session_id: sessionId,
     // Числовые поля — только у числового ряда; у «только фото» они NULL.
     analyte: hasValue ? (input.analyte ?? null) : null,
     analyte_custom_name:
@@ -84,19 +120,23 @@ export async function addLabResult(input: NewLabResult): Promise<string> {
         : null,
     value: hasValue ? input.value : null,
     unit: hasValue ? (input.unit ?? null) : null,
-    // Дата опциональна: не помнит — NULL.
+    // ДУБЛЬ в старые колонки — миграция параллельными колонками. Читатели
+    // ещё не переведены на сдачи и берут дату/заметку/фото отсюда. Дубль
+    // уйдёт в подшаге 6 вместе с самими колонками.
     measured_at: input.measuredAt ?? null,
     note_ciphertext: noteCiphertext,
     blank_photo_path: blankPhotoPath,
     blank_photo_iv: blankPhotoIv,
   })
   if (insErr) {
-    // Убираем осиротевший блоб, если ряд не записался.
+    // Третья ступень отката: сносим и сдачу, и блоб — иначе останется пустая
+    // сдача, ссылающаяся на файл, о котором никто не знает.
+    await supabase.from('lab_sessions').delete().eq('id', sessionId)
     if (blankPhotoPath) await supabase.storage.from(BUCKET).remove([blankPhotoPath])
     throw new Error(`lab_insert_failed: ${insErr.message}`)
   }
 
-  return id
+  return resultId
 }
 
 export interface UpdateLabResult {
@@ -147,8 +187,14 @@ export interface UpdateLabResult {
  * Вариант «снести, потом залить» хуже тем же, чем в deleteEntry: между
  * операциями ряд указывает на пустоту.
  *
- * Чужой ряд не даст тронуть RLS (lab_results_update_own), чужой блоб —
- * storage-политики path_media_*. Новых прав не нужно.
+ * ДВОЙНАЯ ЗАПИСЬ. Дата, заметка и фото пишутся И в строку, И в сдачу. Иначе
+ * копии разъедутся молча: сегодня читают строку, а в подшаге 6 источником
+ * правды станет сдача — и правка оказалась бы потеряна. Порядок и обработка
+ * частичного сбоя — в комментарии у самого апдейта сдачи ниже.
+ *
+ * Чужой ряд не даст тронуть RLS (lab_results_update_own), чужую сдачу —
+ * lab_sessions_update_own, чужой блоб — storage-политики path_media_*.
+ * Новых прав не нужно.
  */
 export async function updateLabResult(
   id: string,
@@ -168,6 +214,20 @@ export async function updateLabResult(
   const noteCiphertext = dek && note ? await encryptText(dek, note) : null
   const hasValue = typeof input.value === 'number' && isFinite(input.value)
 
+  // Сдача, к которой принадлежит строка. Достаём запросом, а не параметром:
+  // передать её сверху значило бы тронуть getLabResultForEdit, страницу
+  // правки и LabFormValues, а этот подшаг их не касается.
+  //
+  // null тут после бэкфилла быть не должно, но до SET NOT NULL формально
+  // возможен — тогда пишем только в старые колонки, как раньше. Страховка
+  // уйдёт вместе с шагом 5 миграции.
+  const { data: row } = await supabase
+    .from('lab_results')
+    .select('session_id')
+    .eq('id', id)
+    .maybeSingle()
+  const sessionId = (row?.session_id as string | null) ?? null
+
   // Патч колонок фото собираем отдельно: пустой объект = «не трогать».
   let photoPatch: {
     blank_photo_path?: string | null
@@ -179,8 +239,9 @@ export async function updateLabResult(
     const compressed = await compressImage(input.photo)
     const bytes = new Uint8Array(await compressed.arrayBuffer())
     const { iv, ciphertext } = await encryptBytes(dek, bytes)
-    // Новый путь на каждую замену — обоснование в шапке функции.
-    newPhotoPath = `${user.id}/${id}-${crypto.randomUUID()}`
+    // Новый путь на каждую замену — обоснование в шапке функции. Базой берём
+    // id сдачи, а не строки: бланк принадлежит сдаче (см. addLabResult).
+    newPhotoPath = `${user.id}/${sessionId ?? id}-${crypto.randomUUID()}`
     const { error: upErr } = await supabase.storage
       .from(BUCKET)
       .upload(
@@ -219,8 +280,38 @@ export async function updateLabResult(
     throw new Error(`lab_update_failed: ${error.message}`)
   }
 
-  // Ряд уже не ссылается на старый блоб — сносим его best-effort. Не вышло —
-  // остаётся осиротевший шифроблоб: безвреден, прочитать его нечем.
+  // ── Вторая копия: та же дата/заметка/фото в сдачу ───────────────────────
+  // Порядок «строка, потом сдача» выбран сознательно. Транзакции нет, значит
+  // частичный результат возможен, и первой пишем ту копию, которую сейчас
+  // РЕАЛЬНО читают: если ляжет только она, юзер увидит, что правка применилась.
+  // Обратный порядок дал бы «сохранила, а ничего не изменилось» плюс скрытое
+  // расхождение. При сбое второго апдейта бросаем — повтор перезапишет обе
+  // копии, то есть частичное состояние самоизлечивается.
+  //
+  // Без этого копии разъедутся молча: сегодня читают строку, а в подшаге 6
+  // источником правды станет сдача — и правка оказалась бы потеряна.
+  if (sessionId) {
+    const { error: sessErr } = await supabase
+      .from('lab_sessions')
+      .update({
+        measured_at: input.measuredAt ?? null,
+        note_ciphertext: noteCiphertext,
+        ...photoPatch,
+      })
+      .eq('id', sessionId)
+
+    if (sessErr) {
+      if (newPhotoPath) await supabase.storage.from(BUCKET).remove([newPhotoPath])
+      throw new Error(`lab_session_update_failed: ${sessErr.message}`)
+    }
+  }
+
+  // Старый блоб сносим ТОЛЬКО когда обе копии переписаны. Раньше это стояло
+  // сразу после апдейта строки — тогда сбой апдейта сдачи оставил бы её
+  // указывающей на уже удалённый файл.
+  //
+  // best-effort: не вышло — остаётся осиротевший шифроблоб, безвреден,
+  // прочитать его нечем.
   const replacedOrRemoved = Boolean(newPhotoPath) || Boolean(input.removePhoto)
   if (replacedOrRemoved && input.currentPhotoPath) {
     await supabase.storage.from(BUCKET).remove([input.currentPhotoPath])
@@ -256,8 +347,31 @@ export async function deleteLabResult(row: {
 }): Promise<void> {
   const supabase = createClient()
 
+  // Сдачу достаём ДО удаления строки — после неё связь узнать негде.
+  // Запросом, а не параметром: сигнатуру не меняем, чтобы не тянуть правки
+  // в LabDeleteButton, страницу правки и getLabResultForEdit.
+  const { data: existing } = await supabase
+    .from('lab_results')
+    .select('session_id')
+    .eq('id', row.id)
+    .maybeSingle()
+  const sessionId = (existing?.session_id as string | null) ?? null
+
   const { error } = await supabase.from('lab_results').delete().eq('id', row.id)
   if (error) throw new Error(`lab_delete_failed: ${error.message}`)
+
+  // На этом подшаге связь строго один-к-одному: одна строка — одна сдача.
+  // Не снести её значило бы оставить пустую сдачу с blank_photo_path на файл,
+  // который мы сейчас удалим, — и в подшаге 6 она всплыла бы как «сдача
+  // только с фото» с битым блобом.
+  //
+  // Настоящая логика (посчитать оставшиеся показатели сдачи и удалять её
+  // только когда их не осталось) появится в подшаге 6, когда сдача сможет
+  // держать несколько строк.
+  if (sessionId) {
+    // best-effort: строка уже удалена, ронять действие из-за сдачи незачем.
+    await supabase.from('lab_sessions').delete().eq('id', sessionId)
+  }
 
   if (row.blank_photo_path) {
     // best-effort: ошибку не пробрасываем, ряд уже удалён.
