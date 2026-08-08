@@ -54,17 +54,17 @@ export default async function EditLabSessionPage({
         initialValues={toFormValues(session)}
       />
 
-      {/* Удаление пока сносит ОДИН показатель — переключение на удаление сдачи
-          целиком идёт следующим заходом (5b-2). У сдачи без показателей
-          удалять по строке нечего, поэтому кнопку там не показываем. */}
-      {session.rows.length > 0 && (
-        <div className="mt-10 border-t border-border pt-6">
-          <LabDeleteButton
-            id={session.rows[0].id}
-            blankPhotoPath={session.blank_photo_path}
-          />
-        </div>
-      )}
+      {/* Удаление сдачи целиком — отделено чертой от формы: это не часть
+          сохранения, а отдельное необратимое действие. Не путать с «×» у
+          показателя выше: там уходит одна строка, дата и бланк остаются
+          соседям. Кнопка есть у любой сдачи, включая «только бланк». */}
+      <div className="mt-10 border-t border-border pt-6">
+        <LabDeleteButton
+          sessionId={session.id}
+          rowCount={session.rows.length}
+          blankPhotoPath={session.blank_photo_path}
+        />
+      </div>
     </div>
   )
 }

@@ -16,22 +16,31 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { deleteLabResult } from '@/lib/labs/records'
+import { deleteLabSession } from '@/lib/labs/records'
 
 /**
- * Удаление показателя с подтверждением. По образцу MedicationDeleteButton,
- * но с важной разницей в копи: у препаратов удаление мягкое и обратимое, а
- * здесь ряд уходит насовсем вместе с заметкой и фото бланка. Это сказано в
- * тексте прямо — но без запугивания: предупреждение, а не окрик.
+ * Удаление СДАЧИ целиком, с подтверждением.
  *
- * После удаления уходим на /labs: экран редактирования удалённой записи
+ * Не путать с «убрать показатель» — это «×» в форме выше: там уходит одна
+ * строка, а дата и бланк остаются соседям. Здесь уходит вся сдача: все её
+ * показатели и бланк разом.
+ *
+ * По образцу MedicationDeleteButton, но копи другая по смыслу: у препаратов
+ * удаление мягкое и обратимое, здесь — насовсем. Сказано прямо, но без
+ * запугивания: предупреждение, а не окрик. Текст зависит от того, что
+ * реально уйдёт — показатели с бланком, только показатели или только бланк.
+ *
+ * После удаления уходим на «Анализы»: экран правки удалённой сдачи
  * показывать нечего. router.refresh() дочищает серверный кеш списка.
  */
 export function LabDeleteButton({
-  id,
+  sessionId,
+  rowCount,
   blankPhotoPath,
 }: {
-  id: string
+  sessionId: string
+  /** Сколько показателей уйдёт вместе со сдачей. 0 — сдача «только бланк». */
+  rowCount: number
   blankPhotoPath: string | null
 }) {
   const t = useTranslations('labs.delete')
@@ -40,12 +49,23 @@ export function LabDeleteButton({
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
+  const hasPhoto = blankPhotoPath != null
+
+  // Три состояния вместо двух: у сдачи может не быть показателей (только
+  // бланк) — тогда говорить про них нечего.
+  const description =
+    rowCount === 0
+      ? t('descriptionPhotoOnly')
+      : hasPhoto
+        ? t('descriptionWithPhoto', { count: rowCount })
+        : t('description', { count: rowCount })
+
   const onConfirm = () => {
     startTransition(async () => {
       try {
-        await deleteLabResult({ id, blank_photo_path: blankPhotoPath })
+        await deleteLabSession(sessionId, blankPhotoPath)
       } catch {
-        // Содержимое записи в тост не тащим — только факт неудачи.
+        // Содержимое сдачи в тост не тащим — только факт неудачи.
         toast.error(t('failed'))
         return
       }
@@ -76,9 +96,7 @@ export function LabDeleteButton({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{t('title')}</DialogTitle>
-          <DialogDescription>
-            {blankPhotoPath ? t('descriptionWithPhoto') : t('description')}
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button
