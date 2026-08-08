@@ -240,58 +240,24 @@ create policy "lab_results_update_own"
 
 
 -- ============================================================================
--- ШАГ 5 — НЕ ЗАПУСКАТЬ СЕЙЧАС. Подшаг 2, после правки lib/labs/records.ts
+-- ШАГИ 5 и 6 — ЗДЕСЬ ИХ БОЛЬШЕ НЕТ, ПЕРЕЕХАЛИ В ОТДЕЛЬНЫЕ ФАЙЛЫ
 -- ============================================================================
--- Сделать session_id обязательным можно ТОЛЬКО когда код начнёт его писать.
--- Сегодня addLabResult вставляет строку без session_id (lib/labs/records.ts),
--- и NOT NULL уронил бы добавление анализа у всех тестеров в ту же секунду.
+-- Пока код писал строки без session_id, оба шага были неисполнимы, и лежали
+-- тут закомментированными. Код переведён на сдачи (подшаги 2–6), и они
+-- выделены в свои файлы — чтобы каждый катился отдельно, со своей шапкой,
+-- своими проверками до/после и явной пометкой обратим/необратим:
 --
--- Поэтому шаг 4 из плана («session_id NOT NULL») переехал сюда и выполняется
--- ВМЕСТЕ с подшагом 2, а не сейчас.
+--   20260808120000_lab_results_drop_placeholder_rows.sql   (A) снос
+--       строк-полупустышек «только фото» — они были нужны, пока читатели
+--       ходили в lab_results, теперь мусор. Обязателен перед C.
 --
--- alter table public.lab_results alter column session_id set not null;
+--   20260808130000_lab_results_session_id_not_null.sql     (B) бывший ШАГ 5:
+--       session_id NOT NULL + строгие политики без ветки «session_id is null».
+--       ОБРАТИМ, откат в конце того файла.
 --
--- drop policy if exists "lab_results_insert_own" on public.lab_results;
--- create policy "lab_results_insert_own"
---   on public.lab_results for insert
---   with check (
---     user_id = auth.uid()
---     and exists (
---       select 1 from public.lab_sessions s
---       where s.id = session_id and s.user_id = auth.uid()
---     )
---   );
+--   20260808140000_lab_results_drop_legacy_columns.sql     (C) бывший ШАГ 6:
+--       снос measured_at / note_ciphertext / blank_photo_path / blank_photo_iv
+--       и трёх устаревших CHECK'ов. ⚠️ НЕОБРАТИМО, отката нет.
 --
--- drop policy if exists "lab_results_update_own" on public.lab_results;
--- create policy "lab_results_update_own"
---   on public.lab_results for update
---   using (user_id = auth.uid())
---   with check (
---     user_id = auth.uid()
---     and exists (
---       select 1 from public.lab_sessions s
---       where s.id = session_id and s.user_id = auth.uid()
---     )
---   );
---
--- ============================================================================
--- ШАГ 6 — НЕ ЗАПУСКАТЬ. Уборка, самый последний подшаг
--- ============================================================================
--- Снос переехавших колонок. Необратимо. Только когда ВСЕ читатели переведены
--- на сдачи: listLabResults, getLabResultForEdit, labs-history, LabNote,
--- бейдж фото, форма, редактирование, удаление.
---
--- alter table public.lab_results
---   drop constraint lab_numeric_or_photo,
---   drop constraint lab_numeric_well_formed,
---   drop constraint blank_photo_path_iv_together,
---   drop column measured_at,
---   drop column note_ciphertext,
---   drop column blank_photo_path,
---   drop column blank_photo_iv;
---
--- alter table public.lab_results
---   alter column analyte set not null,
---   alter column value set not null,
---   alter column unit set not null;
+-- Порядок строгий: A → проверка → B → проверка → C.
 -- ============================================================================
