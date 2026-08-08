@@ -123,23 +123,16 @@ export async function addLabSession(
     throw new Error(`lab_session_insert_failed: ${sessErr.message}`)
   }
 
-  // Общая часть каждого ряда: ссылка на сдачу + ДУБЛЬ её полей в старые
-  // колонки. Дубль нужен, пока читатели не переведены на сдачи (подшаг 4):
-  // без него показатели 2…N остались бы без даты и без бейджа фото. Фото при
-  // этом не дублируется — блоб один, копируются только путь и IV.
+  // Общая часть каждого ряда — только ссылки. Дата, заметка и фото живут на
+  // сдаче и в строки БОЛЬШЕ НЕ ДУБЛИРУЮТСЯ: двойная запись была нужна, пока
+  // читатели брали общие поля отсюда, а с подшага 4 они читают сдачу.
+  // Сами колонки в lab_results ещё существуют — снесёт их миграция подшага 6,
+  // но писать в них уже незачем.
   const shared = {
     user_id: user.id,
     session_id: sessionId,
-    measured_at: input.measuredAt ?? null,
-    note_ciphertext: noteCiphertext,
-    blank_photo_path: blankPhotoPath,
-    blank_photo_iv: blankPhotoIv,
   }
 
-  // Тип объявлен явно: без него TS выводит объединение двух форм ряда
-  // (числовой со string/number и полупустышка с null) и не может свести их
-  // к одному аргументу insert. В самой таблице эти колонки nullable —
-  // гибкий ввод, миграция 20260723.
   const payload = input.rows.map((row, i) => ({
     id: resultIds[i],
     ...shared,
@@ -241,13 +234,12 @@ export async function updateLabSession(
 
   const { data: current } = await supabase
     .from('lab_sessions')
-    .select('blank_photo_path, blank_photo_iv')
+    .select('blank_photo_path')
     .eq('id', sessionId)
     .maybeSingle()
   const currentPhotoPath = (current?.blank_photo_path as string | null) ?? null
-  const currentPhotoIv = (current?.blank_photo_iv as string | null) ?? null
 
-  // Каким бланк станет после правки — нужно и для гарда, и для дубля.
+  // Каким бланк станет после правки — нужно для гарда empty_record.
   const willHavePhoto =
     Boolean(input.photo) || (!input.removePhoto && currentPhotoPath != null)
 
@@ -269,10 +261,6 @@ export async function updateLabSession(
     blank_photo_iv?: string | null
   } = {}
   let newPhotoPath: string | null = null
-  // Эффективные путь и IV — то, что окажется у сдачи после правки. Ими
-  // заполняется дубль в строках, включая только что добавленные.
-  let effectivePath = currentPhotoPath
-  let effectiveIv = currentPhotoIv
 
   if (dek && input.photo) {
     const compressed = await compressImage(input.photo)
@@ -289,15 +277,14 @@ export async function updateLabSession(
         { contentType: 'application/octet-stream', upsert: false },
       )
     if (upErr) throw new Error(`blank_photo_upload_failed: ${upErr.message}`)
-    effectiveIv = bytesToBase64(iv)
-    effectivePath = newPhotoPath
-    photoPatch = { blank_photo_path: newPhotoPath, blank_photo_iv: effectiveIv }
+    photoPatch = {
+      blank_photo_path: newPhotoPath,
+      blank_photo_iv: bytesToBase64(iv),
+    }
   } else if (input.removePhoto) {
     // Оба поля обнуляем ВМЕСТЕ: констрейнт lab_sessions_photo_path_iv_together
     // требует, чтобы они были NULL только парой.
     photoPatch = { blank_photo_path: null, blank_photo_iv: null }
-    effectivePath = null
-    effectiveIv = null
   }
 
   // ── 1. Сдача ────────────────────────────────────────────────────────────
@@ -329,11 +316,9 @@ export async function updateLabSession(
         row.analyte === 'other' ? row.analyteCustomName?.trim() || null : null,
       value: row.value,
       unit: row.unit,
-      // ДУБЛЬ общих полей — двойная запись до подшага 6.
-      measured_at: input.measuredAt ?? null,
-      note_ciphertext: noteCiphertext,
-      blank_photo_path: effectivePath,
-      blank_photo_iv: effectiveIv,
+      // Общие поля в строки БОЛЬШЕ НЕ ДУБЛИРУЮТСЯ: они живут на сдаче, и с
+      // подшага 4 читатели берут их оттуда. Колонки в lab_results ещё есть,
+      // но писать в них незачем — снесёт миграция подшага 6.
     }
   })
 
