@@ -6,6 +6,7 @@ import Link from 'next/link'
 
 import { LabChart } from '@/components/labs/lab-chart'
 import { LabNote } from '@/components/labs/lab-note'
+import { LabPhoto } from '@/components/labs/lab-photo'
 import { ANALYTES, getAnalyte, unitLabel } from '@/lib/labs/catalog'
 import type { LabResultRow } from '@/lib/labs/queries'
 
@@ -49,13 +50,6 @@ export async function LabsHistory({
                     <span className="text-sm text-foreground/60">
                       {displayUnit(row)}
                     </span>
-                    {/* Фото по-прежнему просто бейджем: его блоб лежит в
-                        Storage, открытие — отдельная задача. */}
-                    {row.has_photo && (
-                      <span className="text-xs text-foreground/40">
-                        {t('photoBadge')}
-                      </span>
-                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <time
@@ -70,7 +64,12 @@ export async function LabsHistory({
                   </div>
                 </div>
 
+                {/* Заметка и бланк — раскрывающиеся, под строкой: развёрнутому
+                    содержимому нужна ширина карточки. Оба — самостоятельные
+                    кнопки-соседи, вложенной интерактивности нет (строку целиком
+                    в ссылку мы намеренно не оборачиваем). */}
                 <LabNote ciphertext={row.note_ciphertext} />
+                <LabPhoto path={row.blank_photo_path} iv={row.blank_photo_iv} />
               </div>
             ))}
           </div>
@@ -107,6 +106,7 @@ export async function LabsHistory({
                 </div>
 
                 <LabNote ciphertext={row.note_ciphertext} />
+                <LabPhoto path={row.blank_photo_path} iv={row.blank_photo_iv} />
               </div>
             ))}
           </div>
