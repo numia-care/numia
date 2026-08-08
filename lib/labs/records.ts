@@ -440,3 +440,224 @@ export async function deleteLabResult(row: {
     await supabase.storage.from(BUCKET).remove([row.blank_photo_path])
   }
 }
+
+// ── Правка и удаление СДАЧИ ЦЕЛИКОМ (подшаг 5) ──────────────────────────────
+// Пока не вызываются: интерфейс переедет на них в заходе 5b. Существующие
+// updateLabResult / deleteLabResult продолжают работать и не тронуты.
+
+/** Показатель в итоговом списке. id есть → существующий, нет → новый. */
+export interface UpdateLabSessionRow {
+  id?: string
+  analyte: string
+  analyteCustomName?: string // только для analyte='other'
+  value: number
+  unit: string
+}
+
+export interface UpdateLabSession {
+  measuredAt?: string | null // null/undefined = дата не указана
+  note?: string // E2E; пусто/не задано = заметку стереть
+  // ── бланк (E2E) ──
+  // photo задан        → заменить
+  // removePhoto = true → убрать
+  // ни то, ни другое   → НЕ ТРОГАТЬ
+  photo?: File
+  removePhoto?: boolean
+  /** ИТОГОВЫЙ список показателей сдачи: чего здесь нет — будет удалено. */
+  rows: UpdateLabSessionRow[]
+}
+
+/**
+ * Обновить сдачу целиком: общие поля + разбор показателей.
+ *
+ * РАЗБОР БЕЗ ВЫБОРКИ ТЕКУЩИХ. Форма отдаёт итоговый список, и его хватает:
+ *   upsert(onConflict:'id') — строки с id обновятся, без id вставятся, ОДНИМ
+ *                             стейтментом, то есть атомарно
+ *   delete … id not in (…)  — всё, чего в итоговом списке нет
+ *
+ * ПОРЯДОК upsert → delete выбран в сторону сохранности: удалить первым и
+ * упасть на вставке значило бы потерять строки безвозвратно, а вставить
+ * первым и упасть на удалении — оставить лишние, что чинится повтором.
+ *
+ * ПОРЯДОК «сдача → строки» противоположен тому, что в updateLabResult, и это
+ * не небрежность. Там строка писалась первой, потому что читатели читали
+ * строку. Подшаг 4 переключил их на сдачу — источник правды сменился, за ним
+ * и порядок.
+ *
+ * ТЕКУЩЕЕ ФОТО читаем в начале по двум причинам: из него берётся старый путь
+ * для сноса, и им же заполняется дубль у НОВЫХ строк — иначе они получили бы
+ * NULL там, где у соседей путь. Поэтому currentPhotoPath, который требует
+ * updateLabResult, здесь не нужен.
+ *
+ * ДВОЙНАЯ ЗАПИСЬ жива: общие поля дублируются в старые колонки ВСЕХ итоговых
+ * строк. Уйдёт в подшаге 6 вместе с колонками.
+ *
+ * Чужую сдачу не даст тронуть RLS (lab_sessions_update_own), чужие строки —
+ * lab_results_*, чужой блоб — storage-политики path_media_*. Новых прав нет.
+ */
+export async function updateLabSession(
+  sessionId: string,
+  input: UpdateLabSession,
+): Promise<void> {
+  const supabase = createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('not_authenticated')
+
+  const { data: current } = await supabase
+    .from('lab_sessions')
+    .select('blank_photo_path, blank_photo_iv')
+    .eq('id', sessionId)
+    .maybeSingle()
+  const currentPhotoPath = (current?.blank_photo_path as string | null) ?? null
+  const currentPhotoIv = (current?.blank_photo_iv as string | null) ?? null
+
+  // Каким бланк станет после правки — нужно и для гарда, и для дубля.
+  const willHavePhoto =
+    Boolean(input.photo) || (!input.removePhoto && currentPhotoPath != null)
+
+  // Тот же инвариант, что при создании: сдача не может остаться и без
+  // показателей, и без бланка — показывать было бы нечего.
+  if (input.rows.length === 0 && !willHavePhoto) throw new Error('empty_record')
+
+  const note = input.note?.trim()
+  const needsDek = Boolean(note || input.photo)
+  const dek = needsDek ? getCryptoKey() : null
+  if (needsDek && !dek) throw new PinRequiredError()
+
+  // Шифруем ОДИН раз на сдачу: во все колонки идёт копия одной строки
+  // base64(iv‖ct), а не повторное шифрование.
+  const noteCiphertext = dek && note ? await encryptText(dek, note) : null
+
+  let photoPatch: {
+    blank_photo_path?: string | null
+    blank_photo_iv?: string | null
+  } = {}
+  let newPhotoPath: string | null = null
+  // Эффективные путь и IV — то, что окажется у сдачи после правки. Ими
+  // заполняется дубль в строках, включая только что добавленные.
+  let effectivePath = currentPhotoPath
+  let effectiveIv = currentPhotoIv
+
+  if (dek && input.photo) {
+    const compressed = await compressImage(input.photo)
+    const bytes = new Uint8Array(await compressed.arrayBuffer())
+    const { iv, ciphertext } = await encryptBytes(dek, bytes)
+    // Новый путь на каждую замену — обоснование в шапке updateLabResult:
+    // перезапись по тому же пути при смене IV дала бы нерасшифровываемое фото.
+    newPhotoPath = `${user.id}/${sessionId}-${crypto.randomUUID()}`
+    const { error: upErr } = await supabase.storage
+      .from(BUCKET)
+      .upload(
+        newPhotoPath,
+        new Blob([ciphertext], { type: 'application/octet-stream' }),
+        { contentType: 'application/octet-stream', upsert: false },
+      )
+    if (upErr) throw new Error(`blank_photo_upload_failed: ${upErr.message}`)
+    effectiveIv = bytesToBase64(iv)
+    effectivePath = newPhotoPath
+    photoPatch = { blank_photo_path: newPhotoPath, blank_photo_iv: effectiveIv }
+  } else if (input.removePhoto) {
+    // Оба поля обнуляем ВМЕСТЕ: констрейнт lab_sessions_photo_path_iv_together
+    // требует, чтобы они были NULL только парой.
+    photoPatch = { blank_photo_path: null, blank_photo_iv: null }
+    effectivePath = null
+    effectiveIv = null
+  }
+
+  // ── 1. Сдача ────────────────────────────────────────────────────────────
+  const { error: sessErr } = await supabase
+    .from('lab_sessions')
+    .update({
+      measured_at: input.measuredAt ?? null,
+      note_ciphertext: noteCiphertext,
+      ...photoPatch,
+    })
+    .eq('id', sessionId)
+
+  if (sessErr) {
+    if (newPhotoPath) await supabase.storage.from(BUCKET).remove([newPhotoPath])
+    throw new Error(`lab_session_update_failed: ${sessErr.message}`)
+  }
+
+  // ── 2. Показатели: upsert итоговых ──────────────────────────────────────
+  const keptIds: string[] = []
+  const payload = input.rows.map((row) => {
+    const id = row.id ?? crypto.randomUUID()
+    keptIds.push(id)
+    return {
+      id,
+      user_id: user.id,
+      session_id: sessionId,
+      analyte: row.analyte,
+      analyte_custom_name:
+        row.analyte === 'other' ? row.analyteCustomName?.trim() || null : null,
+      value: row.value,
+      unit: row.unit,
+      // ДУБЛЬ общих полей — двойная запись до подшага 6.
+      measured_at: input.measuredAt ?? null,
+      note_ciphertext: noteCiphertext,
+      blank_photo_path: effectivePath,
+      blank_photo_iv: effectiveIv,
+    }
+  })
+
+  if (payload.length > 0) {
+    const { error: upsertErr } = await supabase
+      .from('lab_results')
+      .upsert(payload, { onConflict: 'id' })
+    if (upsertErr) {
+      if (newPhotoPath) await supabase.storage.from(BUCKET).remove([newPhotoPath])
+      throw new Error(`lab_rows_upsert_failed: ${upsertErr.message}`)
+    }
+  }
+
+  // ── 3. Показатели: снести всё, чего в итоговом списке нет ───────────────
+  const removeQuery = supabase
+    .from('lab_results')
+    .delete()
+    .eq('session_id', sessionId)
+  const { error: delErr } = await (keptIds.length > 0
+    ? removeQuery.not('id', 'in', `(${keptIds.join(',')})`)
+    : removeQuery)
+
+  if (delErr) throw new Error(`lab_rows_delete_failed: ${delErr.message}`)
+
+  // ── 4. Старый блоб — в самом конце, когда обе записи прошли ─────────────
+  // Раньше значило бы риск оставить сдачу указывающей на удалённый файл.
+  // best-effort: осиротевший шифроблоб безвреден, прочитать его нечем.
+  const replacedOrRemoved = Boolean(newPhotoPath) || Boolean(input.removePhoto)
+  if (replacedOrRemoved && currentPhotoPath) {
+    await supabase.storage.from(BUCKET).remove([currentPhotoPath])
+  }
+}
+
+/**
+ * Удалить сдачу целиком: показатели уходят каскадом (FK on delete cascade),
+ * следом блоб бланка.
+ *
+ * Единственное осмысленное удаление для сдачи «только бланк» — у неё строк
+ * нет, и удалять по строке нечего.
+ *
+ * Порядок из deleteEntry «Пути»: ряды авторитетны, блоб последним. Каскада из
+ * Postgres в Storage не существует, поэтому блоб сносим руками; не вышло —
+ * остаётся осиротевший шифроблоб: безвреден, зашифрован, путь к нему знала
+ * только удалённая сдача.
+ */
+export async function deleteLabSession(
+  sessionId: string,
+  blankPhotoPath: string | null,
+): Promise<void> {
+  const supabase = createClient()
+
+  const { error } = await supabase
+    .from('lab_sessions')
+    .delete()
+    .eq('id', sessionId)
+  if (error) throw new Error(`lab_session_delete_failed: ${error.message}`)
+
+  if (blankPhotoPath) {
+    await supabase.storage.from(BUCKET).remove([blankPhotoPath])
+  }
+}

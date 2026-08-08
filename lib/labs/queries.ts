@@ -250,3 +250,80 @@ export async function getLabResultForEdit(
     created_at: data.created_at as string,
   }
 }
+
+/**
+ * Сдача целиком — для экрана правки сдачи (подшаг 5).
+ *
+ * В отличие от getLabResultForEdit грузит не одну строку, а сдачу со ВСЕМИ её
+ * показателями: правка идёт на уровне сдачи, потому что дата, заметка и бланк
+ * общие. Сдача без показателей («только бланк») — законный результат, не
+ * ошибка: её тоже надо уметь открыть и поправить.
+ *
+ * Заметка и путь фото едут шифротекстом — расшифровать может только клиент с
+ * DEK в памяти. Чужую сдачу не отдаст RLS (lab_sessions_select_own); мусорный
+ * id отсекаем заранее, чтобы не ходить в БД впустую.
+ */
+export interface LabSessionForEdit {
+  id: string
+  measured_at: string | null
+  note_ciphertext: string | null
+  blank_photo_path: string | null
+  blank_photo_iv: string | null
+  created_at: string
+  rows: Array<{
+    id: string
+    analyte: string | null
+    analyte_custom_name: string | null
+    value: number | null
+    unit: string | null
+  }>
+}
+
+export async function getLabSessionForEdit(
+  id: string,
+): Promise<LabSessionForEdit | null> {
+  if (!ID_SCHEMA.safeParse(id).success) return null
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return null
+
+  // Одним строковым литералом: supabase-js выводит форму ответа из ЛИТЕРАЛА
+  // select, конкатенация через + даёт обычный string и ломает вывод.
+  const { data, error } = await supabase
+    .from('lab_sessions')
+    .select(
+      `
+      id, measured_at, note_ciphertext, blank_photo_path, blank_photo_iv, created_at,
+      results:lab_results(id, analyte, analyte_custom_name, value, unit, created_at)
+    `,
+    )
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error || !data) return null
+
+  // Порядок показателей задаём здесь, а не через referencedTable: ошибка в
+  // имени вложенной таблицы уронила бы весь запрос, а выигрыш нулевой.
+  const rows = [...((data.results ?? []) as SessionResult[])]
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))
+    .map((r) => ({
+      id: r.id,
+      analyte: r.analyte ?? null,
+      analyte_custom_name: r.analyte_custom_name ?? null,
+      value: r.value == null ? null : Number(r.value),
+      unit: r.unit ?? null,
+    }))
+
+  return {
+    id: data.id as string,
+    measured_at: (data.measured_at as string | null) ?? null,
+    note_ciphertext: (data.note_ciphertext as string | null) ?? null,
+    blank_photo_path: (data.blank_photo_path as string | null) ?? null,
+    blank_photo_iv: (data.blank_photo_iv as string | null) ?? null,
+    created_at: data.created_at as string,
+    rows,
+  }
+}
