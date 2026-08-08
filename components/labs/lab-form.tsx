@@ -17,8 +17,8 @@ import { decryptLabNote } from '@/lib/labs/notes'
 import { loadBlankPhotoUrl } from '@/lib/labs/photo'
 import {
   addLabSession,
-  updateLabResult,
-  type NewLabSessionRow,
+  updateLabSession,
+  type UpdateLabSessionRow,
 } from '@/lib/labs/records'
 import { PinRequiredError } from '@/lib/path/entries'
 import { cn } from '@/lib/utils'
@@ -35,8 +35,9 @@ import { cn } from '@/lib/utils'
 // фото бланка шифруются на устройстве. Дата опциональна: если не помнит,
 // «не указана» (measured_at = null).
 //
-// В режиме ПРАВКИ форма остаётся однозаписной: показатель ровно один, «+» и
-// «×» скрыты (canAddRows). Правка сдачи целиком — подшаг 5.
+// Создание и правка — ОДНА структура: список показателей, «+» и «×» работают
+// в обоих режимах. Отличий ровно два: initialValues (при создании их нет) и
+// какая функция вызывается на сохранении (addLabSession / updateLabSession).
 
 const selectClass =
   'w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50'
@@ -54,6 +55,12 @@ type Mode = 'values' | 'photo'
  */
 interface AnalyteRow {
   key: string
+  /**
+   * id строки lab_results. Есть у существующего показателя, нет у только что
+   * добавленного — по этому признаку updateLabSession решает, обновить строку
+   * или вставить новую.
+   */
+  id?: string
   analyteCode: string
   customName: string
   value: string
@@ -72,9 +79,10 @@ function makeEmptyRow(): AnalyteRow {
   }
 }
 
-function rowFromInitialValues(v: LabFormValues): AnalyteRow {
+function rowFromValues(v: LabFormRow): AnalyteRow {
   return {
     key: crypto.randomUUID(),
+    id: v.id,
     analyteCode: v.analyteCode,
     customName: v.customName,
     value: v.value,
@@ -88,18 +96,26 @@ function rowAnalyte(row: AnalyteRow) {
   return getAnalyte(row.analyteCode) ?? ANALYTES[0]
 }
 
-/**
- * Значения для префилла в режиме редактирования. Заметка приходит
- * ШИФРОТЕКСТОМ: сервер её расшифровать не может, это делает форма при
- * монтировании (см. эффект ниже).
- */
-export interface LabFormValues {
-  formMode: Mode
+/** Один показатель в префилле. id есть всегда — строка уже существует в БД. */
+export interface LabFormRow {
+  id: string
   analyteCode: string
   customName: string
   value: string
   unitCode: string
   customUnit: string
+}
+
+/**
+ * Префилл для режима правки — состояние СДАЧИ целиком. Заметка приходит
+ * ШИФРОТЕКСТОМ: сервер её расшифровать не может, это делает форма при
+ * монтировании (см. эффект ниже). То же с фото.
+ */
+export interface LabFormValues {
+  formMode: Mode
+  /** Все показатели сдачи. Пустой массив = сдача «только бланк». */
+  rows: LabFormRow[]
+  // ── общие поля сдачи ──
   date: string
   noDate: boolean
   noteCiphertext: string | null
@@ -112,12 +128,13 @@ export interface LabFormValues {
 export function LabForm({
   initialMode = 'values',
   mode: formMode = 'create',
-  editId,
+  sessionId,
   initialValues,
 }: {
   initialMode?: Mode
   mode?: 'create' | 'edit'
-  editId?: string
+  /** id правимой сдачи. Обязателен при mode='edit'. */
+  sessionId?: string
   initialValues?: LabFormValues
 }) {
   const t = useTranslations('labs.new')
@@ -128,11 +145,12 @@ export function LabForm({
 
   const [mode, setMode] = useState<Mode>(initialValues?.formMode ?? initialMode)
 
-  // Пять построчных полей схлопнуты в массив: одна сдача может нести
-  // несколько показателей. В режиме правки строка всегда одна — см. canAddRows.
-  const [rows, setRows] = useState<AnalyteRow[]>(() =>
-    initialValues ? [rowFromInitialValues(initialValues)] : [makeEmptyRow()],
-  )
+  // Показатели сдачи. При создании — одна пустая строка, при правке все,
+  // какие есть. У сдачи «только бланк» список пуст — это законное состояние.
+  const [rows, setRows] = useState<AnalyteRow[]>(() => {
+    if (!initialValues) return [makeEmptyRow()]
+    return initialValues.rows.map(rowFromValues)
+  })
   const [date, setDate] = useState(
     initialValues?.date ?? (() => format(new Date(), 'yyyy-MM-dd')),
   )
@@ -167,10 +185,12 @@ export function LabForm({
 
   const isPhotoMode = mode === 'photo'
 
-  // Добавлять и удалять показатели можно только при создании. Правка осталась
-  // однозаписной: updateLabResult правит ОДНУ строку, а общие поля сдачи
-  // трогает через двойную запись. Переделка правки под сдачу — подшаг 5.
-  const canAddRows = !isEdit
+  // Переключатель «по значениям / фото бланка» прячем, когда правим сдачу, у
+  // которой показатели уже есть: один тап означал бы «снести их все». Убрать
+  // показатели можно «×» по одному, и когда не останется ни одного, сдача
+  // сама станет «только бланк». При создании и при правке сдачи БЕЗ
+  // показателей переключатель нужен и показывается.
+  const showModeTabs = !isEdit || (initialValues?.rows.length ?? 0) === 0
 
   /**
    * ПИН-ГЕЙТ НА ВХОДЕ. Заметку надо расшифровать для префилла, а ключ живёт
@@ -305,9 +325,17 @@ export function LabForm({
   }
 
   /** Строка формы → показатель для addLabSession. Вызывать после validateRow. */
-  function toSessionRow(row: AnalyteRow): NewLabSessionRow {
+  /**
+   * Строка формы → показатель для слоя данных. Вызывать после validateRow.
+   *
+   * id пробрасывается как есть: у существующей строки он есть и
+   * updateLabSession её обновит, у только что добавленной его нет и строка
+   * вставится. При создании id нет ни у кого, и addLabSession его игнорирует.
+   */
+  function toSessionRow(row: AnalyteRow): UpdateLabSessionRow {
     const isOther = Boolean(rowAnalyte(row).allowCustom)
     return {
+      id: row.id,
       analyte: row.analyteCode,
       analyteCustomName: isOther ? row.customName.trim() : undefined,
       value: parseFloat(row.value.replace(',', '.')),
@@ -376,24 +404,18 @@ export function LabForm({
 
     setSaving(true)
     try {
-      if (isEdit && editId) {
-        // Правка осталась однозаписной: строка ровно одна, «+»/«×» скрыты.
-        // Общие поля (дата, заметка, фото) updateLabResult пишет и в строку,
-        // и в сдачу — двойная запись из подшага 2.
-        const row = rows[0]
-        const sessionRow = isPhotoMode ? null : toSessionRow(row)
-        await updateLabResult(editId, {
-          analyte: sessionRow?.analyte,
-          analyteCustomName: sessionRow?.analyteCustomName,
-          value: sessionRow?.value,
-          unit: sessionRow?.unit,
+      if (isEdit && sessionId) {
+        // Правка сдачи целиком. Отдаём ИТОГОВЫЙ список показателей: строки с
+        // id обновятся, без id вставятся, а те, что юзер убрал «×», в список
+        // просто не попадут — updateLabSession снесёт их через delete not in.
+        await updateLabSession(sessionId, {
           measuredAt,
           note: noteText,
           // Фото: выбран файл → заменить; нажали «убрать» → удалить;
           // ни того, ни другого → колонки не тронутся.
           photo: photo ?? undefined,
           removePhoto: photoRemoved && !photo,
-          currentPhotoPath: storedPhotoPath,
+          rows: isPhotoMode ? [] : rows.map(toSessionRow),
         })
         toast.success(tEdit('success'))
       } else {
@@ -424,23 +446,26 @@ export function LabForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      {/* Переключатель режима: показателями / фото бланка. В правке снова
-          рабочий — природу записи (числовая ↔ только фото) теперь есть чем
-          менять. */}
-      <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1">
-        <ModeTab
-          active={!isPhotoMode}
-          onClick={() => setMode('values')}
-          icon={LineChartIcon}
-          label={t('modeValues')}
-        />
-        <ModeTab
-          active={isPhotoMode}
-          onClick={() => setMode('photo')}
-          icon={ImageIcon}
-          label={t('modePhoto')}
-        />
-      </div>
+      {/* Переключатель «по значениям / фото бланка». Скрыт при правке сдачи,
+          у которой показатели уже есть: один тап означал бы «снести их все».
+          Убрать показатели можно «×» по одному — когда не останется ни
+          одного, сдача сама станет «только бланк». */}
+      {showModeTabs && (
+        <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1">
+          <ModeTab
+            active={!isPhotoMode}
+            onClick={() => setMode('values')}
+            icon={LineChartIcon}
+            label={t('modeValues')}
+          />
+          <ModeTab
+            active={isPhotoMode}
+            onClick={() => setMode('photo')}
+            icon={ImageIcon}
+            label={t('modePhoto')}
+          />
+        </div>
+      )}
 
       {isPhotoMode && (
         <p className="text-sm leading-relaxed text-muted-foreground">
@@ -458,14 +483,14 @@ export function LabForm({
               index={index}
               total={rows.length}
               disabled={saving}
-              canRemove={canAddRows && rows.length > 1}
+              canRemove={rows.length > 1}
               onChange={(patch) => updateRow(row.key, patch)}
               onAnalyteChange={(code) => onAnalyteChange(row.key, code)}
               onRemove={() => removeRow(row.key)}
             />
           ))}
 
-          {canAddRows && (
+          {(
             <button
               type="button"
               onClick={addRow}

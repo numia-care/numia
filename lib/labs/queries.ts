@@ -184,6 +184,11 @@ interface SessionResult {
  */
 export interface LabResultForEdit {
   id: string
+  /**
+   * Сдача, к которой принадлежит строка. Нужна старому маршруту правки: он
+   * стал редиректом на /labs/session/[id]/edit и берёт адрес отсюда.
+   */
+  session_id: string
   analyte: string | null
   analyte_custom_name: string | null
   value: number | null
@@ -239,6 +244,7 @@ export async function getLabResultForEdit(
 
   return {
     id: data.id as string,
+    session_id: data.session_id as string,
     analyte: (data.analyte as string | null) ?? null,
     analyte_custom_name: (data.analyte_custom_name as string | null) ?? null,
     value: data.value == null ? null : Number(data.value),
