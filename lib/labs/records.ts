@@ -280,7 +280,7 @@ export async function updateLabResult(
     const bytes = new Uint8Array(await compressed.arrayBuffer())
     const { iv, ciphertext } = await encryptBytes(dek, bytes)
     // Новый путь на каждую замену — обоснование в шапке функции. Базой берём
-    // id сдачи, а не строки: бланк принадлежит сдаче (см. addLabResult).
+    // id сдачи, а не строки: бланк принадлежит сдаче (см. addLabSession).
     newPhotoPath = `${user.id}/${sessionId ?? id}-${crypto.randomUUID()}`
     const { error: upErr } = await supabase.storage
       .from(BUCKET)
