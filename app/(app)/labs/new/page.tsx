@@ -1,36 +1,11 @@
-import { getTranslations } from 'next-intl/server'
-import Link from 'next/link'
+import { redirect } from 'next/navigation'
 
-import { LabForm } from '@/components/labs/lab-form'
-
-// Добавление анализа. Оболочка серверная (заголовок), форма клиентская:
-// шифрование заметки/фото идёт на устройстве (lib/labs/records).
-// ?mode=photo открывает форму сразу в режиме «фото бланка» (из пустого экрана).
-export default async function NewLabResultPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ mode?: string }>
-}) {
-  const t = await getTranslations('labs.new')
-  const { mode } = await searchParams
-  const initialMode = mode === 'photo' ? 'photo' : 'values'
-
-  return (
-    <div className="mx-auto w-full max-w-2xl px-5 py-10 sm:py-14">
-      <header className="mb-8">
-        <Link
-          href="/labs"
-          className="mb-3 inline-block text-sm text-muted-foreground hover:text-foreground"
-        >
-          {t('backLink')}
-        </Link>
-        <h1 className="font-heading text-3xl text-foreground sm:text-4xl">
-          {t('title')}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">{t('subtitle')}</p>
-      </header>
-
-      <LabForm initialMode={initialMode} />
-    </div>
-  )
+// ВРЕМЕННО: добавление закрыто вместе с разделом (см. labs/page.tsx).
+//
+// Именно редирект, а не форма с сообщением: форма зашифровала бы заметку и
+// залила снимок бланка в Storage, а сохранить строку не смогла бы — схема
+// требует session_id, о котором этот код не знает. Остался бы осиротевший
+// шифроблоб, о котором никто никогда не узнает.
+export default function NewLabResultPage() {
+  redirect('/labs')
 }
