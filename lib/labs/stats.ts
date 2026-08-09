@@ -269,7 +269,7 @@ export function positionInRange(
  * Возвращает null всюду, где перевод не обоснован. Всё, что считает этот
  * модуль, проходит через эту функцию — другого пути к арифметике нет.
  */
-function convertStrict(
+export function convertStrict(
   value: number,
   fromUnit: string,
   toUnit: string,

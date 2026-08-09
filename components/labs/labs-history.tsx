@@ -11,10 +11,12 @@ import { LabRangeEditor } from '@/components/labs/lab-range-editor'
 import { ANALYTES, getAnalyte, unitLabel } from '@/lib/labs/catalog'
 import { listLabRangesServer, type LabResultRow } from '@/lib/labs/queries'
 import type { LabRanges } from '@/lib/labs/ranges'
+import type { UserRange } from '@/lib/labs/stats'
 
 // Презентационный список истории анализов: числовые записи сгруппированы по
 // показателю (порядок каталога), внутри — по дате (новые сверху), с графиком
-// динамики от 2 точек. Записи «только фото бланка» — отдельной секцией.
+// динамики и полосой персонального коридора. Записи «только фото бланка» —
+// отдельной секцией.
 // Данные приходят сверху; используется и на /labs, и в табе «Анализы» трекера.
 export async function LabsHistory({
   numeric,
@@ -51,7 +53,7 @@ export async function LabsHistory({
           {/* Коридор — только у каталожных показателей. У «другого» ключ
               группы вида other:<название>, и коридор для него не поддержан:
               (user_id, analyte) склеил бы разные кастомные показатели. */}
-          {!group.key.startsWith('other:') && (
+          {!isOtherGroup(group) && (
             <LabRangeEditor
               analyteCode={group.key}
               range={ranges?.[group.key] ?? null}
@@ -59,7 +61,11 @@ export async function LabsHistory({
             />
           )}
 
-          <ChartFromRows rows={group.rows} />
+          <ChartFromRows
+            rows={group.rows}
+            analyteCode={isOtherGroup(group) ? 'other' : group.key}
+            range={isOtherGroup(group) ? null : (ranges?.[group.key] ?? null)}
+          />
 
           <div className="space-y-2">
             {group.rows.map((row) => (
@@ -171,6 +177,14 @@ function groupByAnalyte(rows: LabResultRow[]): Group[] {
   return [...map.values()].sort((a, b) => order(a) - order(b))
 }
 
+/**
+ * Группа «другого»: ключ вида other:<название>. Коридор для неё не
+ * поддержан — (user_id, analyte) склеил бы разные кастомные показатели.
+ */
+function isOtherGroup(group: Group): boolean {
+  return group.key.startsWith('other:')
+}
+
 function groupTitle(row: LabResultRow): string {
   if ((row.analyte ?? 'other') === 'other') {
     return row.analyte_custom_name?.trim() || getAnalyte('other')?.name || 'Другое'
@@ -210,12 +224,34 @@ function EditLink({ id, label }: { id: string; label: string }) {
 
 // ── Форматирование ───────────────────────────────────────────────────────────
 
-function ChartFromRows({ rows }: { rows: LabResultRow[] }) {
+function ChartFromRows({
+  rows,
+  analyteCode,
+  range,
+}: {
+  rows: LabResultRow[]
+  analyteCode: string
+  range: UserRange | null
+}) {
   const dated = rows.filter((r) => r.measured_at != null && r.value != null)
-  if (dated.length < 2) return null
+
+  // Порог опущен со «двух точек» до «есть что показать».
+  //
+  // Было `dated.length < 2` — то есть заданный коридор не показывался, пока
+  // человек не наберёт два датированных замера. Это та же связь «коридор ↔
+  // число замеров», которую мы вычищали из копирайта («появится после трёх»),
+  // только выраженная поведением: границы заданы, а увидеть их нельзя.
+  // Коридор от количества замеров не зависит ни в текстах, ни в UI.
+  //
+  // Полоса рисуется и при нуле точек: домен графика тогда строится по самим
+  // границам (в lab-chart Math.min на пустом массиве даёт Infinity и корректно
+  // уступает коридору).
+  if (dated.length === 0 && !range) return null
+
   return (
     <LabChart
-      analyteCode={dated[0].analyte ?? 'other'}
+      analyteCode={analyteCode}
+      range={range}
       rows={dated.map((r) => ({
         value: r.value!,
         unit: r.unit ?? '',
