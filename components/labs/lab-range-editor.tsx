@@ -121,22 +121,23 @@ export function LabRangeEditor({
 
   return (
     <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-      <div>
-        <p className="text-sm text-foreground/70">
-          {range
-            ? t('current', {
-                min: fmt(range.min),
-                max: fmt(range.max),
-                unit: unitLabel(analyte, range.unitCode),
-              })
-            : t('empty')}
-        </p>
-        {/* Откуда берутся границы — сказано прямо, чтобы их не приняли за
-            посчитанные приложением. */}
-        {range && (
-          <p className="text-xs text-muted-foreground">{t('source')}</p>
-        )}
-      </div>
+      {/* Только сами границы, без подписи о происхождении. «Задан по
+          назначению врача» отсюда убрано: приложение НЕ знает, откуда взялись
+          числа — юзер мог вписать любой ориентир. Это ровно та же ложь, что
+          «посчитан по N замерам», только в другую сторону: та приписывала
+          границы автоматике, эта приписывала бы их врачу.
+
+          Что приложение действительно знает — что оно их не считает само; об
+          этом сказано в диалоге (dialogText), и там это честно. */}
+      <p className="text-sm text-foreground/70">
+        {range
+          ? t('current', {
+              min: fmt(range.min),
+              max: fmt(range.max),
+              unit: unitLabel(analyte, range.unitCode),
+            })
+          : t('empty')}
+      </p>
 
       {unavailable ? (
         <span className="text-xs text-muted-foreground">{t('unavailable')}</span>
