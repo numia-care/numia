@@ -7,8 +7,10 @@ import Link from 'next/link'
 import { LabChart } from '@/components/labs/lab-chart'
 import { LabNote } from '@/components/labs/lab-note'
 import { LabPhoto } from '@/components/labs/lab-photo'
+import { LabRangeEditor } from '@/components/labs/lab-range-editor'
 import { ANALYTES, getAnalyte, unitLabel } from '@/lib/labs/catalog'
-import type { LabResultRow } from '@/lib/labs/queries'
+import { listLabRangesServer, type LabResultRow } from '@/lib/labs/queries'
+import type { LabRanges } from '@/lib/labs/ranges'
 
 // Презентационный список истории анализов: числовые записи сгруппированы по
 // показателю (порядок каталога), внутри — по дате (новые сверху), с графиком
@@ -23,6 +25,21 @@ export async function LabsHistory({
 }) {
   const t = await getTranslations('labs')
 
+  // Коридоры читаются ОДИН раз на весь экран и раздаются островкам пропсом.
+  // Иначе каждый редактор ходил бы за ними сам — четыре-шесть одинаковых
+  // запросов и мигание при загрузке.
+  //
+  // Ловим намеренно: listLabRangesServer бросает при ошибке (чтобы пустой
+  // ответ не прочитался как «коридор не задан» и не дал затереть границы), но
+  // уронить из-за коридора весь экран трекера было бы хуже той проблемы.
+  // null здесь — это «не знаем», и редактор в таком виде правку не предлагает.
+  let ranges: LabRanges | null = null
+  try {
+    ranges = await listLabRangesServer()
+  } catch {
+    ranges = null
+  }
+
   return (
     <div className="space-y-10">
       {groupByAnalyte(numeric).map((group) => (
@@ -30,6 +47,17 @@ export async function LabsHistory({
           <h2 className="mb-4 font-heading text-xl text-foreground/70">
             {group.title}
           </h2>
+
+          {/* Коридор — только у каталожных показателей. У «другого» ключ
+              группы вида other:<название>, и коридор для него не поддержан:
+              (user_id, analyte) склеил бы разные кастомные показатели. */}
+          {!group.key.startsWith('other:') && (
+            <LabRangeEditor
+              analyteCode={group.key}
+              range={ranges?.[group.key] ?? null}
+              unavailable={ranges === null}
+            />
+          )}
 
           <ChartFromRows rows={group.rows} />
 

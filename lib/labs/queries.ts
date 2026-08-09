@@ -2,6 +2,8 @@ import { z } from 'zod'
 
 import { createClient } from '@/lib/supabase/server'
 
+import type { LabRangeRow, LabRanges } from './ranges'
+
 const ID_SCHEMA = z.string().uuid()
 
 // Серверное чтение анализов для рендера списка/истории.
@@ -331,4 +333,56 @@ export async function getLabSessionForEdit(
     created_at: data.created_at as string,
     rows,
   }
+}
+
+/**
+ * Персональные коридоры показателей — серверный близнец listLabRanges из
+ * lib/labs/ranges.ts.
+ *
+ * Зачем отдельная функция, а не вызов клиентской: коридоры нужны истории
+ * (серверный компонент LabsHistory) одним запросом на весь экран. Если бы их
+ * читал каждый островок-редактор сам, на четырёх-шести группах вышло бы
+ * столько же одинаковых запросов и мигание при загрузке.
+ *
+ * ⚠️ БРОСАЕТ при ошибке, а не возвращает пустое — в отличие от listLabResults
+ * выше и по той же причине, что описана в ranges.ts. Пустой ответ здесь
+ * означал бы «коридор не задан»: редактор открылся бы с чистыми полями, юзер
+ * ввёл бы границы, и upsert затёр бы те, что уже назвал врач. Молчаливый {}
+ * приводит к потере данных, поэтому лучше честно упасть.
+ *
+ * Вызывающий обязан это поймать: уронить из-за коридора весь экран трекера
+ * было бы хуже проблемы, которую бросок предотвращает (см. LabsHistory).
+ *
+ * Тип LabRanges импортирован из клиентского модуля, но только как ТИП —
+ * `import type` стирается компилятором, браузерный supabase сюда не приезжает.
+ */
+export async function listLabRangesServer(): Promise<LabRanges> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error('not_authenticated')
+
+  // RLS сама отбивает чужие строки (lab_ranges_select_own).
+  const { data, error } = await supabase
+    .from('lab_ranges')
+    .select('id, analyte, min_value, max_value, unit, created_at, updated_at')
+  if (error) throw new Error(`lab_ranges_select_failed: ${error.message}`)
+
+  const ranges: LabRanges = {}
+  for (const raw of data ?? []) {
+    const row = raw as LabRangeRow
+
+    // 'other' в таблицу не пускает CHECK, но читатель на это не полагается.
+    if (!row.analyte || row.analyte === 'other') continue
+
+    // numeric из PostgREST приезжает строкой — тот же Number(), что для value.
+    const min = Number(row.min_value)
+    const max = Number(row.max_value)
+    if (!Number.isFinite(min) || !Number.isFinite(max)) continue
+
+    ranges[row.analyte] = { min, max, unitCode: row.unit }
+  }
+
+  return ranges
 }
