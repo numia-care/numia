@@ -4,6 +4,10 @@ import { ImageIcon, PencilIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 
+import {
+  LabsAccordion,
+  type AccordionItem,
+} from '@/components/labs/labs-accordion'
 import { LabChart } from '@/components/labs/lab-chart'
 import { LabNote } from '@/components/labs/lab-note'
 import { LabPhoto } from '@/components/labs/lab-photo'
@@ -48,72 +52,78 @@ export async function LabsHistory({
   // остаётся прежним: в цикле по группам не появляется тела с вычислениями.
   const deltas = computeDeltas(groups)
 
+  // Панели собираются ЗДЕСЬ, на сервере, и уезжают в аккордеон готовыми
+  // узлами — тот же приём, что у TrackerTabs. Содержимое панели на этом шаге
+  // не менялось: коридор, график, список замеров ровно как были. Изменилось
+  // только то, что заголовок группы уехал в кнопку аккордеона.
+  const items: AccordionItem[] = groups.map((group) => ({
+    key: group.key,
+    title: group.title,
+    panel: (
+      <>
+        {/* Коридор — только у каталожных показателей. У «другого» ключ
+            группы вида other:<название>, и коридор для него не поддержан:
+            (user_id, analyte) склеил бы разные кастомные показатели. */}
+        {!isOtherGroup(group) && (
+          <LabRangeEditor
+            analyteCode={group.key}
+            range={ranges?.[group.key] ?? null}
+            unavailable={ranges === null}
+          />
+        )}
+
+        <ChartFromRows
+          rows={group.rows}
+          analyteCode={isOtherGroup(group) ? 'other' : group.key}
+          range={isOtherGroup(group) ? null : (ranges?.[group.key] ?? null)}
+        />
+
+        <div className="space-y-2">
+          {group.rows.map((row) => (
+            // Карточка стала колонкой: значение и дата в верхней строке как
+            // раньше, раскрытая заметка — под ними. Иначе развёрнутому тексту
+            // некуда встать, он ломал бы ряд по базовой линии.
+            <div
+              key={row.id}
+              className="rounded-2xl bg-card px-4 py-3 ring-1 ring-border"
+            >
+              <div className="flex items-baseline justify-between gap-4">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg text-foreground">
+                    {formatNumber(row.value)}
+                  </span>
+                  <span className="text-sm text-foreground/60">
+                    {displayUnit(row)}
+                  </span>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Delta value={deltas.get(row.id)} />
+                  <time
+                    className="text-sm text-foreground/60"
+                    dateTime={row.measured_at ?? undefined}
+                  >
+                    {formatDate(row.measured_at, t('noDate'))}
+                  </time>
+                  <EditLink id={row.session_id} label={t('editLink')} />
+                </div>
+              </div>
+
+              {/* Заметка и бланк — раскрывающиеся, под строкой: развёрнутому
+                  содержимому нужна ширина карточки. Оба — самостоятельные
+                  кнопки-соседи, вложенной интерактивности нет (строку целиком
+                  в ссылку мы намеренно не оборачиваем). */}
+              <LabNote ciphertext={row.note_ciphertext} />
+              <LabPhoto path={row.blank_photo_path} iv={row.blank_photo_iv} />
+            </div>
+          ))}
+        </div>
+      </>
+    ),
+  }))
+
   return (
     <div className="space-y-10">
-      {groups.map((group) => (
-        <section key={group.key}>
-          <h2 className="mb-4 font-heading text-xl text-foreground/70">
-            {group.title}
-          </h2>
-
-          {/* Коридор — только у каталожных показателей. У «другого» ключ
-              группы вида other:<название>, и коридор для него не поддержан:
-              (user_id, analyte) склеил бы разные кастомные показатели. */}
-          {!isOtherGroup(group) && (
-            <LabRangeEditor
-              analyteCode={group.key}
-              range={ranges?.[group.key] ?? null}
-              unavailable={ranges === null}
-            />
-          )}
-
-          <ChartFromRows
-            rows={group.rows}
-            analyteCode={isOtherGroup(group) ? 'other' : group.key}
-            range={isOtherGroup(group) ? null : (ranges?.[group.key] ?? null)}
-          />
-
-          <div className="space-y-2">
-            {group.rows.map((row) => (
-              // Карточка стала колонкой: значение и дата в верхней строке как
-              // раньше, раскрытая заметка — под ними. Иначе развёрнутому тексту
-              // некуда встать, он ломал бы ряд по базовой линии.
-              <div
-                key={row.id}
-                className="rounded-2xl bg-card px-4 py-3 ring-1 ring-border"
-              >
-                <div className="flex items-baseline justify-between gap-4">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-lg text-foreground">
-                      {formatNumber(row.value)}
-                    </span>
-                    <span className="text-sm text-foreground/60">
-                      {displayUnit(row)}
-                    </span>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <Delta value={deltas.get(row.id)} />
-                    <time
-                      className="text-sm text-foreground/60"
-                      dateTime={row.measured_at ?? undefined}
-                    >
-                      {formatDate(row.measured_at, t('noDate'))}
-                    </time>
-                    <EditLink id={row.session_id} label={t('editLink')} />
-                  </div>
-                </div>
-
-                {/* Заметка и бланк — раскрывающиеся, под строкой: развёрнутому
-                    содержимому нужна ширина карточки. Оба — самостоятельные
-                    кнопки-соседи, вложенной интерактивности нет (строку целиком
-                    в ссылку мы намеренно не оборачиваем). */}
-                <LabNote ciphertext={row.note_ciphertext} />
-                <LabPhoto path={row.blank_photo_path} iv={row.blank_photo_iv} />
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
+      <LabsAccordion items={items} initialKey={latestGroupKey(groups)} />
 
       {photoOnly.length > 0 && (
         <section>
@@ -182,6 +192,33 @@ function groupByAnalyte(rows: LabResultRow[]): Group[] {
     return idx === -1 ? ANALYTES.length : idx
   }
   return [...map.values()].sort((a, b) => order(a) - order(b))
+}
+
+/**
+ * Какой показатель раскрыт по умолчанию — тот, куда попала САМАЯ СВЕЖАЯ по
+ * created_at запись, то есть последняя, которую человек вносил.
+ *
+ * Не «первый по каталогу» и не «с самым свежим measured_at»: дату замера
+ * можно не указывать вовсе или вписать задним числом, а created_at всегда
+ * есть и всегда означает «вот с этим я работал только что».
+ *
+ * Фолбэк — первая группа по порядку каталога.
+ */
+function latestGroupKey(groups: Group[]): string | null {
+  let bestKey: string | null = null
+  let bestCreatedAt = ''
+
+  for (const group of groups) {
+    for (const row of group.rows) {
+      const createdAt = String(row.created_at)
+      if (createdAt > bestCreatedAt) {
+        bestCreatedAt = createdAt
+        bestKey = group.key
+      }
+    }
+  }
+
+  return bestKey ?? groups[0]?.key ?? null
 }
 
 /**
