@@ -2,22 +2,20 @@
 
 import { useState } from 'react'
 import { parse } from 'date-fns'
-import { useTranslations } from 'next-intl'
 
 import { convertValue, defaultUnitCode, getAnalyte, unitLabel } from '@/lib/labs/catalog'
-import { convertStrict, positionInRange, type UserRange } from '@/lib/labs/stats'
+import { convertStrict, type UserRange } from '@/lib/labs/stats'
 import { cn } from '@/lib/utils'
 
 // График динамики одного показателя — линия значений во времени плюс полоса
 // персонального коридора, если он задан.
 //
 // Коридор задаёт ЧЕЛОВЕК (lab-range-editor), приложение его не вычисляет.
-// Полоса — это отрисовка заданных границ, а не вывод из данных. Пилюля рядом
-// говорит, где последний замер относительно этих границ, и говорит
-// ОПИСАТЕЛЬНО: «в коридоре» / «ниже коридора» / «выше коридора». Ни «нормы»,
-// ни «хорошо», ни светофора — приложение не оценивает значения, оно
-// сопоставляет их с тем, что человек сам указал. Поэтому все три состояния
-// пилюли одного цвета, различие только в словах.
+// Полоса — это отрисовка заданных границ, а не вывод из данных.
+//
+// Пилюля положения жила здесь до шага 3.2 и переехала в карточку показателя
+// (labs-history), к крупному значению: там ей место по макету, а дубль в
+// шапке графика был бы шумом. Компонент общий — lab-position-pill.tsx.
 //
 // Свой SVG, без зависимостей. Переключатель единицы конвертит точки на лету.
 //
@@ -53,7 +51,6 @@ export function LabChart({
   /** Персональный коридор показателя или null. Задан юзером, не вычисляется. */
   range?: UserRange | null
 }) {
-  const t = useTranslations('labs.range')
   const analyte = getAnalyte(analyteCode)
   const units = analyte?.units ?? []
   const hasToggle = units.length > 1
@@ -130,52 +127,30 @@ export function LabChart({
         ? [dataMin]
         : [dataMax, (dataMin + dataMax) / 2, dataMin]
 
-  // ── Пилюля положения ──────────────────────────────────────────────────────
-  // Считает positionInRange — здесь ничего не вычисляется заново. Ей отдаём
-  // ИСХОДНЫЕ value/unit последнего по дате замера, а не сконвертированную
-  // точку: функция сама приводит значение к единице коридора.
-  const latest = latestRow(rows)
-  const position =
-    range && analyte && latest
-      ? positionInRange(latest.value, latest.unit, range, analyte)
-      : null
-
-  const hasHeader = position !== null || hasToggle
+  // Пилюля положения переехала в карточку показателя (labs-history), к
+  // крупному значению — там ей место по макету, и дубль в шапке графика был
+  // бы шумом. Компонент общий: components/labs/lab-position-pill.tsx.
 
   return (
     <div className="mb-4 rounded-2xl bg-card p-4 ring-1 ring-border">
-      {hasHeader && (
-        <div className="mb-3 flex items-center justify-between gap-2">
-          {/* Один цвет на все три состояния — положение это факт, а не
-              оценка. Светофор превратил бы «выше коридора» в «плохо». */}
-          {position ? (
-            <span className="bg-lavender-soft rounded-full px-2.5 py-1 text-xs font-medium text-foreground/80">
-              {t(POSITION_KEY[position])}
-            </span>
-          ) : (
-            <span />
-          )}
-
-          {hasToggle && (
-            <div className="flex gap-1">
-              {units.map((u) => (
-                <button
-                  key={u.code}
-                  type="button"
-                  onClick={() => setDisplayUnit(u.code)}
-                  aria-pressed={displayUnit === u.code}
-                  className={cn(
-                    'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
-                    displayUnit === u.code
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground',
-                  )}
-                >
-                  {u.label}
-                </button>
-              ))}
-            </div>
-          )}
+      {hasToggle && (
+        <div className="mb-3 flex justify-end gap-1">
+          {units.map((u) => (
+            <button
+              key={u.code}
+              type="button"
+              onClick={() => setDisplayUnit(u.code)}
+              aria-pressed={displayUnit === u.code}
+              className={cn(
+                'rounded-lg px-2.5 py-1 text-xs font-medium transition-colors',
+                displayUnit === u.code
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {u.label}
+            </button>
+          ))}
         </div>
       )}
 
@@ -287,12 +262,6 @@ export function LabChart({
   )
 }
 
-const POSITION_KEY = {
-  below: 'posBelow',
-  inside: 'posInside',
-  above: 'posAbove',
-} as const
-
 /**
  * Границы коридора в единице отображения — или null, если перевод не обоснован.
  *
@@ -313,8 +282,3 @@ function toBand(
   return { lo, hi }
 }
 
-/** Последний ПО ДАТЕ замер. Даты в 'yyyy-MM-dd' сравнимы как строки. */
-function latestRow(rows: ChartRow[]): ChartRow | null {
-  if (rows.length === 0) return null
-  return rows.reduce((a, b) => (a.measuredAt >= b.measuredAt ? a : b))
-}

@@ -11,11 +11,17 @@ import {
 import { LabChart } from '@/components/labs/lab-chart'
 import { LabNote } from '@/components/labs/lab-note'
 import { LabPhoto } from '@/components/labs/lab-photo'
+import { LabPositionPill } from '@/components/labs/lab-position-pill'
 import { LabRangeEditor } from '@/components/labs/lab-range-editor'
 import { ANALYTES, getAnalyte, unitLabel } from '@/lib/labs/catalog'
 import { listLabRangesServer, type LabResultRow } from '@/lib/labs/queries'
 import type { LabRanges } from '@/lib/labs/ranges'
-import { computeLabDelta, type UserRange } from '@/lib/labs/stats'
+import {
+  computeLabDelta,
+  computeLabTrend,
+  positionInRange,
+  type UserRange,
+} from '@/lib/labs/stats'
 
 // Презентационный список истории анализов: числовые записи сгруппированы по
 // показателю (порядок каталога), внутри — по дате (новые сверху), с графиком
@@ -61,6 +67,12 @@ export async function LabsHistory({
     title: group.title,
     panel: (
       <>
+        <MetricSummary
+          group={group}
+          range={isOtherGroup(group) ? null : (ranges?.[group.key] ?? null)}
+          deltas={deltas}
+        />
+
         {/* Коридор — только у каталожных показателей. У «другого» ключ
             группы вида other:<название>, и коридор для него не поддержан:
             (user_id, analyte) склеил бы разные кастомные показатели. */}
@@ -161,6 +173,126 @@ export async function LabsHistory({
       )}
     </div>
   )
+}
+
+// ── Карточка активного показателя ────────────────────────────────────────────
+
+/**
+ * Шапка раскрытой панели: крупное значение последнего замера, пилюля положения
+ * относительно коридора и подпись «дельта + тренд».
+ *
+ * ⚠️ Приложение НЕ оценивает значения. Здесь три факта и ни одного суждения:
+ * сколько сейчас, где это относительно ГРАНИЦ, КОТОРЫЕ ЗАДАЛ САМ ЧЕЛОВЕК, и
+ * куда движется ряд. Ни «в норме», ни «стабильно», ни «хорошо» — направление
+ * показываем, валентность нет. Тот же принцип, что у пилюли (2d) и дельты (2e):
+ * для эстрадиола и тестостерона одно и то же движение означает
+ * противоположное, и оценивать за человека мы не вправе.
+ *
+ * Серверный компонент: getTranslations и вся арифметика идут на сервере, на
+ * клиент уезжает только пилюля (ей нужен useTranslations).
+ */
+async function MetricSummary({
+  group,
+  range,
+  deltas,
+}: {
+  group: Group
+  range: UserRange | null
+  deltas: Map<string, number>
+}) {
+  const t = await getTranslations('labs')
+  const analyte = getAnalyte(isOtherGroup(group) ? 'other' : group.key)
+
+  const latest = latestRow(group.rows)
+  if (!latest || latest.value == null) return null
+
+  // Положение считает positionInRange, здесь ничего не вычисляется заново.
+  // Отдаём ИСХОДНЫЕ value/unit — функция сама приведёт значение к единице
+  // коридора, а не наоборот.
+  const position =
+    range && analyte
+      ? positionInRange(latest.value, latest.unit ?? '', range, analyte)
+      : null
+
+  // Тренд — по датированным точкам группы, тот же массив, что кормит график.
+  // Имена полей MeasuredPoint совпадают с LabResultRow, перекладывать нечего.
+  const trend = analyte
+    ? computeLabTrend(
+        group.rows
+          .filter((r) => r.measured_at != null && r.value != null)
+          .map((r) => ({
+            value: r.value!,
+            unit: r.unit ?? '',
+            measured_at: r.measured_at!,
+          })),
+        analyte,
+      )
+    : null
+
+  const delta = deltas.get(latest.id)
+
+  // Первая часть подписи: когда и насколько изменилось. Дельты может не быть
+  // (самый старый замер, несопоставимые единицы) — тогда остаётся только дата.
+  const factParts = [
+    latest.measured_at ? formatDate(latest.measured_at, t('noDate')) : null,
+    delta === undefined
+      ? null
+      : t('metric.deltaToPrev', { delta: deltaFmt.format(delta) }),
+  ].filter((part): part is string => part !== null)
+
+  // Вторая часть — серия. Только up/down: flat это не движение, а его
+  // отсутствие, и дельта «0» рядом уже сказала то же самое.
+  const trendText =
+    trend && trend.direction !== 'flat'
+      ? t(`trend.${trend.direction}`, { n: String(trend.streak + 1) })
+      : null
+
+  return (
+    <div className="mb-4">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+        <p className="flex items-baseline gap-2">
+          <span className="text-[54px] leading-[0.86] text-foreground">
+            {formatNumber(latest.value)}
+          </span>
+          <span className="text-sm text-foreground/60">
+            {displayUnit(latest)}
+          </span>
+        </p>
+
+        <LabPositionPill position={position} />
+      </div>
+
+      {(factParts.length > 0 || trendText) && (
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          {factParts.join(' · ')}
+          {trendText ? `${factParts.length > 0 ? '. ' : ''}${trendText}` : ''}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Последний замер показателя: самый свежий по measured_at, тай-брейк по
+ * created_at.
+ *
+ * Недатированные в расчёт не идут, пока есть хоть один датированный: у них нет
+ * положения во времени, и назвать такой замер «последним» было бы выдумкой.
+ * Если датированных нет вовсе — берём самый поздний по created_at, иначе
+ * крупное значение не показать вообще.
+ */
+function latestRow(rows: LabResultRow[]): LabResultRow | null {
+  const withValue = rows.filter((r) => r.value != null)
+  const dated = withValue.filter((r) => r.measured_at != null)
+  const pool = dated.length > 0 ? dated : withValue
+  if (pool.length === 0) return null
+
+  return pool.reduce((a, b) => {
+    const am = a.measured_at ?? ''
+    const bm = b.measured_at ?? ''
+    if (am !== bm) return am > bm ? a : b
+    return String(a.created_at) >= String(b.created_at) ? a : b
+  })
 }
 
 // ── Группировка ──────────────────────────────────────────────────────────────
