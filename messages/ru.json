@@ -297,6 +297,12 @@
     "noDate": "дата не указана",
     "photoSectionTitle": "Снимки бланков",
     "photoOnlyCard": "Фото бланка",
+    "period": {
+      "m3": "3м",
+      "m6": "6м",
+      "y1": "год",
+      "empty": "Нет замеров за этот период"
+    },
     "metric": {
       "deltaToPrev": "{delta} к прошлому замеру"
     },

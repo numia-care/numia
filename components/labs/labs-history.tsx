@@ -8,7 +8,7 @@ import {
   LabsAccordion,
   type AccordionItem,
 } from '@/components/labs/labs-accordion'
-import { LabChart } from '@/components/labs/lab-chart'
+import { LabMetricChart } from '@/components/labs/lab-metric-chart'
 import { LabNote } from '@/components/labs/lab-note'
 import { LabPhoto } from '@/components/labs/lab-photo'
 import { LabPositionPill } from '@/components/labs/lab-position-pill'
@@ -592,10 +592,20 @@ function ChartFromRows({
   // уступает коридору).
   if (dated.length === 0 && !range) return null
 
+  // ⚠️ Этот массив — ПОЛНЫЙ, без окна. Обрезка по периоду живёт исключительно
+  // внутри LabMetricChart и наружу не выходит. Сводить этот filter с тем, что
+  // делает MetricSummary для тренда, НЕЛЬЗЯ: общий массив означал бы, что
+  // период протекает в карточку и «растёт N-й замер подряд» начинает зависеть
+  // от положения ползунка.
+  //
+  // today считаем на сервере и передаём вниз: обёртка рендерится и в SSR, и на
+  // клиенте, а таймзоны у них разные — разъехавшийся new Date() дал бы
+  // рассинхрон гидратации.
   return (
-    <LabChart
+    <LabMetricChart
       analyteCode={analyteCode}
       range={range}
+      today={format(new Date(), 'yyyy-MM-dd')}
       rows={dated.map((r) => ({
         value: r.value!,
         unit: r.unit ?? '',
