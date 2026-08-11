@@ -65,6 +65,13 @@ export async function LabsHistory({
   const items: AccordionItem[] = groups.map((group) => ({
     key: group.key,
     title: group.title,
+    summary: (
+      <CollapsedSummary
+        group={group}
+        range={isOtherGroup(group) ? null : (ranges?.[group.key] ?? null)}
+        deltas={deltas}
+      />
+    ),
     panel: (
       <>
         <MetricSummary
@@ -172,6 +179,81 @@ export async function LabsHistory({
         </section>
       )}
     </div>
+  )
+}
+
+// ── Свёрнутая строка показателя ──────────────────────────────────────────────
+
+/**
+ * Строка неактивного показателя в аккордеоне: слева название и границы
+ * коридора, справа последнее значение с дельтой.
+ *
+ * Смысл — не разворачивать показатель ради одной цифры: что сейчас и куда
+ * сдвинулось, видно прямо в свёрнутом виде.
+ *
+ * Собирается на СЕРВЕРЕ и уезжает в LabsAccordion готовым узлом. Ни коридоры,
+ * ни дельты на клиент не переезжают: аккордеон только показывает то, что
+ * получил, и дорисовывает шеврон.
+ *
+ * ⚠️ Копирайт границ: «коридор 100–160 пг/мл». Не «обычный» и не «норма» —
+ * и то и другое было бы оценкой, а это просто числа, которые человек задал
+ * сам. Коридор не задан — строки границ нет вовсе, без плейсхолдера: пустая
+ * подпись «границы не заданы» в свёрнутом виде только шумит, а поставить их
+ * можно в раскрытой панели.
+ *
+ * Разметка на span, а не div: узел рендерится внутри <button> аккордеона, где
+ * допустим только phrasing content.
+ */
+async function CollapsedSummary({
+  group,
+  range,
+  deltas,
+}: {
+  group: Group
+  range: UserRange | null
+  deltas: Map<string, number>
+}) {
+  const t = await getTranslations('labs')
+  const analyte = getAnalyte(isOtherGroup(group) ? 'other' : group.key)
+  const latest = latestRow(group.rows)
+
+  // Границы — в той единице, в которой их задали. У «другого» коридора нет по
+  // построению (ключ (user_id, analyte) склеил бы кастомные показатели), у
+  // остальных он может быть просто не задан.
+  const bounds =
+    range && analyte
+      ? t('range.compact', {
+          min: numberFmt.format(range.min),
+          max: numberFmt.format(range.max),
+          unit: unitLabel(analyte, range.unitCode),
+        })
+      : null
+
+  return (
+    <span className="flex items-center justify-between gap-3">
+      <span className="min-w-0">
+        <span className="block truncate font-heading text-xl text-foreground/70">
+          {group.title}
+        </span>
+        {bounds && (
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+            {bounds}
+          </span>
+        )}
+      </span>
+
+      {latest && latest.value != null && (
+        <span className="flex shrink-0 items-baseline gap-2">
+          <span className="text-lg text-foreground">
+            {formatNumber(latest.value)}
+          </span>
+          <span className="text-sm text-foreground/60">
+            {displayUnit(latest)}
+          </span>
+          <Delta value={deltas.get(latest.id)} />
+        </span>
+      )}
+    </span>
   )
 }
 

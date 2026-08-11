@@ -8,9 +8,9 @@ import { cn } from '@/lib/utils'
 /**
  * Аккордеон показателей: раскрыт один, остальные — свёрнутые заголовки.
  *
- * Каркас, шаг 3.1. Содержимое панелей пока прежнее (коридор, график, список
- * замеров) — крупное значение, тренд и период приедут следующими шагами, а
- * свёрнутая строка обрастёт последним значением и дельтой в 3.3.
+ * Свёрнутая строка информативна: название, границы коридора, последнее
+ * значение и дельта — чтобы не разворачивать показатель ради одной цифры.
+ * Собирается на сервере и приходит сюда готовым узлом (см. summary ниже).
  *
  * Устроено по образцу TrackerTabs: ПАНЕЛИ ПРИХОДЯТ ГОТОВЫМИ УЗЛАМИ, собранными
  * на сервере. Так LabsHistory остаётся серверным компонентом и продолжает
@@ -33,7 +33,14 @@ import { cn } from '@/lib/utils'
 export interface AccordionItem {
   /** Ключ группы из groupByAnalyte: код показателя либо other:<название>. */
   key: string
+  /** Заголовок раскрытого показателя — одно название, без цифр. */
   title: string
+  /**
+   * Свёрнутая строка целиком, собранная на сервере: название, границы
+   * коридора, последнее значение и дельта. Клиент её только показывает и
+   * дорисовывает шеврон — ни чтения БД, ни расчётов сюда не переезжает.
+   */
+  summary: React.ReactNode
   /** Готовый серверный узел с содержимым группы. */
   panel: React.ReactNode
 }
@@ -61,12 +68,28 @@ export function LabsAccordion({
                 type="button"
                 onClick={() => setOpenKey(isOpen ? null : item.key)}
                 aria-expanded={isOpen}
-                className="flex w-full items-center justify-between gap-3 py-2 text-left font-heading text-xl text-foreground/70 transition-colors hover:text-foreground"
+                className="flex w-full items-center gap-3 py-2 text-left transition-colors"
               >
-                {item.title}
+                {/* Раскрытый показывает только название: цифры уже стоят
+                    крупно в карточке под ним, дубль был бы шумом. Свёрнутый
+                    несёт всю строку — название, границы, значение, дельту.
+
+                    Внутри <button> допустим только phrasing content, поэтому
+                    вся раскладка на span с flex/block-классами, а не на div:
+                    вложенный div сделал бы разметку невалидной. */}
+                <span className="min-w-0 flex-1">
+                  {isOpen ? (
+                    <span className="font-heading text-xl text-foreground">
+                      {item.title}
+                    </span>
+                  ) : (
+                    item.summary
+                  )}
+                </span>
+
                 <ChevronDownIcon
                   className={cn(
-                    'size-5 shrink-0 transition-transform',
+                    'size-5 shrink-0 text-foreground/40 transition-transform',
                     isOpen && 'rotate-180',
                   )}
                   strokeWidth={1.8}
