@@ -116,7 +116,7 @@ export async function LabsHistory({
                   </span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <Delta value={deltas.get(row.id)} />
+                  <Delta value={deltas.get(row.id)} unit={displayUnit(row)} />
                   <time
                     className="text-sm text-foreground/60"
                     dateTime={row.measured_at ?? undefined}
@@ -250,7 +250,11 @@ async function CollapsedSummary({
           <span className="text-sm text-foreground/60">
             {displayUnit(latest)}
           </span>
-          <Delta value={deltas.get(latest.id)} />
+          <Delta
+            value={deltas.get(latest.id)}
+            unit={displayUnit(latest)}
+            showUnit={false}
+          />
         </span>
       )}
     </span>
@@ -319,7 +323,10 @@ async function MetricSummary({
     latest.measured_at ? formatDate(latest.measured_at, t('noDate')) : null,
     delta === undefined
       ? null
-      : t('metric.deltaToPrev', { delta: deltaFmt.format(delta) }),
+      : t('metric.deltaToPrev', {
+          delta: deltaFmt.format(delta),
+          unit: displayUnit(latest),
+        }),
   ].filter((part): part is string => part !== null)
 
   // Вторая часть — серия. Только up/down: flat это не движение, а его
@@ -546,7 +553,34 @@ function computeDeltas(groups: Group[]): Map<string, number> {
  * одобрение — и для тестостерона или пролактина это было бы ровно наоборот.
  * Цвет к направлению вернём, когда для него появится осмысленный токен.
  */
-function Delta({ value }: { value: number | undefined }) {
+function Delta({
+  value,
+  unit,
+  showUnit = true,
+}: {
+  value: number | undefined
+  /**
+   * Единица СВОЕЙ строки — та же, что показана у значения рядом.
+   *
+   * Обязательный проп даже при showUnit={false}: так новая точка рендера не
+   * сможет появиться, не объявив, в чём вообще её дельта. Скрыть подпись —
+   * решение места, а не повод забыть про единицу.
+   */
+  unit: string
+  /**
+   * Показывать ли подпись единицы.
+   *
+   * По умолчанию да: голое «+108» не говорит, чего именно плюс сто восемь, а
+   * рядом стоит график со своим переключателем пг/мл ↔ пмоль/л, за которым
+   * дельта намеренно НЕ следует (решение 2e — она в единице своей строки).
+   * Без подписи это выглядит как рассинхрон, хотя таковым не является.
+   *
+   * Выключается там, где сбить некому: в свёрнутой строке графика рядом нет,
+   * а единица значения и дельты совпадает — «пг/мл пг/мл» подряд было бы
+   * шумом без пользы.
+   */
+  showUnit?: boolean
+}) {
   if (value === undefined) return null
   return (
     <span
@@ -557,6 +591,10 @@ function Delta({ value }: { value: number | undefined }) {
       }
     >
       {deltaFmt.format(value)}
+      {/* Единица приглушённее и мельче самого числа — как у значения выше. */}
+      {showUnit && (
+        <span className="ml-1 font-normal text-foreground/50">{unit}</span>
+      )}
     </span>
   )
 }
