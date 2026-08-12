@@ -203,7 +203,12 @@ async function AnalysesEmpty() {
           href="/labs/new"
           className="inline-block rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
         >
-          {t('addButton')}
+          {/* addLabButton, а НЕ addButton: последний означает «Добавить
+              препарат» и обслуживает круглый «+» на вкладках препаратов
+              (:74). Здесь пустой экран АНАЛИЗОВ и ссылка ведёт на /labs/new —
+              подпись про препарат врала бы про раздел. Ключ для этого
+              действия уже есть и уже стоит на «+» во вкладке «Анализы». */}
+          {t('addLabButton')}
         </Link>
       </div>
     </div>
