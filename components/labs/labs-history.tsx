@@ -13,12 +13,18 @@ import { LabNote } from '@/components/labs/lab-note'
 import { LabPhoto } from '@/components/labs/lab-photo'
 import { LabPositionPill } from '@/components/labs/lab-position-pill'
 import { LabRangeEditor } from '@/components/labs/lab-range-editor'
-import { ANALYTES, getAnalyte, unitLabel } from '@/lib/labs/catalog'
+import {
+  ANALYTES,
+  defaultUnitCode,
+  getAnalyte,
+  unitLabel,
+} from '@/lib/labs/catalog'
 import { listLabRangesServer, type LabResultRow } from '@/lib/labs/queries'
 import type { LabRanges } from '@/lib/labs/ranges'
 import {
   computeLabDelta,
   computeLabTrend,
+  convertStrict,
   positionInRange,
   type UserRange,
 } from '@/lib/labs/stats'
@@ -98,7 +104,10 @@ export async function LabsHistory({
         />
 
         <div className="space-y-2">
-          {group.rows.map((row) => (
+          {group.rows.map((row) => {
+            const approx = approxInCanonical(row)
+
+            return (
             // Карточка стала колонкой: значение и дата в верхней строке как
             // раньше, раскрытая заметка — под ними. Иначе развёрнутому тексту
             // некуда встать, он ломал бы ряд по базовой линии.
@@ -107,13 +116,25 @@ export async function LabsHistory({
               className="rounded-2xl bg-card px-4 py-3 ring-1 ring-border"
             >
               <div className="flex items-baseline justify-between gap-4">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-lg text-foreground">
-                    {formatNumber(row.value)}
-                  </span>
-                  <span className="text-sm text-foreground/60">
-                    {displayUnit(row)}
-                  </span>
+                <div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-lg text-foreground">
+                      {formatNumber(row.value)}
+                    </span>
+                    <span className="text-sm text-foreground/60">
+                      {displayUnit(row)}
+                    </span>
+                  </div>
+
+                  {/* Пересчёт в опорную единицу показателя — ПРОИЗВОДНОЕ
+                      число, а не второй замер. Границу держат «≈» и
+                      приглушённость: введённое значение остаётся крупным и
+                      первичным, его мы не искажаем. */}
+                  {approx && (
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {t('metric.approx', approx)}
+                    </p>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <Delta value={deltas.get(row.id)} unit={displayUnit(row)} />
@@ -134,7 +155,8 @@ export async function LabsHistory({
               <LabNote ciphertext={row.note_ciphertext} />
               <LabPhoto path={row.blank_photo_path} iv={row.blank_photo_iv} />
             </div>
-          ))}
+            )
+          })}
         </div>
       </>
     ),
@@ -485,6 +507,55 @@ function EditLink({ id, label }: { id: string; label: string }) {
       <PencilIcon className="size-4" strokeWidth={1.8} />
     </Link>
   )
+}
+
+// ── Пересчёт в опорную единицу ───────────────────────────────────────────────
+
+/**
+ * Значение замера в ОПОРНОЙ единице показателя — для строки «≈ 120 пг/мл» под
+ * введённым числом.
+ *
+ * ⚠️ Это ПРОИЗВОДНОЕ число, а не второе измерение. Человек сдавал анализ один
+ * раз и получил одно значение в одной единице; всё остальное — арифметика,
+ * которую мы делаем за него для удобства сравнения. Отсюда «≈» и приглушённый
+ * мелкий шрифт: введённое значение остаётся крупным и первичным, искажать его
+ * нельзя, а пересчёт не должен выглядеть равноправным фактом.
+ *
+ * Опорная единица — дефолтная у аналита (units[0]), та же, с которой
+ * открывается график. Так две записи одного показателя в разных единицах
+ * можно сравнить глазами, не трогая ни исходники, ни переключатель.
+ *
+ * null (строки не будет) в четырёх случаях:
+ *   • замер уже введён в опорной единице — сравнивать не с чем;
+ *   • у показателя опорной единицы нет вовсе ('other' с пустым units);
+ *   • единицы несопоставимы — convertStrict отдаёт null, и выдумывать
+ *     коэффициент мы не станем;
+ *   • у строки нет значения или показателя.
+ */
+function approxInCanonical(
+  row: LabResultRow,
+): { value: string; unit: string } | null {
+  if (row.value == null || !row.analyte) return null
+
+  const analyte = getAnalyte(row.analyte)
+  if (!analyte) return null
+
+  const canonical = defaultUnitCode(analyte)
+  if (!canonical) return null
+
+  const unit = row.unit ?? ''
+  if (unit.trim() === canonical) return null
+
+  // Строго convertStrict: нестрогий convertValue при невозможности перевода
+  // молча вернул бы исходное число, и «≈ 440 пг/мл» под «440 пмоль/л»
+  // читалось бы как факт, будучи бессмыслицей.
+  const converted = convertStrict(row.value, unit, canonical, analyte)
+  if (converted === null) return null
+
+  return {
+    value: numberFmt.format(converted),
+    unit: unitLabel(analyte, canonical),
+  }
 }
 
 // ── Дельта к предыдущему замеру ──────────────────────────────────────────────
