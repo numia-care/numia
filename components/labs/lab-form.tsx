@@ -183,6 +183,11 @@ export function LabForm({
   // Существующее фото считается имеющимся, пока его не убрали и не заменили.
   const hasStoredPhoto = Boolean(storedPhotoPath) && !photoRemoved
 
+  // Есть ли у сдачи бланк ПОСЛЕ правки: только что выбранный файл либо
+  // существующий, который не убрали. От этого зависит, можно ли снести
+  // последний показатель — см. removeRow.
+  const hasAnyPhoto = Boolean(photo) || hasStoredPhoto
+
   const isPhotoMode = mode === 'photo'
 
   // Переключатель «по значениям / фото бланка» прячем, когда правим сдачу, у
@@ -299,8 +304,17 @@ export function LabForm({
   }
 
   function removeRow(key: string) {
-    // Минимум одна строка: пустой список нечего было бы сохранять.
-    setRows((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.key !== key)))
+    // Последний показатель убрать МОЖНО, если у сдачи есть бланк: сдача с
+    // фото и нулём показателей — это «только бланк», полноценная запись.
+    // Ровно это и обещает комментарий у showModeTabs выше: «когда не
+    // останется ни одного, сдача сама станет только бланк».
+    //
+    // Без бланка нельзя: пустая сдача — ни показателей, ни фото — не
+    // проходит гард empty_record в records.ts (:61 при создании, :248 при
+    // правке), и показывать её было бы нечего.
+    setRows((prev) =>
+      prev.length > 1 || hasAnyPhoto ? prev.filter((r) => r.key !== key) : prev,
+    )
   }
 
   /**
@@ -483,7 +497,7 @@ export function LabForm({
               index={index}
               total={rows.length}
               disabled={saving}
-              canRemove={rows.length > 1}
+              canRemove={rows.length > 1 || hasAnyPhoto}
               onChange={(patch) => updateRow(row.key, patch)}
               onAnalyteChange={(code) => onAnalyteChange(row.key, code)}
               onRemove={() => removeRow(row.key)}
