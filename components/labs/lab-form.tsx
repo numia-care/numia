@@ -39,8 +39,15 @@ import { cn } from '@/lib/utils'
 // в обоих режимах. Отличий ровно два: initialValues (при создании их нет) и
 // какая функция вызывается на сохранении (addLabSession / updateLabSession).
 
+// text-base md:text-sm — 16px на мобиле, 14px от md вверх. Размер здесь не
+// косметика: iOS Safari принудительно зумит страницу при фокусе на поле со
+// шрифтом МЕНЬШЕ 16px. После зума visual viewport расходится с layout
+// viewport, страницу таскает, и поле уезжает под клавиатуру (фидбек тестера:
+// «клавиатура закрывает поле, начинаю двигать — она пропадает»).
+// Ровно так же собран общий ui/Input, на котором сидят трекер и профиль, —
+// это выравнивание с остальным проектом, а не отдельный приём.
 const selectClass =
-  'w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50'
+  'w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm disabled:opacity-50'
 const inputClass = selectClass
 
 // Свободная единица для «другое»: реальные единицы короткие («ммоль/л», «мкМЕ/мл»).

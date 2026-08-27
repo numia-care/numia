@@ -284,8 +284,11 @@ export function LabRangeEditor({
 
 type Step = 'edit' | 'confirm'
 
+// text-base md:text-sm — 16px на мобиле, 14px от md вверх: поле со шрифтом
+// меньше 16px iOS Safari зумит при фокусе, и поле уезжает под клавиатуру.
+// Тот же класс и та же причина, что в lab-form.tsx.
 const inputClass =
-  'w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50'
+  'w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm disabled:opacity-50'
 
 const numberFmt = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 })
 const fmt = (v: number) => numberFmt.format(v)
