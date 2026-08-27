@@ -68,6 +68,31 @@ interface AnalyteRow {
   customUnit: string
 }
 
+/**
+ * Строка поля → число. Строгий разбор: строка принимается, ТОЛЬКО если она
+ * целиком является числом.
+ *
+ * Заменил parseFloat, и это суть правки. parseFloat разбирает числовой
+ * префикс и молча останавливается: '1ыфаыа241' у него равно 1, '43abc' — 43.
+ * Мусор проходил валидацию, превращался в другое число и уезжал в БД без
+ * единого предупреждения. Number() на той же строке даёт NaN, то есть
+ * отвергает её целиком.
+ *
+ * Запятая нормализуется в точку — на русской раскладке десятичный
+ * разделитель именно она, и требовать точку значило бы ловить «неверное
+ * число» на ровном месте. Заменяется ПЕРВАЯ запятая: '1,2,3' так и остаётся
+ * мусором, а не превращается в 1.2.
+ *
+ * null для пустой строки и для всего, что не число. Диапазон здесь не
+ * проверяется — это дело validateRow.
+ */
+function parseValue(raw: string): number | null {
+  const s = raw.trim().replace(',', '.')
+  if (s === '') return null
+  const n = Number(s)
+  return Number.isFinite(n) ? n : null
+}
+
 function makeEmptyRow(): AnalyteRow {
   return {
     key: crypto.randomUUID(),
@@ -327,8 +352,8 @@ export function LabForm({
     const prefix = (msg: string) =>
       total > 1 ? `${t('rowPrefix', { n: index + 1 })}${msg}` : msg
 
-    const num = parseFloat(row.value.replace(',', '.'))
-    if (!isFinite(num) || num <= 0) return prefix(t('valueInvalid'))
+    const num = parseValue(row.value)
+    if (num === null || num <= 0) return prefix(t('valueInvalid'))
     if (isOther && !row.customName.trim()) return prefix(t('customNameRequired'))
 
     const unit = isOther ? row.customUnit.trim() : row.unitCode
@@ -348,11 +373,23 @@ export function LabForm({
    */
   function toSessionRow(row: AnalyteRow): UpdateLabSessionRow {
     const isOther = Boolean(rowAnalyte(row).allowCustom)
+
+    // Тот же строгий парс, что в validateRow. Держать здесь parseFloat, как
+    // было, значило бы чинить проверку и оставлять порчу на записи: валидация
+    // отбила бы «43abc», но если бы её однажды обошли, в БД уехало бы 43.
+    const value = parseValue(row.value)
+    if (value === null) {
+      // validateRow отрабатывает раньше и таких строк не пропускает. Бросаем,
+      // а не подставляем заглушку: молча записать не то число — ровно тот
+      // баг, ради которого правка и делается.
+      throw new Error('value_not_a_number')
+    }
+
     return {
       id: row.id,
       analyte: row.analyteCode,
       analyteCustomName: isOther ? row.customName.trim() : undefined,
-      value: parseFloat(row.value.replace(',', '.')),
+      value,
       unit: isOther ? row.customUnit.trim() : row.unitCode,
     }
   }
@@ -699,6 +736,14 @@ function AnalyteRowFields({
   const t = useTranslations('labs.new')
   const analyte = rowAnalyte(row)
   const isOther = Boolean(analyte.allowCustom)
+
+  // Ошибку значения показываем только после ухода из поля — и только если
+  // там реально мусор. Пустое поле молчит: человек мог просто добавить строку
+  // и пройти мимо табом, ругаться на это рано, сабмит всё равно не пустит.
+  const [valueTouched, setValueTouched] = useState(false)
+  const parsedValue = parseValue(row.value)
+  const showValueError =
+    valueTouched && row.value.trim() !== '' && (parsedValue === null || parsedValue <= 0)
   const uid = row.key
 
   return (
@@ -761,16 +806,33 @@ function AnalyteRowFields({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor={`value-${uid}`}>{t('valueLabel')}</Label>
+          {/* Ввод НЕ фильтруем посимвольно: молча съеденное нажатие на
+              мобильной клавиатуре ощущается как залипание поля. Вместо этого
+              inputMode='decimal' подсказывает клавиатуре цифры, а ошибку
+              показываем мягко — когда человек ушёл из поля. */}
           <input
             id={`value-${uid}`}
             type="text"
             inputMode="decimal"
             value={row.value}
-            onChange={(e) => onChange({ value: e.target.value })}
+            onChange={(e) => {
+              // Печатает — молчим: подсвечивать ошибку на каждом символе
+              // значит ругаться на «4» по дороге к «43,6».
+              setValueTouched(false)
+              onChange({ value: e.target.value })
+            }}
+            onBlur={() => setValueTouched(true)}
             placeholder={t('valuePlaceholder')}
             disabled={disabled}
+            aria-invalid={showValueError || undefined}
+            aria-describedby={showValueError ? `value-error-${uid}` : undefined}
             className={inputClass}
           />
+          {showValueError && (
+            <p id={`value-error-${uid}`} className="text-xs text-rose-600">
+              {t('valueInvalid')}
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">
