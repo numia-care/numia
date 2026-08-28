@@ -1,4 +1,3 @@
-import { addDays, startOfDay } from 'date-fns'
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -17,16 +16,38 @@ export const SLOT_GEN_DAYS = 3
  * их не отметил. Раньше границы не было вообще, и один флип таймзоны или
  * правка расписания сметали неотмеченное прошлое насовсем.
  *
- * Считается от ТЕКУЩЕГО момента, а не от startOfDay(new Date()) как в окне
- * сверки ниже. Разница принципиальная: startOfDay даёт полночь в таймзоне
- * СЕРВЕРА (на Vercel это UTC), и для юзера западнее UTC формат в его зоне
- * отдаёт вчерашнюю дату — граница уехала бы на сутки назад и перестала
- * защищать ровно то, ради чего она нужна. Здесь берём now(), форматируем
- * сразу в зоне юзера — тот же приём, что в getTodayRange (lib/tracker/today.ts).
+ * Считается от ТЕКУЩЕГО момента и форматируется сразу в зоне юзера — тот же
+ * приём, что в getTodayRange (lib/tracker/today.ts). Брать вместо этого
+ * startOfDay(new Date()) нельзя: он даёт полночь в таймзоне РАНТАЙМА (на
+ * Vercel это UTC), и в часы, когда локальная дата юзера уже разошлась с
+ * UTC-датой, граница уезжает на сутки — защищает не тот день.
+ *
+ * Окно сверки в generateSlotsForActiveMeds считается отсюда же по этой самой
+ * причине (дефект C таймзонного бага дублей).
  */
 export function startOfUserDayUtc(timezone: string, now: Date = new Date()): Date {
   const ymd = formatInTimeZone(now, timezone, 'yyyy-MM-dd')
   return fromZonedTime(`${ymd}T00:00:00`, timezone)
+}
+
+/**
+ * Момент ВНУТРИ i-го календарного дня юзера, считая от его локальной полуночи.
+ * Нужен только чтобы получить календарную ДАТУ этого дня — время внутри
+ * произвольное, важно лишь не выпасть за границы суток.
+ *
+ * Почему не addDays(base, i): addDays прибавляет ровно 24 часа, а в сутки
+ * перехода на зимнее/летнее время их 25 или 23. От локальной полуночи «+24ч»
+ * в 25-часовые сутки не дотягивает до следующей даты — день повторяется, а
+ * следующий пропадает (проверено на Europe/Madrid 25.10.2026). Пока базой
+ * была полночь UTC, это не всплывало: в UTC переходов нет.
+ *
+ * Приём тот же, что в getTodayRange (lib/tracker/today.ts:30-35): прыгнуть с
+ * запасом и взять локальную дату точки приземления. Там для одного дня это
+ * +36ч, здесь то же самое обобщено — i*24 + 12. Запас в 12 часов покрывает
+ * сдвиг ±1ч с большим зазором, а до соседних суток (≥23ч) не достаёт.
+ */
+function dayInUserTz(startOfDayUtc: Date, i: number): Date {
+  return new Date(startOfDayUtc.getTime() + (i * 24 + 12) * 60 * 60 * 1000)
 }
 
 /**
@@ -58,7 +79,13 @@ export async function generateSlotsForActiveMeds(
     .is('deleted_at', null)
     .is('end_date', null)
 
-  const today = startOfDay(new Date())
+  // Локальная полночь ЮЗЕРА, не сервера. Здесь был startOfDay(new Date()) —
+  // полночь в зоне рантайма, а на Vercel это UTC. Для юзера восточнее UTC в
+  // ранние часы его дня (Москва, UTC+3 → 00:00–03:00) UTC-дата ещё вчерашняя,
+  // и всё окно ниже съезжало на сутки назад: сверка пересобирала вчера, пока
+  // экран показывал сегодня. Дубли сегодняшнего дня она в таком окне просто
+  // не видела. Ровно то, о чём предупреждает комментарий к startOfUserDayUtc.
+  const today = startOfUserDayUtc(timezone)
   const slots: {
     medication_id: string
     user_id: string
@@ -72,7 +99,10 @@ export async function generateSlotsForActiveMeds(
     const schedule = parseSchedule(med.schedule)
 
     for (let i = 0; i < days; i += 1) {
-      const day = addDays(today, i)
+      // Момент внутри i-го дня юзера. И dayYmd ниже, и computeSlotsForDay
+      // берут отсюда только календарную дату в его зоне, так что «полдень
+      // этого дня» подходит ровно так же, как полночь, но переживает DST.
+      const day = dayInUserTz(today, i)
       // Сравниваем КАЛЕНДАРНУЮ дату дня в tz юзера со start_date (строкой
       // YYYY-MM-DD) — лексикографическое сравнение строк = хронологическое.
       // Раньше тут было `new Date(day) < new Date(med.start_date)`: первое —
@@ -101,7 +131,7 @@ export async function generateSlotsForActiveMeds(
     timezone,
   )
   const windowEnd = fromZonedTime(
-    `${formatInTimeZone(addDays(today, days), timezone, 'yyyy-MM-dd')}T00:00:00`,
+    `${formatInTimeZone(dayInUserTz(today, days), timezone, 'yyyy-MM-dd')}T00:00:00`,
     timezone,
   )
 
