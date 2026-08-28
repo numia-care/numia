@@ -30,7 +30,14 @@ export interface ReferenceRange {
 export interface Analyte {
   // Код показателя — хранится в lab_results.analyte.
   code: string
-  // Отображаемое имя (RU, гендерно-нейтральное).
+  // Отображаемое имя (RU, гендерно-нейтральное). ЕДИНСТВЕННЫЙ источник —
+  // ни в ru.json, ни в компонентах имён показателей нет.
+  //
+  // Норма записи: русское слово + общепринятый символ величины в скобках
+  // («Эстрадиол (E2)»). Если у показателя ходовое имя — сама аббревиатура,
+  // пишем только её, без перевода в скобках: «ЛГ», не «ЛГ (LH)» — скобки
+  // несут символ, а не второй язык. Раньше в списке уживались оба паттерна,
+  // и названия выглядели разнобоем.
   name: string
   // Единицы показателя. units[0] — базовая И дефолтная в форме. Пустой массив
   // только у 'other' (единицу юзер вписывает свободно).
@@ -74,7 +81,7 @@ export const ANALYTES: Analyte[] = [
   },
   {
     code: 'prolactin',
-    name: 'Пролактин',
+    name: 'Пролактин (PRL)',
     units: [
       { code: 'ng_ml', label: 'нг/мл', toBase: 1 },
       { code: 'miu_l', label: 'мЕд/л', toBase: 1 / 21.2 },
@@ -83,19 +90,19 @@ export const ANALYTES: Analyte[] = [
   },
   {
     code: 'lh',
-    name: 'ЛГ (LH)',
+    name: 'ЛГ',
     units: [{ code: 'miu_ml', label: 'мЕд/мл', toBase: 1 }],
     referenceRange: null,
   },
   {
     code: 'fsh',
-    name: 'ФСГ (FSH)',
+    name: 'ФСГ',
     units: [{ code: 'miu_ml', label: 'мЕд/мл', toBase: 1 }],
     referenceRange: null,
   },
   {
     code: 'shbg',
-    name: 'ГСПГ (SHBG)',
+    name: 'ГСПГ',
     units: [{ code: 'nmol_l', label: 'нмоль/л', toBase: 1 }],
     referenceRange: null,
   },
