@@ -123,7 +123,10 @@ export async function generateSlotsForActiveMeds(
     }
   }
 
-  // --- Сверка: снести upcoming-слоты окна, которых нет в ожидаемом наборе ---
+  // --- Сверка: снести лишние слоты окна ------------------------------------
+  // Лишний = его нет в ожидаемом наборе. Для upcoming этого достаточно; для
+  // missed нужен ещё законный двойник в тот же день (дефект B, разбор ниже).
+  // taken/skipped не рассматриваются вовсе.
   // Границы окна в UTC — те же календарные дни в tz юзера, по которым шёл
   // цикл выше: [сегодня 00:00 tz, сегодня+days 00:00 tz).
   const windowStart = fromZonedTime(
@@ -136,23 +139,64 @@ export async function generateSlotsForActiveMeds(
   )
 
   const expected = new Set(slots.map((s) => `${s.medication_id}|${s.scheduled_at}`))
+
+  // Второй индекс, по КАЛЕНДАРНЫМ ДНЯМ юзера: «на этот день расписание у
+  // этого препарата слот ждёт». Нужен, чтобы отличить missed-дубль от
+  // настоящего пропуска — см. фильтр ниже.
+  //
+  // День считается ТОЙ ЖЕ `timezone`, что и окно выше и весь расчёт слотов
+  // (параметр функции, не зона рантайма). Возьми мы здесь серверную зону —
+  // завели бы ровно тот рассинхрон, который этой правкой и лечится.
+  const localDay = (iso: string) =>
+    formatInTimeZone(new Date(iso), timezone, 'yyyy-MM-dd')
+  const expectedDays = new Set(
+    slots.map((s) => `${s.medication_id}|${localDay(s.scheduled_at)}`),
+  )
+
   const { data: existing } = await supabase
     .from('intake_events')
-    .select('id, medication_id, scheduled_at')
+    .select('id, medication_id, scheduled_at, status')
     .eq('user_id', userId)
-    .eq('status', 'upcoming')
+    // taken и skipped не попадают в выборку ФИЗИЧЕСКИ. Это действия юзера, и
+    // стереть их нельзя ни при какой ошибке в фильтре ниже — барьер
+    // структурный, а не логический.
+    .in('status', ['upcoming', 'missed'])
     .gte('scheduled_at', windowStart.toISOString())
     .lt('scheduled_at', windowEnd.toISOString())
 
   // PostgREST отдаёт timestamptz в своём формате — нормализуем через Date,
   // чтобы строковое сравнение с нашим toISOString() было честным.
   const staleIds = (existing ?? [])
-    .filter(
-      (e) =>
-        !expected.has(
-          `${e.medication_id}|${new Date(e.scheduled_at as string).toISOString()}`,
-        ),
-    )
+    .filter((e) => {
+      const iso = new Date(e.scheduled_at as string).toISOString()
+      const medId = e.medication_id as string | null
+
+      // Слот стоит там, где расписание его и ждёт — не трогаем.
+      if (expected.has(`${medId}|${iso}`)) return false
+
+      // upcoming: лишний слот сносим, как и до этой правки.
+      const status = e.status as string
+      if (status === 'upcoming') return true
+
+      // Всё, что не upcoming и не missed (то есть taken/skipped), сохраняем
+      // безусловно. Запрос выше их и так не выбирает, но ветка нужна явная:
+      // без неё «остальное» проваливалось бы в логику missed, и достаточно
+      // было бы однажды расширить .in(...) выше, чтобы сверка начала стирать
+      // действия юзера. Второй барьер к структурному.
+      if (status !== 'missed') return false
+
+      // missed: сносим ТОЛЬКО при законном двойнике — слоте того же препарата
+      // в тот же локальный день, который расписание действительно ждёт. Это и
+      // есть подпись дубля от флипа зоны: пара строк на один приём, одна из
+      // которых успела замёрзнуть в missed (cron mark_missed_intakes) и тем
+      // самым стала недосягаема для прежней сверки — она смотрела только на
+      // upcoming. Отсюда и брались вечные дубли.
+      //
+      // Без двойника missed — НАСТОЯЩИЙ пропуск: препарат остановлен, удалён,
+      // расписание сменилось, слот осиротел. Такое не трогаем никогда,
+      // история приверженности дороже чистоты набора.
+      return expectedDays.has(`${medId}|${localDay(iso)}`)
+    })
     .map((e) => e.id as string)
 
   if (staleIds.length > 0) {
