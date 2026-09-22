@@ -4,6 +4,23 @@ import createNextIntlPlugin from 'next-intl/plugin'
 const withNextIntl = createNextIntlPlugin('./i18n/request.ts')
 
 const nextConfig: NextConfig = {
+  // Самодостаточная сборка для Docker: next build кладёт в .next/standalone
+  // минимальный server.js со всеми нужными файлами, без полного node_modules.
+  // Запуск — `node server.js`, порт и хост через PORT / HOSTNAME.
+  // (docs: 01-app/03-api-reference/05-config/01-next-config-js/output.md)
+  // На Vercel игнорируется, там своя упаковка — веб-деплой не меняется.
+  output: 'standalone',
+
+  // Swagger UI (/api/docs) читает файлы пакета swagger-ui-dist с диска в
+  // рантайме. Трассировка их не видит — путь собирается строкой, — и без этой
+  // строки в standalone-образ они не попадут. Ключ — путь маршрута.
+  outputFileTracingIncludes: {
+    '/api/docs/*': [
+      './node_modules/swagger-ui-dist/swagger-ui.css',
+      './node_modules/swagger-ui-dist/swagger-ui-bundle.js',
+    ],
+  },
+
   async headers() {
     return [
       {

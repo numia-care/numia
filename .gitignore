@@ -34,6 +34,8 @@ yarn-error.log*
 .env*
 # шаблон без секретов — единственный env-файл, который должен быть в git
 !.env.example
+# значения для docker-compose (секреты) — под общее правило .env*, явно для наглядности
+.env.docker
 
 # vercel
 .vercel

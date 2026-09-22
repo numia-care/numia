@@ -1,0 +1,38 @@
+# Локальный и «домашний» запуск Numia (веб + BFF).
+#
+#   docker compose --env-file .env.docker up --build     — собрать и поднять
+#   docker compose --env-file .env.docker logs -f app    — логи
+#   docker compose --env-file .env.docker down           — остановить
+#
+# ФЛАГ --env-file ОБЯЗАТЕЛЕН. Docker Compose подставляет ${...} в этот файл
+# только из переменных оболочки или из файла с именем ровно `.env`. Директива
+# env_file здесь не помогла бы: она отдаёт переменные ВНУТРЬ контейнера, но не
+# в секцию build.args, а NEXT_PUBLIC_* нужны именно на этапе сборки.
+#
+# Значения — в .env.docker (он в .gitignore). Шаблон — .env.example.
+
+services:
+  app:
+    build:
+      context: .
+      # Впекаются в браузерный бандл на этапе сборки — иначе Next не умеет.
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?нужен .env.docker, см. шапку файла}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?нужен .env.docker}
+        NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
+        APP_VERSION: ${APP_VERSION:-dev}
+    image: numia:${APP_VERSION:-dev}
+    restart: unless-stopped
+    ports:
+      - '${HOST_PORT:-3000}:3000'
+    environment:
+      # Читаются маршрутами /api/v1 в рантайме — меняются без пересборки.
+      SUPABASE_URL: ${SUPABASE_URL:?нужен .env.docker}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:?нужен .env.docker}
+      APP_VERSION: ${APP_VERSION:-dev}
+      # Swagger UI на /api/docs. По умолчанию выключен — см. lib/api/docs.ts.
+      API_DOCS: ${API_DOCS:-false}
+    extra_hosts:
+      # Чтобы host.docker.internal резолвился и на Linux-хостах тоже
+      # (на macOS Docker добавляет его сам). Нужен, когда Supabase локальный.
+      - 'host.docker.internal:host-gateway'

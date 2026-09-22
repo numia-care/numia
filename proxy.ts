@@ -75,6 +75,10 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Не запускаем proxy на статике, иконках и манифестах — auth-cookies им не нужны.
-    '/((?!_next/static|_next/image|favicon\\.ico|manifest\\.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+    // /api тоже исключён: BFF ходит по Bearer-токену, а не по cookie, поэтому
+    // updateSession там бесполезен и стоит лишнего похода в Supabase Auth на
+    // каждый запрос. CSP на JSON-ответах смысла тоже не имеет.
+    // NB: /auth/callback под матчер по-прежнему попадает — ему cookies нужны.
+    '/((?!api|_next/static|_next/image|favicon\\.ico|manifest\\.json|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
   ],
 }

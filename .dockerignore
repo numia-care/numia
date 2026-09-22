@@ -1,0 +1,25 @@
+# Всё, что не должно попасть в контекст сборки: и ради размера, и ради
+# безопасности (секреты в образ не едут).
+.git
+.gitignore
+node_modules
+.next
+out
+build
+.vercel
+.env
+.env.*
+!.env.example
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+*.pem
+docs
+supabase/functions
+scripts
+README.md
+CLAUDE.md
+nurra-context.md
+Dockerfile
+.dockerignore
+docker-compose.yml

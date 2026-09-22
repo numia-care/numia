@@ -10,6 +10,14 @@ This file is read automatically by Claude Code at the start of every session. It
 
 Product details, audience, motivation, monetization: see `nurra-context.md`. Read it the first time you start a session.
 
+### What to read at the start of a session
+
+- `nurra-context.md` — product context.
+- **`docs/TODO.md` — known but unresolved problems.** Must be read before taking on any work: it holds the bugs and vulnerabilities found, with a plan to fix them. If you're changing code in an affected area, check whether the task gets solved along the way. Found a new problem outside the scope of the current task — don't silently fix it as you go; add an entry to `docs/TODO.md` (description, consequences, plan) and continue with the main work.
+
+  **When the current task is finished, remind about `docs/TODO.md`.** In one or two lines: what's left there and which item makes sense to take next. Don't start it without an answer — just show that the queue isn't empty. Closed an item — delete it from the file instead of striking it through: the file must stay a to-do list, not a log.
+- `docs/api-v1.md` — the BFF contract for the iOS app, `docs/bff-deploy.md` — building and running in Docker. Needed only when the work touches the API or deploy.
+
 ---
 
 ## Stack (fixed, we don't change it without discussion)
@@ -90,13 +98,13 @@ No exceptions. Policies check `auth.uid() = user_id`. No "we'll do it later" —
 - We don't require a real name — only a pseudonym
 
 **4. Auth.**
-- Magic link via email (no passwords by default)
+- One-time 6-digit code by email (`signInWithOtp` + `verifyOtp`), no passwords and no magic link. Web — `app/(auth)/login/login-form.tsx`, iOS — via the BFF (`/api/v1/auth/*`, see `docs/api-v1.md` §3)
 - We support disposable email services (SimpleLogin, AnonAddy) — we don't block by domain
 - Optional (a later stage): passkey / WebAuthn
 
 **5. PIN code / biometrics to enter the app.**
 Even if the user is signed in, opening the app goes through a second layer:
-- a 4-digit PIN or
+- a 6-digit PIN or
 - Face ID / Touch ID via the Web Authentication API
 This protects against the "phone ended up in someone else's hands for 30 seconds" situation.
 
@@ -255,7 +263,7 @@ From day one — no "this is a website in a browser". The user must not see any 
 ```
 /app
   /(auth)
-    /login              - sign-in pages (magic link)
+    /login              - sign-in pages (emailed code)
     /pin                - PIN setup/entry
   /(app)                - protected pages (need auth + PIN)
     /tracker            - HRT tracker
@@ -289,7 +297,7 @@ From day one — no "this is a website in a browser". The user must not see any 
 ### Stage 0 — skeleton and basic security (1 week)
 - Next.js project with TypeScript + Tailwind
 - Supabase in an EU region, project created
-- Auth via magic link
+- Auth by emailed code
 - Basic PWA layout, manifest, service worker
 - Icons in all sizes
 - PIN code / biometrics to enter
@@ -357,6 +365,8 @@ pnpm dev             # start the dev server
 pnpm build           # production build
 pnpm lint            # run the linter (eslint flat config)
 pnpm typecheck       # check TypeScript (tsc --noEmit)
+pnpm test            # tests (vitest), incl. that docs/openapi.json matches the code
+pnpm test -u         # update docs/openapi.json after changing BFF schemas or routes
 ```
 
 (update this section when you add your own scripts)

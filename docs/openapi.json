@@ -1,0 +1,816 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Numia BFF",
+    "version": "1.0.0",
+    "description": "Контракт между iOS-приложением и BFF. Правила версионирования, модель входа и граница шифрования описаны в docs/api-v1.md. Поля — из zod-схем в lib/api/schemas.ts."
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "Относительно хоста BFF"
+    }
+  ],
+  "tags": [
+    {
+      "name": "system",
+      "description": "Служебное"
+    },
+    {
+      "name": "auth",
+      "description": "Вход по коду из письма"
+    },
+    {
+      "name": "profile",
+      "description": "Профиль пользователя"
+    },
+    {
+      "name": "e2e",
+      "description": "Материал ключей E2E. Секретов сервер не видит."
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Проверка живости",
+        "operationId": "getHealth",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Сервис жив.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Эта спецификация",
+        "operationId": "getOpenApi",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 документ.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/otp": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Отправить код на почту",
+        "description": "Для нового адреса заодно создаётся аккаунт. Отвечает 204 всегда, существует аккаунт или нет, — иначе по ответу можно было бы проверять, кто пользуется приложением. 429 вскоре после прошлого запроса — код уже отправлен.",
+        "operationId": "sendOtp",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OtpRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Код отправлен (или адрес не существует — не различаем)."
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidInput"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/auth/verify": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Обменять код на токены",
+        "operationId": "verifyOtp",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Токены.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_input — тело не прошло валидацию; invalid_code — код неверный или просрочен (не различаем).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Новая пара токенов",
+        "description": "Каждый обмен выдаёт новый refresh_token — сохранять его. Обновление одно на всё приложение: параллельные запросы, получившие 401, ждут его результата.",
+        "operationId": "refreshTokens",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Новые токены.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidInput"
+          },
+          "401": {
+            "description": "Сессия кончилась — войти заново.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Выйти на этом устройстве",
+        "description": "Всегда 204, в том числе на недействительный токен. Access-токен доживает до своего срока — клиент стирает оба токена сразу.",
+        "operationId": "logout",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Вышли."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Профиль",
+        "operationId": "getProfile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Профиль текущего пользователя.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Изменить профиль",
+        "operationId": "updateProfile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfilePatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Обновлённый профиль.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidInput"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "profile"
+        ],
+        "summary": "Удалить аккаунт",
+        "description": "Удаляет аккаунт, все данные и файлы, разлогинивает все устройства. Необратимо. Повторной проверки кода нет. Идемпотентно: после сбоя повтор дочищает остатки. Если ответ 204 потерялся, повтор вернёт 401 — аккаунта уже нет, клиент стирает токены и локальные данные так же, как после 204.",
+        "operationId": "deleteAccount",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Аккаунт удалён."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          },
+          "503": {
+            "description": "Хранилище недоступно. Аккаунт не удалён, часть файлов могла удалиться — повторить позже.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/e2e/recovery": {
+      "get": {
+        "tags": [
+          "e2e"
+        ],
+        "summary": "Якорь восстановления",
+        "description": "404 — якоря нет, можно создавать новый DEK. Любой сбой чтения — 500 или 503, никогда не 404: на ложный 404 клиент сгенерировал бы новый DEK и потерял данные.",
+        "operationId": "getRecoveryAnchor",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Якорь.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryAnchorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "description": "Якоря нет.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "e2e"
+        ],
+        "summary": "Создать или сменить якорь восстановления",
+        "description": "Условная запись. expected_anchor_version: 0 — создать, только если якоря нет; N — заменить, только если текущая версия N. Проверка и запись атомарны в БД. Повтор того же тела безопасен: если якорь уже ровно такой, ответ 200 с текущей версией.",
+        "operationId": "putRecoveryAnchor",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryAnchorPutRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Записано. anchor_version — новая версия.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryAnchorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidInput"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "409": {
+            "description": "Версия не совпала: якорь успели создать или сменить с другого устройства. Ничего не записано. Перечитать GET и перейти к восстановлению по фразе.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/Internal"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ApiErrorCode": {
+        "type": "string",
+        "x-enum-values": [
+          "invalid_input",
+          "invalid_code",
+          "unauthenticated",
+          "forbidden",
+          "not_found",
+          "conflict",
+          "unprocessable",
+          "rate_limited",
+          "internal",
+          "service_unavailable"
+        ],
+        "description": "Известные значения: invalid_input, invalid_code, unauthenticated, forbidden, not_found, conflict, unprocessable, rate_limited, internal, service_unavailable. Список может пополняться внутри v1 — незнакомое значение клиент обязан переживать."
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/ApiErrorCode"
+              },
+              "message": {
+                "description": "Для логов и отладки. Пользователю не показывать.",
+                "type": "string"
+              },
+              "field": {
+                "description": "Поле, не прошедшее валидацию.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "code"
+            ]
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "api": {
+            "type": "string",
+            "const": "v1"
+          },
+          "version": {
+            "type": "string",
+            "description": "Ревизия сборки образа."
+          }
+        },
+        "required": [
+          "status",
+          "api",
+          "version"
+        ]
+      },
+      "OtpRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 320,
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "additionalProperties": false
+      },
+      "VerifyRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 320,
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^\\d{6}$",
+            "description": "6 цифр из письма."
+          }
+        },
+        "required": [
+          "email",
+          "code"
+        ],
+        "additionalProperties": false
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "properties": {
+          "refresh_token": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "refresh_token"
+        ],
+        "additionalProperties": false
+      },
+      "TokenResponse": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "description": "Непрозрачная строка. Клиент не декодирует."
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "Непрозрачная строка. После каждого обмена сохранять новую."
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Срок жизни access_token в секундах."
+          },
+          "token_type": {
+            "type": "string",
+            "const": "bearer"
+          }
+        },
+        "required": [
+          "access_token",
+          "refresh_token",
+          "expires_in",
+          "token_type"
+        ]
+      },
+      "ProfileResponse": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA-имя. Открыто: по нему сервер считает слоты и шлёт напоминания."
+          },
+          "profile_ciphertext": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "E2E-блоб с именем и формой обращения, base64(iv ‖ ct). Сервер не читает."
+          },
+          "e2e": {
+            "type": "object",
+            "properties": {
+              "has_recovery_anchor": {
+                "type": "boolean",
+                "description": "Есть ли на сервере обёртка ключа под фразу восстановления."
+              }
+            },
+            "required": [
+              "has_recovery_anchor"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601, UTC, с Z, без дробных секунд: 2026-09-15T11:09:46Z."
+          }
+        },
+        "required": [
+          "user_id",
+          "timezone",
+          "profile_ciphertext",
+          "e2e",
+          "created_at"
+        ]
+      },
+      "ProfilePatchRequest": {
+        "type": "object",
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "description": "IANA-имя таймзоны, например Europe/Madrid."
+          },
+          "profile_ciphertext": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 8192
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "RecoveryAnchorResponse": {
+        "type": "object",
+        "properties": {
+          "dek_wrapped_recovery": {
+            "type": "string",
+            "description": "base64(iv ‖ ciphertext ‖ tag): DEK, обёрнутый ключом из фразы восстановления."
+          },
+          "recovery_salt": {
+            "type": "string",
+            "description": "base64, соль PBKDF2 для вывода ключа из фразы."
+          },
+          "recovery_kdf_iterations": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Итерации PBKDF2. null — исторический якорь на 210 000. Брать из ответа, не из константы."
+          },
+          "anchor_version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Текущая версия якоря. Передаётся в expected_anchor_version при смене фразы."
+          }
+        },
+        "required": [
+          "dek_wrapped_recovery",
+          "recovery_salt",
+          "recovery_kdf_iterations",
+          "anchor_version"
+        ]
+      },
+      "RecoveryAnchorPutRequest": {
+        "type": "object",
+        "properties": {
+          "dek_wrapped_recovery": {
+            "type": "string",
+            "minLength": 80,
+            "maxLength": 80,
+            "description": "base64(iv 12 ‖ ciphertext 32 ‖ tag 16) — ровно 60 байт."
+          },
+          "recovery_salt": {
+            "type": "string",
+            "minLength": 24,
+            "maxLength": 24,
+            "description": "base64, ровно 16 байт."
+          },
+          "recovery_kdf_iterations": {
+            "type": "integer",
+            "minimum": 600000,
+            "maximum": 10000000
+          },
+          "expected_anchor_version": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "0 — создать, только если якоря нет. N — заменить, только если текущая версия N."
+          }
+        },
+        "required": [
+          "dek_wrapped_recovery",
+          "recovery_salt",
+          "recovery_kdf_iterations",
+          "expected_anchor_version"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "responses": {
+      "InvalidInput": {
+        "description": "Тело не прошло валидацию. `field` указывает на поле.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Unauthenticated": {
+        "description": "Токена нет, он протух или не принят. Вызвать /auth/refresh и повторить; если и он вернул 401 — войти заново.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Слишком часто. Ждать столько секунд, сколько в Retry-After.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        },
+        "headers": {
+          "Retry-After": {
+            "description": "Секунды до следующей попытки.",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "BFF жив, но не достучался до хранилища. Токен при этом может быть валиден — сессию НЕ сбрасывать, повторить с нарастающей задержкой.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Записи нет.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "Internal": {
+        "description": "Ошибка сервера. Не означает, что записи нет.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "access_token из /auth/verify или /auth/refresh. Непрозрачен."
+      }
+    }
+  }
+}
