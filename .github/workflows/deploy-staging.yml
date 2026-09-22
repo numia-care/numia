@@ -1,0 +1,92 @@
+# Стейджинг: push в ветку staging → проверки → миграции → деплой.
+#
+# Порядок не случайный. Проверки идут первыми: сломанная ветка не должна
+# трогать базу. Миграции — до кода: иначе свежий код какое-то время работает
+# со старой базой и отдаёт 500 на новых эндпоинтах (docs/bff-deploy.md,
+# «Миграции базы»).
+#
+# Стейджинг — отдельный проект Supabase и отдельный проект Vercel, только с
+# синтетическими данными. Прод этот файл не трогает.
+#
+# Секреты репозитория:
+#   STAGING_DB_URL        строка подключения Session pooler staging-базы
+#   STAGING_VERCEL_TOKEN  токен Vercel владельца staging-проекта
+# Как их получить — docs/bff-deploy.md, раздел «Стейджинг».
+
+name: deploy-staging
+
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+# Два деплоя подряд встают в очередь, а не отменяют друг друга: оборвать
+# миграцию на середине хуже, чем подождать.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # Не секреты: идентификаторы staging-проекта Vercel.
+  VERCEL_ORG_ID: team_Gka3HSKniqFRJDGLmilh1dpP
+  VERCEL_PROJECT_ID: prj_HAmIC6FOhVreaGtnChMp8kyQeVwR
+  VERCEL_CLI: vercel@59.25.0
+  # Та же версия, что у функций staging-проекта на Vercel: собираем тем же
+  # Node, на котором код потом работает.
+  NODE_VERSION: 24
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+
+  migrate:
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: supabase/setup-cli@v3
+        with:
+          version: 2.117.0
+      # Через строку подключения, а не через `supabase link`: ей нужен только
+      # пароль staging-базы, а токен доступа Supabase открыл бы все проекты
+      # аккаунта. Session pooler — потому что прямое подключение к базе
+      # только по IPv6, а у раннеров GitHub его нет.
+      - run: supabase db push --db-url "$STAGING_DB_URL" --yes
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+
+  deploy:
+    needs: migrate
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      # Переменные окружения (адрес и ключ staging-Supabase) хранятся в
+      # проекте Vercel, pull их подтягивает перед сборкой.
+      - run: npx --yes "$VERCEL_CLI" pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - run: npx --yes "$VERCEL_CLI" build --prod --token="$VERCEL_TOKEN"
+      - run: npx --yes "$VERCEL_CLI" deploy --prebuilt --prod --token="$VERCEL_TOKEN"

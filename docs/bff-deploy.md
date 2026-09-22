@@ -332,33 +332,78 @@ Locally:
 supabase migration up
 ```
 
-To a cloud project: from a machine that has access to it. Link the
-repository once:
+Cloud projects are handled differently, and the methods must not be mixed up:
 
-```bash
-supabase link --project-ref <project-ref>
-```
+| Project | How migrations are applied |
+|---|---|
+| Prod | Manually, Dashboard → SQL Editor: the contents of the missing files in name order |
+| Staging | Automatically on push to the `staging` branch, see the "Staging" section |
 
-See which migrations the project is missing:
-
-```bash
-supabase migration list --linked
-```
-
-Apply the missing ones (it will ask for the database password):
-
-```bash
-supabase db push
-```
-
-Without the CLI, the same is done via Dashboard → SQL Editor: run the contents of
-the missing files in name order.
+**Do not run `supabase db push` against prod.** Prod migrations have always been applied
+through the SQL Editor, so its migration history table is empty. The CLI will decide
+that nothing has been applied and will try to run all the files starting from the very first one,
+on top of the tables that already exist. `db push` is only suitable for a project whose
+history the CLI has tracked since the first migration: staging and the local stack.
 
 Order during rollout: **migration first, then code**. The other way round, fresh code
 works against the old database for a while and returns `500` on the new endpoints.
 That's why migrations are written to be compatible with the old code: add a column with a
 default value, add a function. That way the old site keeps working
 between the two steps.
+
+---
+
+## Staging
+
+A separate Supabase project and a separate Vercel project for checking changes before
+prod. **Synthetic data only**: sign-up is disabled, testers are
+added manually.
+
+### How deployment works
+
+A push to the `staging` branch triggers `.github/workflows/deploy-staging.yml`:
+
+1. `typecheck`, `lint`, `test` — a broken branch doesn't touch the database;
+2. `supabase db push` to the staging database — only the missing migrations;
+3. `vercel build` and `vercel deploy --prod` to the staging Vercel project.
+
+Vercel doesn't watch the repository: Actions deploys using a token. So the deploy doesn't
+depend on who authored the commit. Isabel's Vercel project skips the `staging` branch
+(`git.deploymentEnabled` in `vercel.json`).
+
+The cron migration `20260612130000` is applied on staging with placeholders instead of
+the functions' address and the secret. The reminder jobs hit a non-existent address;
+this is harmless as long as no Edge Functions are deployed to staging.
+
+### One-time setup
+
+**Supabase** (project in the Central EU region, Frankfurt):
+
+- Authentication → Sign In / Providers → turn off "Allow new users to sign up".
+- Authentication → Users → Add user → Create new user, with the Auto Confirm checkbox:
+  this is how each tester is added. An address that isn't in Users won't get
+  an email, yet the BFF will still respond `204`.
+- Authentication → Email Templates → Magic Link and Confirm signup: subject
+  «Код для входа» ("Sign-in code"), body from `supabase/templates/`. Without this
+  a link arrives, not a code.
+- Supabase's built-in email sends only to the addresses of organization members, and
+  only a few emails per hour. Other testers need their own SMTP.
+- Connect → **Session pooler** → the connection string with the database password. This is the
+  `STAGING_DB_URL` secret. A direct connection won't do: it is IPv6-only, and
+  GitHub runners have no IPv6. Special characters of the password in the string must be percent-encoded.
+
+**Vercel:**
+
+- Create a project and link the repository to it locally: `vercel link`.
+  `orgId` and `projectId` will appear in `.vercel/project.json`; they are not secret and
+  go into the workflow's `env`.
+- In the project, set the Production environment variables: `NEXT_PUBLIC_SUPABASE_URL`
+  and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` of the staging project, `API_DOCS=true`.
+- Account Settings → Tokens → a token with an expiration date. This is the
+  `STAGING_VERCEL_TOKEN` secret.
+
+**GitHub:** both secrets go into Settings → Secrets and variables → Actions.
+In a repository on a personal account, only the owner can do this.
 
 ---
 
@@ -400,9 +445,9 @@ What's still missing and is required before release:
 - **Token validation cache.** Every request goes to Supabase Auth to validate the
   token, which is an extra round-trip. Tolerable while debugging, worth fixing as
   load grows.
-- **There are two environments: prod and local.** There is no shared dev server. The local
-  container points only at `supabase start` with synthetic data: the HRT tracker
-  and Labs are **not** E2E-encrypted, and real records must not end up on a
-  developer's machine.
+- **There are three environments: prod, staging and local.** Staging and the local
+  container work only with synthetic data: the HRT tracker and Labs
+  are **not** E2E-encrypted, and real records must end up neither on a
+  developer's machine nor in the staging project.
 - **Protection against building Release with a local address.** A compile-time
   check in the iOS project.

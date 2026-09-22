@@ -1019,9 +1019,10 @@ the tag check.
 4. **Rate limiting.** The home server has no protection during development.
    Before release — mandatory.
 
-5. **There are two environments: prod and local** (decision of 2026-09-15). There is no shared dev server
-   and no dev Supabase project. Development and tests happen only on the local stack with
-   synthetic data. A build in the Release configuration must not compile with
+5. **There are three environments: prod, staging and local** (decision of 2026-09-22).
+   Staging is separate Supabase and Vercel projects, deployed on push to the
+   `staging` branch (`docs/bff-deploy.md`, "Staging"). Staging and the local stack
+   work only with synthetic data. A build in the Release configuration must not compile with
    a local address — this is checked at compile time.
 
 ---
@@ -1030,15 +1031,18 @@ the tag check.
 
 Answers to the iOS client's questions (2026-09-15).
 
-1. **Base URL.** There are two environments; there is no shared dev server.
+1. **Base URL.** There are three environments.
    - **Local:** the BFF in Docker on the developer's machine, `http://localhost:3000/api/v1`,
      Supabase via `supabase start` (see `docs/bff-deploy.md`). In the simulator
      `localhost` is the Mac. On a physical phone, it is the Mac's IP on the local network.
      This is HTTP, so the ATS exception for the local network
      (`NSAllowsLocalNetworking`) goes **only** in the Debug configuration; it must not
      be there in Release.
-   - **Prod:** HTTPS with a public certificate; the address will appear along with the hosting.
-     ATS with no exceptions.
+   - **Staging:** HTTPS on the domain of the staging Vercel project, ATS with no
+     exceptions. Sign-in only for manually added testers; emails with
+     the code arrive at a real inbox.
+   - **Prod:** `https://numia.care/api/v1` — the BFF lives inside the site. ATS with no
+     exceptions.
 
 2. **OTP code without a real mailbox.** Emails from the local Supabase do not go out;
    they land in Mailpit: web UI at `http://127.0.0.1:54324`, API
@@ -1047,6 +1051,5 @@ Answers to the iOS client's questions (2026-09-15).
    automated tests the code is provided by the local stack's admin API
    (`lib/api/test-support/local-supabase.ts`); it is not available to the app.
 
-3. **A separate dev Supabase project.** There will not be one (§ 13, item 5). For development —
-   only the local stack with synthetic data; real data exists only
-   in prod.
+3. **A separate dev Supabase project.** Staging plays its role (§ 13, item 5).
+   Real data exists only in prod.
