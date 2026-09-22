@@ -356,8 +356,17 @@ between the two steps.
 ## Staging
 
 A separate Supabase project and a separate Vercel project for checking changes before
-prod. **Synthetic data only**: sign-up is disabled, testers are
-added manually.
+prod. **Synthetic data only.**
+
+| What | Address |
+|---|---|
+| Site | `https://numia.tr1ckyf0x.dev` (also `numia-staging.vercel.app`) |
+| API | `https://numia.tr1ckyf0x.dev/api/v1` |
+| Swagger | `https://numia.tr1ckyf0x.dev/api/docs` |
+
+Deploys show up in GitHub as the **Staging** environment. Code emails arrive in
+a real mailbox, but only for addresses that the project's email can reach
+(see "One-time setup").
 
 ### How deployment works
 

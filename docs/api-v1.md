@@ -1038,9 +1038,8 @@ Answers to the iOS client's questions (2026-09-15).
      This is HTTP, so the ATS exception for the local network
      (`NSAllowsLocalNetworking`) goes **only** in the Debug configuration; it must not
      be there in Release.
-   - **Staging:** HTTPS on the domain of the staging Vercel project, ATS with no
-     exceptions. Sign-in only for manually added testers; emails with
-     the code arrive at a real inbox.
+   - **Staging:** `https://numia.tr1ckyf0x.dev/api/v1`, ATS with no exceptions.
+     The data is synthetic; emails with the code arrive at a real inbox.
    - **Prod:** `https://numia.care/api/v1` — the BFF lives inside the site. ATS with no
      exceptions.
 

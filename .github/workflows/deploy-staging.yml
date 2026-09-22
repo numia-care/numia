@@ -74,6 +74,10 @@ jobs:
   deploy:
     needs: migrate
     runs-on: ubuntu-latest
+    # Окружение в GitHub: деплои видны на странице репозитория со ссылкой на стейджинг.
+    environment:
+      name: Staging
+      url: https://numia.tr1ckyf0x.dev
     env:
       VERCEL_TOKEN: ${{ secrets.STAGING_VERCEL_TOKEN }}
     steps:
