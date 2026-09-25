@@ -367,11 +367,43 @@ pnpm lint            # run the linter (eslint flat config)
 pnpm typecheck       # check TypeScript (tsc --noEmit)
 pnpm test            # tests (vitest), incl. that docs/openapi.json matches the code
 pnpm test -u         # update docs/openapi.json after changing BFF schemas or routes
+
+# Reset and populate the test accounts on staging — see the section below
+SUPABASE_URL=… SUPABASE_PUBLISHABLE_KEY=… TEST_ACCOUNT_PASSWORD=… \
+  node scripts/seed-staging.mjs --yes
 ```
 
 (update this section when you add your own scripts)
 
 ---
+
+## Test accounts and seeding staging
+
+`scripts/seed-staging.mjs` brings the four `numia.*@example.com` accounts on
+staging to known states: empty, with tracker data, with Path entries, with
+a single recovery anchor. It's needed because by hand they drift, and fixing
+them with SQL every time is quite a chore.
+
+**Doesn't run as `service_role`.** It signs in to each account with its password and works
+with that account's own rights, like the app: the policies cut the rows themselves. A key that can
+clean up one account must not be able to read the database of all the others — the same decision as
+in `lib/supabase/bff.ts`.
+
+**Doesn't delete the account.** `delete_my_account()` would remove the `auth.users` row, while
+the addresses and password of these accounts are baked into the iOS build.
+
+**The anchor is computed with its own copy of the crypto.** The script runs under bare `node`, while
+`lib/crypto/envelope.ts` imports a sibling module without an extension, which
+`node` doesn't resolve. Three constants are duplicated there, and so that the duplicate doesn't drift from
+the original, `lib/crypto/seed-script.test.ts` wraps the key with one implementation and
+unwraps it with the other. If they drift, it's the test that fails, not a person's recovery.
+
+Recovery phrases are printed once at the end of the run: they go into
+`Configs/TestAccounts.xcconfig` in the `numia-ios` repository. There's no way to look them up again
+— only to rerun the script.
+
+What it doesn't seed: Path photos and voice. They live as files in Storage, and on screen
+it's an encrypted blob anyway — a separate batch of work with no payoff.
 
 ## Notes
 
