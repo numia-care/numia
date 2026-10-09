@@ -3,30 +3,30 @@
   "info": {
     "title": "Numia BFF",
     "version": "1.0.0",
-    "description": "Контракт между iOS-приложением и BFF. Правила версионирования, модель входа и граница шифрования описаны в docs/api-v1.md. Поля — из zod-схем в lib/api/schemas.ts."
+    "description": "Contract between the iOS app and the BFF. Versioning rules, the sign-in model and the encryption boundary are described in docs/api-v1.md. Fields come from the zod schemas in lib/api/schemas.ts."
   },
   "servers": [
     {
       "url": "/api/v1",
-      "description": "Относительно хоста BFF"
+      "description": "Relative to the BFF host"
     }
   ],
   "tags": [
     {
       "name": "system",
-      "description": "Служебное"
+      "description": "Service endpoints"
     },
     {
       "name": "auth",
-      "description": "Вход по коду из письма"
+      "description": "Sign-in with an emailed code"
     },
     {
       "name": "profile",
-      "description": "Профиль пользователя"
+      "description": "User profile"
     },
     {
       "name": "e2e",
-      "description": "Материал ключей E2E. Секретов сервер не видит."
+      "description": "E2E key material. The server sees no secrets."
     }
   ],
   "paths": {
@@ -35,12 +35,12 @@
         "tags": [
           "system"
         ],
-        "summary": "Проверка живости",
+        "summary": "Liveness check",
         "operationId": "getHealth",
         "security": [],
         "responses": {
           "200": {
-            "description": "Сервис жив.",
+            "description": "The service is alive.",
             "content": {
               "application/json": {
                 "schema": {
@@ -57,12 +57,12 @@
         "tags": [
           "system"
         ],
-        "summary": "Эта спецификация",
+        "summary": "This specification",
         "operationId": "getOpenApi",
         "security": [],
         "responses": {
           "200": {
-            "description": "OpenAPI 3.1 документ.",
+            "description": "OpenAPI 3.1 document.",
             "content": {
               "application/json": {
                 "schema": {
@@ -79,8 +79,8 @@
         "tags": [
           "auth"
         ],
-        "summary": "Отправить код на почту",
-        "description": "Для нового адреса заодно создаётся аккаунт. Отвечает 204 всегда, существует аккаунт или нет, — иначе по ответу можно было бы проверять, кто пользуется приложением. 429 вскоре после прошлого запроса — код уже отправлен.",
+        "summary": "Send a code by email",
+        "description": "For a new address an account is created along the way. Always responds 204, whether the account exists or not; otherwise the response would reveal who uses the app. A 429 shortly after the previous request means the code has already been sent.",
         "operationId": "sendOtp",
         "security": [],
         "requestBody": {
@@ -95,7 +95,7 @@
         },
         "responses": {
           "204": {
-            "description": "Код отправлен (или адрес не существует — не различаем)."
+            "description": "Code sent (or the address does not exist; we do not distinguish)."
           },
           "400": {
             "$ref": "#/components/responses/InvalidInput"
@@ -114,7 +114,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "Обменять код на токены",
+        "summary": "Exchange the code for tokens",
         "operationId": "verifyOtp",
         "security": [],
         "requestBody": {
@@ -129,7 +129,7 @@
         },
         "responses": {
           "200": {
-            "description": "Токены.",
+            "description": "Tokens.",
             "content": {
               "application/json": {
                 "schema": {
@@ -139,7 +139,7 @@
             }
           },
           "400": {
-            "description": "invalid_input — тело не прошло валидацию; invalid_code — код неверный или просрочен (не различаем).",
+            "description": "invalid_input — the body failed validation; invalid_code — the code is wrong or expired (we do not distinguish).",
             "content": {
               "application/json": {
                 "schema": {
@@ -162,8 +162,8 @@
         "tags": [
           "auth"
         ],
-        "summary": "Новая пара токенов",
-        "description": "Каждый обмен выдаёт новый refresh_token — сохранять его. Обновление одно на всё приложение: параллельные запросы, получившие 401, ждут его результата.",
+        "summary": "New token pair",
+        "description": "Every exchange issues a new refresh_token — store it. There is one refresh for the whole app: parallel requests that got 401 wait for its result.",
         "operationId": "refreshTokens",
         "security": [],
         "requestBody": {
@@ -178,7 +178,7 @@
         },
         "responses": {
           "200": {
-            "description": "Новые токены.",
+            "description": "New tokens.",
             "content": {
               "application/json": {
                 "schema": {
@@ -191,7 +191,7 @@
             "$ref": "#/components/responses/InvalidInput"
           },
           "401": {
-            "description": "Сессия кончилась — войти заново.",
+            "description": "The session has ended — sign in again.",
             "content": {
               "application/json": {
                 "schema": {
@@ -214,8 +214,8 @@
         "tags": [
           "auth"
         ],
-        "summary": "Выйти на этом устройстве",
-        "description": "Всегда 204, в том числе на недействительный токен. Access-токен доживает до своего срока — клиент стирает оба токена сразу.",
+        "summary": "Sign out on this device",
+        "description": "Always 204, including for an invalid token. The access token lives until it expires, so the client erases both tokens at once.",
         "operationId": "logout",
         "security": [
           {
@@ -224,7 +224,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Вышли."
+            "description": "Signed out."
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -240,7 +240,7 @@
         "tags": [
           "profile"
         ],
-        "summary": "Профиль",
+        "summary": "Profile",
         "operationId": "getProfile",
         "security": [
           {
@@ -249,7 +249,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Профиль текущего пользователя.",
+            "description": "Profile of the current user.",
             "content": {
               "application/json": {
                 "schema": {
@@ -273,7 +273,7 @@
         "tags": [
           "profile"
         ],
-        "summary": "Изменить профиль",
+        "summary": "Update profile",
         "operationId": "updateProfile",
         "security": [
           {
@@ -292,7 +292,7 @@
         },
         "responses": {
           "200": {
-            "description": "Обновлённый профиль.",
+            "description": "Updated profile.",
             "content": {
               "application/json": {
                 "schema": {
@@ -319,8 +319,8 @@
         "tags": [
           "profile"
         ],
-        "summary": "Удалить аккаунт",
-        "description": "Удаляет аккаунт, все данные и файлы, разлогинивает все устройства. Необратимо. Повторной проверки кода нет. Идемпотентно: после сбоя повтор дочищает остатки. Если ответ 204 потерялся, повтор вернёт 401 — аккаунта уже нет, клиент стирает токены и локальные данные так же, как после 204.",
+        "summary": "Delete account",
+        "description": "Deletes the account, all data and files, and signs out all devices. Irreversible. There is no repeated code check. Idempotent: after a failure, a retry cleans up the rest. If the 204 response was lost, a retry returns 401 — the account is already gone; the client erases the tokens and local data the same way as after 204.",
         "operationId": "deleteAccount",
         "security": [
           {
@@ -329,7 +329,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Аккаунт удалён."
+            "description": "Account deleted."
           },
           "401": {
             "$ref": "#/components/responses/Unauthenticated"
@@ -338,7 +338,7 @@
             "$ref": "#/components/responses/Internal"
           },
           "503": {
-            "description": "Хранилище недоступно. Аккаунт не удалён, часть файлов могла удалиться — повторить позже.",
+            "description": "Storage unavailable. The account is not deleted, some files may already be deleted — retry later.",
             "content": {
               "application/json": {
                 "schema": {
@@ -355,8 +355,8 @@
         "tags": [
           "e2e"
         ],
-        "summary": "Якорь восстановления",
-        "description": "404 — якоря нет, можно создавать новый DEK. Любой сбой чтения — 500 или 503, никогда не 404: на ложный 404 клиент сгенерировал бы новый DEK и потерял данные.",
+        "summary": "Recovery anchor",
+        "description": "404 — there is no anchor, a new DEK may be created. Any read failure is 500 or 503, never 404: on a false 404 the client would generate a new DEK and lose data.",
         "operationId": "getRecoveryAnchor",
         "security": [
           {
@@ -365,7 +365,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Якорь.",
+            "description": "Anchor.",
             "content": {
               "application/json": {
                 "schema": {
@@ -378,7 +378,7 @@
             "$ref": "#/components/responses/Unauthenticated"
           },
           "404": {
-            "description": "Якоря нет.",
+            "description": "No anchor.",
             "content": {
               "application/json": {
                 "schema": {
@@ -399,8 +399,8 @@
         "tags": [
           "e2e"
         ],
-        "summary": "Создать или сменить якорь восстановления",
-        "description": "Условная запись. expected_anchor_version: 0 — создать, только если якоря нет; N — заменить, только если текущая версия N. Проверка и запись атомарны в БД. Повтор того же тела безопасен: если якорь уже ровно такой, ответ 200 с текущей версией.",
+        "summary": "Create or change the recovery anchor",
+        "description": "Conditional write. expected_anchor_version: 0 — create only if there is no anchor; N — replace only if the current version is N. The check and the write are atomic in the DB. Repeating the same body is safe: if the anchor is already exactly the same, the response is 200 with the current version.",
         "operationId": "putRecoveryAnchor",
         "security": [
           {
@@ -419,7 +419,7 @@
         },
         "responses": {
           "200": {
-            "description": "Записано. anchor_version — новая версия.",
+            "description": "Written. anchor_version is the new version.",
             "content": {
               "application/json": {
                 "schema": {
@@ -435,7 +435,7 @@
             "$ref": "#/components/responses/Unauthenticated"
           },
           "409": {
-            "description": "Версия не совпала: якорь успели создать или сменить с другого устройства. Ничего не записано. Перечитать GET и перейти к восстановлению по фразе.",
+            "description": "Version mismatch: the anchor was created or changed from another device in the meantime. Nothing was written. Re-read with GET and go to recovery by phrase.",
             "content": {
               "application/json": {
                 "schema": {
@@ -470,7 +470,7 @@
           "internal",
           "service_unavailable"
         ],
-        "description": "Известные значения: invalid_input, invalid_code, unauthenticated, forbidden, not_found, conflict, unprocessable, rate_limited, internal, service_unavailable. Список может пополняться внутри v1 — незнакомое значение клиент обязан переживать."
+        "description": "Known values: invalid_input, invalid_code, unauthenticated, forbidden, not_found, conflict, unprocessable, rate_limited, internal, service_unavailable. The list may grow within v1 — the client must survive an unknown value."
       },
       "ErrorResponse": {
         "type": "object",
@@ -482,11 +482,11 @@
                 "$ref": "#/components/schemas/ApiErrorCode"
               },
               "message": {
-                "description": "Для логов и отладки. Пользователю не показывать.",
+                "description": "For logs and debugging. Do not show to the user.",
                 "type": "string"
               },
               "field": {
-                "description": "Поле, не прошедшее валидацию.",
+                "description": "The field that failed validation.",
                 "type": "string"
               }
             },
@@ -512,7 +512,7 @@
           },
           "version": {
             "type": "string",
-            "description": "Ревизия сборки образа."
+            "description": "Build revision of the image."
           }
         },
         "required": [
@@ -546,7 +546,7 @@
           "code": {
             "type": "string",
             "pattern": "^\\d{6}$",
-            "description": "6 цифр из письма."
+            "description": "6 digits from the email."
           }
         },
         "required": [
@@ -574,15 +574,15 @@
         "properties": {
           "access_token": {
             "type": "string",
-            "description": "Непрозрачная строка. Клиент не декодирует."
+            "description": "Opaque string. The client does not decode it."
           },
           "refresh_token": {
             "type": "string",
-            "description": "Непрозрачная строка. После каждого обмена сохранять новую."
+            "description": "Opaque string. Store the new one after every exchange."
           },
           "expires_in": {
             "type": "integer",
-            "description": "Срок жизни access_token в секундах."
+            "description": "Lifetime of access_token in seconds."
           },
           "token_type": {
             "type": "string",
@@ -605,7 +605,7 @@
           },
           "timezone": {
             "type": "string",
-            "description": "IANA-имя. Открыто: по нему сервер считает слоты и шлёт напоминания."
+            "description": "IANA name. In the clear: the server uses it to compute slots and send reminders."
           },
           "profile_ciphertext": {
             "anyOf": [
@@ -616,14 +616,14 @@
                 "type": "null"
               }
             ],
-            "description": "E2E-блоб с именем и формой обращения, base64(iv ‖ ct). Сервер не читает."
+            "description": "E2E blob with the name and form of address, base64(iv ‖ ct). The server does not read it."
           },
           "e2e": {
             "type": "object",
             "properties": {
               "has_recovery_anchor": {
                 "type": "boolean",
-                "description": "Есть ли на сервере обёртка ключа под фразу восстановления."
+                "description": "Whether the server holds a wrap of the key under the recovery phrase."
               }
             },
             "required": [
@@ -633,7 +633,7 @@
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "description": "ISO 8601, UTC, с Z, без дробных секунд: 2026-09-15T11:09:46Z."
+            "description": "ISO 8601, UTC, with Z, no fractional seconds: 2026-09-15T11:09:46Z."
           }
         },
         "required": [
@@ -649,7 +649,7 @@
         "properties": {
           "timezone": {
             "type": "string",
-            "description": "IANA-имя таймзоны, например Europe/Madrid."
+            "description": "IANA time zone name, e.g. Europe/Madrid."
           },
           "profile_ciphertext": {
             "anyOf": [
@@ -670,11 +670,11 @@
         "properties": {
           "dek_wrapped_recovery": {
             "type": "string",
-            "description": "base64(iv ‖ ciphertext ‖ tag): DEK, обёрнутый ключом из фразы восстановления."
+            "description": "base64(iv ‖ ciphertext ‖ tag): the DEK wrapped with the key derived from the recovery phrase."
           },
           "recovery_salt": {
             "type": "string",
-            "description": "base64, соль PBKDF2 для вывода ключа из фразы."
+            "description": "base64, the PBKDF2 salt for deriving the key from the phrase."
           },
           "recovery_kdf_iterations": {
             "anyOf": [
@@ -685,12 +685,12 @@
                 "type": "null"
               }
             ],
-            "description": "Итерации PBKDF2. null — исторический якорь на 210 000. Брать из ответа, не из константы."
+            "description": "PBKDF2 iterations. null means a legacy anchor with 210 000. Take it from the response, not from a constant."
           },
           "anchor_version": {
             "type": "integer",
             "minimum": 1,
-            "description": "Текущая версия якоря. Передаётся в expected_anchor_version при смене фразы."
+            "description": "Current anchor version. Passed as expected_anchor_version when changing the phrase."
           }
         },
         "required": [
@@ -707,13 +707,13 @@
             "type": "string",
             "minLength": 80,
             "maxLength": 80,
-            "description": "base64(iv 12 ‖ ciphertext 32 ‖ tag 16) — ровно 60 байт."
+            "description": "base64(iv 12 ‖ ciphertext 32 ‖ tag 16) — exactly 60 bytes."
           },
           "recovery_salt": {
             "type": "string",
             "minLength": 24,
             "maxLength": 24,
-            "description": "base64, ровно 16 байт."
+            "description": "base64, exactly 16 bytes."
           },
           "recovery_kdf_iterations": {
             "type": "integer",
@@ -723,7 +723,7 @@
           "expected_anchor_version": {
             "type": "integer",
             "minimum": 0,
-            "description": "0 — создать, только если якоря нет. N — заменить, только если текущая версия N."
+            "description": "0 — create only if there is no anchor. N — replace only if the current version is N."
           }
         },
         "required": [
@@ -737,7 +737,7 @@
     },
     "responses": {
       "InvalidInput": {
-        "description": "Тело не прошло валидацию. `field` указывает на поле.",
+        "description": "The body failed validation. `field` points to the field.",
         "content": {
           "application/json": {
             "schema": {
@@ -747,7 +747,7 @@
         }
       },
       "Unauthenticated": {
-        "description": "Токена нет, он протух или не принят. Вызвать /auth/refresh и повторить; если и он вернул 401 — войти заново.",
+        "description": "No token, or it expired or was not accepted. Call /auth/refresh and retry; if that also returns 401, sign in again.",
         "content": {
           "application/json": {
             "schema": {
@@ -757,7 +757,7 @@
         }
       },
       "RateLimited": {
-        "description": "Слишком часто. Ждать столько секунд, сколько в Retry-After.",
+        "description": "Too many requests. Wait as many seconds as Retry-After says.",
         "content": {
           "application/json": {
             "schema": {
@@ -767,7 +767,7 @@
         },
         "headers": {
           "Retry-After": {
-            "description": "Секунды до следующей попытки.",
+            "description": "Seconds until the next attempt.",
             "schema": {
               "type": "integer"
             }
@@ -775,7 +775,7 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "BFF жив, но не достучался до хранилища. Токен при этом может быть валиден — сессию НЕ сбрасывать, повторить с нарастающей задержкой.",
+        "description": "The BFF is alive but could not reach the storage. The token may still be valid, so do NOT reset the session; retry with increasing delay.",
         "content": {
           "application/json": {
             "schema": {
@@ -785,7 +785,7 @@
         }
       },
       "NotFound": {
-        "description": "Записи нет.",
+        "description": "No such record.",
         "content": {
           "application/json": {
             "schema": {
@@ -795,7 +795,7 @@
         }
       },
       "Internal": {
-        "description": "Ошибка сервера. Не означает, что записи нет.",
+        "description": "Server error. It does not mean the record does not exist.",
         "content": {
           "application/json": {
             "schema": {
@@ -809,7 +809,7 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "access_token из /auth/verify или /auth/refresh. Непрозрачен."
+        "description": "access_token from /auth/verify or /auth/refresh. Opaque."
       }
     }
   }

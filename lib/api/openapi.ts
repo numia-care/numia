@@ -121,7 +121,7 @@ function openEnums(node: unknown): void {
   const schema = node as Json
   if (Array.isArray(schema.enum)) {
     const values = schema.enum as unknown[]
-    const known = `Известные значения: ${values.join(', ')}. Список может пополняться внутри v1 — незнакомое значение клиент обязан переживать.`
+    const known = `Known values: ${values.join(', ')}. The list may grow within v1 — the client must survive an unknown value.`
     delete schema.enum
     schema.type = 'string'
     schema['x-enum-values'] = values
@@ -147,23 +147,23 @@ const sharedResponse = (name: string) => ({ $ref: `#/components/responses/${name
 // Повторяющиеся ответы. Смысл 401 и 503 — главное, что клиенту нельзя
 // перепутать: на 401 обновляют токен, на 503 сессию НЕ трогают.
 const sharedResponses = {
-  InvalidInput: jsonResponse('Тело не прошло валидацию. `field` указывает на поле.', 'ErrorResponse'),
+  InvalidInput: jsonResponse('The body failed validation. `field` points to the field.', 'ErrorResponse'),
   Unauthenticated: jsonResponse(
-    'Токена нет, он протух или не принят. Вызвать /auth/refresh и повторить; если и он вернул 401 — войти заново.',
+    'No token, or it expired or was not accepted. Call /auth/refresh and retry; if that also returns 401, sign in again.',
     'ErrorResponse',
   ),
   RateLimited: {
-    ...jsonResponse('Слишком часто. Ждать столько секунд, сколько в Retry-After.', 'ErrorResponse'),
+    ...jsonResponse('Too many requests. Wait as many seconds as Retry-After says.', 'ErrorResponse'),
     headers: {
-      'Retry-After': { description: 'Секунды до следующей попытки.', schema: { type: 'integer' } },
+      'Retry-After': { description: 'Seconds until the next attempt.', schema: { type: 'integer' } },
     },
   },
   ServiceUnavailable: jsonResponse(
-    'BFF жив, но не достучался до хранилища. Токен при этом может быть валиден — сессию НЕ сбрасывать, повторить с нарастающей задержкой.',
+    'The BFF is alive but could not reach the storage. The token may still be valid, so do NOT reset the session; retry with increasing delay.',
     'ErrorResponse',
   ),
-  NotFound: jsonResponse('Записи нет.', 'ErrorResponse'),
-  Internal: jsonResponse('Ошибка сервера. Не означает, что записи нет.', 'ErrorResponse'),
+  NotFound: jsonResponse('No such record.', 'ErrorResponse'),
+  Internal: jsonResponse('Server error. It does not mean the record does not exist.', 'ErrorResponse'),
 }
 
 const bearer = [{ bearerAuth: [] }]
@@ -178,34 +178,34 @@ export function buildOpenApiDocument() {
       title: 'Numia BFF',
       version: '1.0.0',
       description:
-        'Контракт между iOS-приложением и BFF. Правила версионирования, модель входа и граница шифрования описаны в docs/api-v1.md. Поля — из zod-схем в lib/api/schemas.ts.',
+        'Contract between the iOS app and the BFF. Versioning rules, the sign-in model and the encryption boundary are described in docs/api-v1.md. Fields come from the zod schemas in lib/api/schemas.ts.',
     },
-    servers: [{ url: '/api/v1', description: 'Относительно хоста BFF' }],
+    servers: [{ url: '/api/v1', description: 'Relative to the BFF host' }],
     tags: [
-      { name: 'system', description: 'Служебное' },
-      { name: 'auth', description: 'Вход по коду из письма' },
-      { name: 'profile', description: 'Профиль пользователя' },
-      { name: 'e2e', description: 'Материал ключей E2E. Секретов сервер не видит.' },
+      { name: 'system', description: 'Service endpoints' },
+      { name: 'auth', description: 'Sign-in with an emailed code' },
+      { name: 'profile', description: 'User profile' },
+      { name: 'e2e', description: 'E2E key material. The server sees no secrets.' },
     ],
     paths: {
       '/health': {
         get: {
           tags: ['system'],
-          summary: 'Проверка живости',
+          summary: 'Liveness check',
           operationId: 'getHealth',
           security: publicAccess,
-          responses: { '200': jsonResponse('Сервис жив.', 'HealthResponse') },
+          responses: { '200': jsonResponse('The service is alive.', 'HealthResponse') },
         },
       },
       '/openapi.json': {
         get: {
           tags: ['system'],
-          summary: 'Эта спецификация',
+          summary: 'This specification',
           operationId: 'getOpenApi',
           security: publicAccess,
           responses: {
             '200': {
-              description: 'OpenAPI 3.1 документ.',
+              description: 'OpenAPI 3.1 document.',
               content: { 'application/json': { schema: { type: 'object' } } },
             },
           },
@@ -214,14 +214,14 @@ export function buildOpenApiDocument() {
       '/auth/otp': {
         post: {
           tags: ['auth'],
-          summary: 'Отправить код на почту',
+          summary: 'Send a code by email',
           description:
-            'Для нового адреса заодно создаётся аккаунт. Отвечает 204 всегда, существует аккаунт или нет, — иначе по ответу можно было бы проверять, кто пользуется приложением. 429 вскоре после прошлого запроса — код уже отправлен.',
+            'For a new address an account is created along the way. Always responds 204, whether the account exists or not; otherwise the response would reveal who uses the app. A 429 shortly after the previous request means the code has already been sent.',
           operationId: 'sendOtp',
           security: publicAccess,
           requestBody: jsonBody('OtpRequest'),
           responses: {
-            '204': { description: 'Код отправлен (или адрес не существует — не различаем).' },
+            '204': { description: 'Code sent (or the address does not exist; we do not distinguish).' },
             '400': sharedResponse('InvalidInput'),
             '429': sharedResponse('RateLimited'),
             '503': sharedResponse('ServiceUnavailable'),
@@ -231,14 +231,14 @@ export function buildOpenApiDocument() {
       '/auth/verify': {
         post: {
           tags: ['auth'],
-          summary: 'Обменять код на токены',
+          summary: 'Exchange the code for tokens',
           operationId: 'verifyOtp',
           security: publicAccess,
           requestBody: jsonBody('VerifyRequest'),
           responses: {
-            '200': jsonResponse('Токены.', 'TokenResponse'),
+            '200': jsonResponse('Tokens.', 'TokenResponse'),
             '400': jsonResponse(
-              'invalid_input — тело не прошло валидацию; invalid_code — код неверный или просрочен (не различаем).',
+              'invalid_input — the body failed validation; invalid_code — the code is wrong or expired (we do not distinguish).',
               'ErrorResponse',
             ),
             '429': sharedResponse('RateLimited'),
@@ -249,16 +249,16 @@ export function buildOpenApiDocument() {
       '/auth/refresh': {
         post: {
           tags: ['auth'],
-          summary: 'Новая пара токенов',
+          summary: 'New token pair',
           description:
-            'Каждый обмен выдаёт новый refresh_token — сохранять его. Обновление одно на всё приложение: параллельные запросы, получившие 401, ждут его результата.',
+            'Every exchange issues a new refresh_token — store it. There is one refresh for the whole app: parallel requests that got 401 wait for its result.',
           operationId: 'refreshTokens',
           security: publicAccess,
           requestBody: jsonBody('RefreshRequest'),
           responses: {
-            '200': jsonResponse('Новые токены.', 'TokenResponse'),
+            '200': jsonResponse('New tokens.', 'TokenResponse'),
             '400': sharedResponse('InvalidInput'),
-            '401': jsonResponse('Сессия кончилась — войти заново.', 'ErrorResponse'),
+            '401': jsonResponse('The session has ended — sign in again.', 'ErrorResponse'),
             '429': sharedResponse('RateLimited'),
             '503': sharedResponse('ServiceUnavailable'),
           },
@@ -267,13 +267,13 @@ export function buildOpenApiDocument() {
       '/auth/logout': {
         post: {
           tags: ['auth'],
-          summary: 'Выйти на этом устройстве',
+          summary: 'Sign out on this device',
           description:
-            'Всегда 204, в том числе на недействительный токен. Access-токен доживает до своего срока — клиент стирает оба токена сразу.',
+            'Always 204, including for an invalid token. The access token lives until it expires, so the client erases both tokens at once.',
           operationId: 'logout',
           security: bearer,
           responses: {
-            '204': { description: 'Вышли.' },
+            '204': { description: 'Signed out.' },
             '401': sharedResponse('Unauthenticated'),
             '503': sharedResponse('ServiceUnavailable'),
           },
@@ -282,11 +282,11 @@ export function buildOpenApiDocument() {
       '/me': {
         get: {
           tags: ['profile'],
-          summary: 'Профиль',
+          summary: 'Profile',
           operationId: 'getProfile',
           security: bearer,
           responses: {
-            '200': jsonResponse('Профиль текущего пользователя.', 'ProfileResponse'),
+            '200': jsonResponse('Profile of the current user.', 'ProfileResponse'),
             '401': sharedResponse('Unauthenticated'),
             '404': sharedResponse('NotFound'),
             '503': sharedResponse('ServiceUnavailable'),
@@ -294,12 +294,12 @@ export function buildOpenApiDocument() {
         },
         patch: {
           tags: ['profile'],
-          summary: 'Изменить профиль',
+          summary: 'Update profile',
           operationId: 'updateProfile',
           security: bearer,
           requestBody: jsonBody('ProfilePatchRequest'),
           responses: {
-            '200': jsonResponse('Обновлённый профиль.', 'ProfileResponse'),
+            '200': jsonResponse('Updated profile.', 'ProfileResponse'),
             '400': sharedResponse('InvalidInput'),
             '401': sharedResponse('Unauthenticated'),
             '404': sharedResponse('NotFound'),
@@ -308,17 +308,17 @@ export function buildOpenApiDocument() {
         },
         delete: {
           tags: ['profile'],
-          summary: 'Удалить аккаунт',
+          summary: 'Delete account',
           description:
-            'Удаляет аккаунт, все данные и файлы, разлогинивает все устройства. Необратимо. Повторной проверки кода нет. Идемпотентно: после сбоя повтор дочищает остатки. Если ответ 204 потерялся, повтор вернёт 401 — аккаунта уже нет, клиент стирает токены и локальные данные так же, как после 204.',
+            'Deletes the account, all data and files, and signs out all devices. Irreversible. There is no repeated code check. Idempotent: after a failure, a retry cleans up the rest. If the 204 response was lost, a retry returns 401 — the account is already gone; the client erases the tokens and local data the same way as after 204.',
           operationId: 'deleteAccount',
           security: bearer,
           responses: {
-            '204': { description: 'Аккаунт удалён.' },
+            '204': { description: 'Account deleted.' },
             '401': sharedResponse('Unauthenticated'),
             '500': sharedResponse('Internal'),
             '503': jsonResponse(
-              'Хранилище недоступно. Аккаунт не удалён, часть файлов могла удалиться — повторить позже.',
+              'Storage unavailable. The account is not deleted, some files may already be deleted — retry later.',
               'ErrorResponse',
             ),
           },
@@ -327,33 +327,33 @@ export function buildOpenApiDocument() {
       '/e2e/recovery': {
         get: {
           tags: ['e2e'],
-          summary: 'Якорь восстановления',
+          summary: 'Recovery anchor',
           description:
-            '404 — якоря нет, можно создавать новый DEK. Любой сбой чтения — 500 или 503, никогда не 404: на ложный 404 клиент сгенерировал бы новый DEK и потерял данные.',
+            '404 — there is no anchor, a new DEK may be created. Any read failure is 500 or 503, never 404: on a false 404 the client would generate a new DEK and lose data.',
           operationId: 'getRecoveryAnchor',
           security: bearer,
           responses: {
-            '200': jsonResponse('Якорь.', 'RecoveryAnchorResponse'),
+            '200': jsonResponse('Anchor.', 'RecoveryAnchorResponse'),
             '401': sharedResponse('Unauthenticated'),
-            '404': jsonResponse('Якоря нет.', 'ErrorResponse'),
+            '404': jsonResponse('No anchor.', 'ErrorResponse'),
             '500': sharedResponse('Internal'),
             '503': sharedResponse('ServiceUnavailable'),
           },
         },
         put: {
           tags: ['e2e'],
-          summary: 'Создать или сменить якорь восстановления',
+          summary: 'Create or change the recovery anchor',
           description:
-            'Условная запись. expected_anchor_version: 0 — создать, только если якоря нет; N — заменить, только если текущая версия N. Проверка и запись атомарны в БД. Повтор того же тела безопасен: если якорь уже ровно такой, ответ 200 с текущей версией.',
+            'Conditional write. expected_anchor_version: 0 — create only if there is no anchor; N — replace only if the current version is N. The check and the write are atomic in the DB. Repeating the same body is safe: if the anchor is already exactly the same, the response is 200 with the current version.',
           operationId: 'putRecoveryAnchor',
           security: bearer,
           requestBody: jsonBody('RecoveryAnchorPutRequest'),
           responses: {
-            '200': jsonResponse('Записано. anchor_version — новая версия.', 'RecoveryAnchorResponse'),
+            '200': jsonResponse('Written. anchor_version is the new version.', 'RecoveryAnchorResponse'),
             '400': sharedResponse('InvalidInput'),
             '401': sharedResponse('Unauthenticated'),
             '409': jsonResponse(
-              'Версия не совпала: якорь успели создать или сменить с другого устройства. Ничего не записано. Перечитать GET и перейти к восстановлению по фразе.',
+              'Version mismatch: the anchor was created or changed from another device in the meantime. Nothing was written. Re-read with GET and go to recovery by phrase.',
               'ErrorResponse',
             ),
             '500': sharedResponse('Internal'),
@@ -369,7 +369,7 @@ export function buildOpenApiDocument() {
         bearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          description: 'access_token из /auth/verify или /auth/refresh. Непрозрачен.',
+          description: 'access_token from /auth/verify or /auth/refresh. Opaque.',
         },
       },
     },

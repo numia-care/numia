@@ -48,7 +48,7 @@ export const ApiErrorCodeSchema = z
   ])
   .register(apiSchemas, {
     id: 'ApiErrorCode',
-    description: 'Стабильный код ошибки. Клиент ветвится по нему, а не по message.',
+    description: 'Stable error code. The client branches on it, not on message.',
   })
 
 export const ErrorResponseSchema = z
@@ -58,11 +58,11 @@ export const ErrorResponseSchema = z
       message: z
         .string()
         .optional()
-        .describe('Для логов и отладки. Пользователю не показывать.'),
-      field: z.string().optional().describe('Поле, не прошедшее валидацию.'),
+        .describe('For logs and debugging. Do not show to the user.'),
+      field: z.string().optional().describe('The field that failed validation.'),
     }),
   })
-  .register(apiSchemas, { id: 'ErrorResponse', description: 'Единый конверт ошибки.' })
+  .register(apiSchemas, { id: 'ErrorResponse', description: 'Unified error envelope.' })
 
 // ── Служебное ────────────────────────────────────────────────────────────────
 
@@ -70,7 +70,7 @@ export const HealthResponseSchema = z
   .object({
     status: z.literal('ok'),
     api: z.literal('v1'),
-    version: z.string().describe('Ревизия сборки образа.'),
+    version: z.string().describe('Build revision of the image.'),
   })
   .register(apiSchemas, { id: 'HealthResponse' })
 
@@ -97,7 +97,7 @@ export const OtpRequestSchema = z
 export const VerifyRequestSchema = z
   .object({
     email: EmailSchema,
-    code: z.string().regex(/^\d{6}$/, 'code must be 6 digits').describe('6 цифр из письма.'),
+    code: z.string().regex(/^\d{6}$/, 'code must be 6 digits').describe('6 digits from the email.'),
   })
   .strict()
   .register(apiSchemas, { id: 'VerifyRequest' })
@@ -109,17 +109,17 @@ export const RefreshRequestSchema = z
 
 export const TokenResponseSchema = z
   .object({
-    access_token: z.string().describe('Непрозрачная строка. Клиент не декодирует.'),
+    access_token: z.string().describe('Opaque string. The client does not decode it.'),
     refresh_token: z
       .string()
-      .describe('Непрозрачная строка. После каждого обмена сохранять новую.'),
-    expires_in: z.number().int().describe('Срок жизни access_token в секундах.'),
+      .describe('Opaque string. Store the new one after every exchange.'),
+    expires_in: z.number().int().describe('Lifetime of access_token in seconds.'),
     token_type: z.literal('bearer'),
   })
   .register(apiSchemas, {
     id: 'TokenResponse',
     description:
-      'Токены непрозрачны: клиент не разбирает JWT и не читает из него поля. user_id — только из GET /me.',
+      'Tokens are opaque: the client does not parse the JWT or read fields from it. user_id comes only from GET /me.',
   })
 
 // ── Время ────────────────────────────────────────────────────────────────────
@@ -139,7 +139,7 @@ export function toApiTimestamp(value: string): string {
 
 export const TimestampSchema = z.iso
   .datetime()
-  .describe('ISO 8601, UTC, с Z, без дробных секунд: 2026-09-15T11:09:46Z.')
+  .describe('ISO 8601, UTC, with Z, no fractional seconds: 2026-09-15T11:09:46Z.')
 
 // ── Профиль ──────────────────────────────────────────────────────────────────
 
@@ -158,20 +158,20 @@ export const TimezoneSchema = z
     },
     { message: 'unknown IANA timezone' },
   )
-  .describe('IANA-имя таймзоны, например Europe/Madrid.')
+  .describe('IANA time zone name, e.g. Europe/Madrid.')
 
 export const ProfileResponseSchema = z
   .object({
     user_id: z.uuid(),
-    timezone: z.string().describe('IANA-имя. Открыто: по нему сервер считает слоты и шлёт напоминания.'),
+    timezone: z.string().describe('IANA name. In the clear: the server uses it to compute slots and send reminders.'),
     profile_ciphertext: z
       .string()
       .nullable()
-      .describe('E2E-блоб с именем и формой обращения, base64(iv ‖ ct). Сервер не читает.'),
+      .describe('E2E blob with the name and form of address, base64(iv ‖ ct). The server does not read it.'),
     e2e: z.object({
       has_recovery_anchor: z
         .boolean()
-        .describe('Есть ли на сервере обёртка ключа под фразу восстановления.'),
+        .describe('Whether the server holds a wrap of the key under the recovery phrase.'),
     }),
     created_at: TimestampSchema,
   })
@@ -187,7 +187,7 @@ export const ProfilePatchRequestSchema = z
   .strict()
   .register(apiSchemas, {
     id: 'ProfilePatchRequest',
-    description: 'Любое непустое подмножество полей.',
+    description: 'Any non-empty subset of the fields.',
   })
 
 // ── E2E: якорь восстановления ────────────────────────────────────────────────
@@ -232,41 +232,41 @@ export const RecoveryAnchorResponseSchema = z
   .object({
     dek_wrapped_recovery: z
       .string()
-      .describe('base64(iv ‖ ciphertext ‖ tag): DEK, обёрнутый ключом из фразы восстановления.'),
-    recovery_salt: z.string().describe('base64, соль PBKDF2 для вывода ключа из фразы.'),
+      .describe('base64(iv ‖ ciphertext ‖ tag): the DEK wrapped with the key derived from the recovery phrase.'),
+    recovery_salt: z.string().describe('base64, the PBKDF2 salt for deriving the key from the phrase.'),
     recovery_kdf_iterations: z
       .number()
       .int()
       .nullable()
-      .describe('Итерации PBKDF2. null — исторический якорь на 210 000. Брать из ответа, не из константы.'),
+      .describe('PBKDF2 iterations. null means a legacy anchor with 210 000. Take it from the response, not from a constant.'),
     anchor_version: z
       .number()
       .int()
       .min(1)
-      .describe('Текущая версия якоря. Передаётся в expected_anchor_version при смене фразы.'),
+      .describe('Current anchor version. Passed as expected_anchor_version when changing the phrase.'),
   })
   .register(apiSchemas, {
     id: 'RecoveryAnchorResponse',
-    description: 'Серверный якорь восстановления. Секретов в нём нет: фраза и DEK на сервер не приходят.',
+    description: 'Server-side recovery anchor. It holds no secrets: neither the phrase nor the DEK reaches the server.',
   })
 
 export const RecoveryAnchorPutRequestSchema = z
   .object({
     dek_wrapped_recovery: base64Bytes(WRAPPED_DEK_BYTES).describe(
-      'base64(iv 12 ‖ ciphertext 32 ‖ tag 16) — ровно 60 байт.',
+      'base64(iv 12 ‖ ciphertext 32 ‖ tag 16) — exactly 60 bytes.',
     ),
-    recovery_salt: base64Bytes(RECOVERY_SALT_BYTES).describe('base64, ровно 16 байт.'),
+    recovery_salt: base64Bytes(RECOVERY_SALT_BYTES).describe('base64, exactly 16 bytes.'),
     recovery_kdf_iterations: z.number().int().min(MIN_KDF_ITERATIONS).max(MAX_KDF_ITERATIONS),
     expected_anchor_version: z
       .number()
       .int()
       .min(0)
-      .describe('0 — создать, только если якоря нет. N — заменить, только если текущая версия N.'),
+      .describe('0 — create only if there is no anchor. N — replace only if the current version is N.'),
   })
   .strict()
   .register(apiSchemas, {
     id: 'RecoveryAnchorPutRequest',
-    description: 'Условная запись якоря. Не совпала версия — 409, ничего не записано.',
+    description: 'Conditional anchor write. Version mismatch — 409, nothing is written.',
   })
 
 export type ApiErrorCode = z.infer<typeof ApiErrorCodeSchema>
