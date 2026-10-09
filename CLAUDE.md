@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file is read automatically by Claude Code at the start of every session. It holds the working context for development. Product context is in `nurra-context.md`.
+This file is read automatically by Claude Code at the start of every session. It holds the working context for development. Product context is in `nurra-context.md`, a private file kept outside git (see below).
 
 ---
 
@@ -8,11 +8,11 @@ This file is read automatically by Claude Code at the start of every session. It
 
 **Numia** is a PWA companion for trans people on HRT. HRT tracker, mood diary, labs, progress photos/voice.
 
-Product details, audience, motivation, monetization: see `nurra-context.md`. Read it the first time you start a session.
+Product details, audience, motivation, monetization: see `nurra-context.md`. It is private and git-ignored, so it exists only on the maintainers' machines: read it at the start of a session if it is there, and never commit it or copy its contents into the repository.
 
 ### What to read at the start of a session
 
-- `nurra-context.md` — product context.
+- `nurra-context.md` — product context, if present locally (private, not in git).
 - **`docs/TODO.md` — known but unresolved problems.** Must be read before taking on any work: it holds the bugs and vulnerabilities found, with a plan to fix them. If you're changing code in an affected area, check whether the task gets solved along the way. Found a new problem outside the scope of the current task — don't silently fix it as you go; add an entry to `docs/TODO.md` (description, consequences, plan) and continue with the main work.
 
   **When the current task is finished, remind about `docs/TODO.md`.** In one or two lines: what's left there and which item makes sense to take next. Don't start it without an answer — just show that the queue isn't empty. Closed an item — delete it from the file instead of striking it through: the file must stay a to-do list, not a log.
@@ -49,7 +49,7 @@ I (Isabel) am a data analyst. Strong in Python, SQL, PySpark. Frontend and TypeS
 
 **I DO want:**
 - simple, clear code that I can read a month later and understand
-- comments in Russian in the tricky places
+- comments in English in the tricky places
 - small commits with clear messages
 - explanations of "why this way", not just "what to do"
 
@@ -69,7 +69,7 @@ I (Isabel) am a data analyst. Strong in Python, SQL, PySpark. Frontend and TypeS
 
 6. **Before non-trivial code for Next.js 16, read `node_modules/next/dist/docs/`.** Next.js 16 has breaking changes relative to the models' training data (routing, server actions, configuration). Don't rely on memory — check against the local docs (which Next.js itself asks you to read via `AGENTS.md` when scaffolding). The same goes for **React 19** (new hooks, Actions API) and **Tailwind 4** (CSS config instead of JS).
 
-7. **Commit messages — no co-authorship trailer lines.** Format: subject + body to the point. Don't add service trailers (`Co-Authored-By`, `Generated with …`) — neither in commits nor in PR descriptions. Backed up by the `includeCoAuthoredBy: false` setting in `.claude/settings.json`.
+7. **Commit messages — in English, no co-authorship trailer lines.** Format: a lowercase subject `area: summary` (`tracker: …`, `labs: …`, `bff: …`, `docs: …`), then a body explaining why, when the change isn't obvious. Don't add service trailers (`Co-Authored-By`, `Generated with …`) — neither in commits nor in PR descriptions. Backed up by the `includeCoAuthoredBy: false` setting in `.claude/settings.json`.
 
 ---
 
@@ -113,6 +113,9 @@ The push text never contains specifics. Not «пора принять эстра
 
 **7. No external trackers and no fonts from third-party CDNs on pages with personal data.**
 Fonts are self-hosted via next/font. No Google Fonts from a CDN.
+
+**8. No real people's data in the repository.**
+The repository is public, and git history is permanent. Never put real users' data into code comments, commit messages, docs or test fixtures — not record IDs, not lab values, not medications or schedules, not cities or time zones, not names. When a bug is diagnosed from production data, describe it in generic terms ("one record", "a user whose time zone flipped between devices"). The same goes for the team's personal files (CVs, scans, notes): they stay outside the project folder. History was already scrubbed of such data once, on 2026-10-09.
 
 ### Encryption levels
 
