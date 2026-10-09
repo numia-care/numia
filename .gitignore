@@ -68,3 +68,7 @@ next-env.d.ts
 # ветки не расходились и `git add -A` не утащил лишнее.
 скрины дизайна/
 /icons/
+
+# Private product context (custdev notes, plans). Removed from the whole
+# history on 2026-10-09 before open-sourcing; it stays on disk only.
+/nurra-context.md
