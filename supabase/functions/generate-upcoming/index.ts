@@ -43,25 +43,108 @@ type Schedule =
   | { kind: 'daily'; times: string[] }
   | { kind: 'interval'; every_days: number; time: string; anchor_date: string }
 
-// Облегчённая версия zod-валидации из lib/tracker/schedule.ts: данные в БД
-// уже прошли полную проверку при записи, здесь достаточно отсечь мусор,
-// чтобы один битый ряд не уронил генерацию для всех остальных юзеров.
-function parseSchedule(input: unknown): Schedule | null {
+type SlotRow = {
+  medication_id: string
+  user_id: string
+  scheduled_at: string
+  status: 'upcoming'
+}
+
+// Инварианты расписания. Копия из lib/tracker/schedule.ts — значения обязаны
+// совпадать с zod-схемой там, иначе веб запишет то, что здесь отвергнется.
+const TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
+const MAX_TIMES = 12
+const MIN_EVERY_DAYS = 1
+const MAX_EVERY_DAYS = 180
+
+type ScheduleParse =
+  | { ok: true; schedule: Schedule }
+  | { ok: false; reason: string }
+
+/**
+ * Полная проверка schedule из БД.
+ *
+ * РАНЬШЕ здесь стояла нестрогая валидация расписания: форму значения в колонке ничто не гарантировало. Закрыто констрейнтом в БД.
+ *
+ * Что из этого следовало: times проверялся только на «непустой массив», а
+ * содержимое элементов не проверялось вовсе. Дальше
+ * fromZonedTime(`${ymd}T${time}:00`) давал Invalid Date, а utc.toISOString()
+ * ниже бросал RangeError — и роняло весь прогон, то есть пуши переставали
+ * приходить ВСЕМ. Состояние не самовосстанавливалось: битая строка оставалась
+ * в базе и роняла каждую следующую ночь.
+ *
+ * Поэтому проверяем здесь всё, что проверяет zod, включая формат каждого
+ * времени. Невалидное → ok: false, строка уходит в skippedInvalid, прогон
+ * остальных продолжается.
+ *
+ * reason — статическая строка без значений из ряда: он уходит в логи, а туда
+ * медданные не тащим (privacy-аудит 2026-08-02).
+ *
+ * Инвариант в самой БД (CHECK на medications.schedule) — следующий заход,
+ * docs/TODO.md №1: он чинит и веб, и iOS, и прямой curl разом.
+ */
+function parseSchedule(input: unknown): ScheduleParse {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) {
+    return { ok: false, reason: 'schedule не JSON-объект' }
+  }
   const s = input as Record<string, unknown>
-  if (!s || typeof s !== 'object') return null
-  if (s.kind === 'daily' && Array.isArray(s.times) && s.times.length > 0) {
-    return s as Schedule
+
+  if (s.kind === 'daily') {
+    const times = s.times
+    if (!Array.isArray(times)) {
+      return { ok: false, reason: 'daily: times не массив' }
+    }
+    if (times.length < 1 || times.length > MAX_TIMES) {
+      return { ok: false, reason: `daily: times вне границ 1..${MAX_TIMES}` }
+    }
+    for (const time of times) {
+      if (typeof time !== 'string') {
+        return { ok: false, reason: 'daily: элемент times не строка' }
+      }
+      // Ровно та регулярка, что в zod: '9:00' без ведущего нуля — тоже мусор,
+      // и именно он давал Invalid Date, выглядя безобидно.
+      if (!TIME_REGEX.test(time)) {
+        return { ok: false, reason: 'daily: время не в формате HH:MM' }
+      }
+    }
+    // Дубли ломают unique-индекс (medication_id, scheduled_at) при вставке
+    // слотов — то же требование, что в zod.
+    if (new Set(times).size !== times.length) {
+      return { ok: false, reason: 'daily: повторяющиеся времена' }
+    }
+    // Собираем объект заново, а не `s as Schedule`: приведение было ложью
+    // (проверенного типа у s нет), и лишние ключи так же отсекаются, как их
+    // отсекает zod.
+    return { ok: true, schedule: { kind: 'daily', times: times as string[] } }
   }
-  if (
-    s.kind === 'interval' &&
-    typeof s.every_days === 'number' &&
-    s.every_days >= 1 &&
-    typeof s.time === 'string' &&
-    typeof s.anchor_date === 'string'
-  ) {
-    return s as Schedule
+
+  if (s.kind === 'interval') {
+    const { every_days: everyDays, time, anchor_date: anchorDate } = s
+    // Number.isInteger отсекает и дробные, и Infinity, и NaN — прежняя
+    // проверка `typeof === 'number' && >= 1` пропускала Infinity.
+    if (typeof everyDays !== 'number' || !Number.isInteger(everyDays)) {
+      return { ok: false, reason: 'interval: every_days не целое число' }
+    }
+    if (everyDays < MIN_EVERY_DAYS || everyDays > MAX_EVERY_DAYS) {
+      return {
+        ok: false,
+        reason: `interval: every_days вне границ ${MIN_EVERY_DAYS}..${MAX_EVERY_DAYS}`,
+      }
+    }
+    if (typeof time !== 'string' || !TIME_REGEX.test(time)) {
+      return { ok: false, reason: 'interval: time не в формате HH:MM' }
+    }
+    if (typeof anchorDate !== 'string' || !DATE_REGEX.test(anchorDate)) {
+      return { ok: false, reason: 'interval: anchor_date не в формате YYYY-MM-DD' }
+    }
+    return {
+      ok: true,
+      schedule: { kind: 'interval', every_days: everyDays, time, anchor_date: anchorDate },
+    }
   }
-  return null
+
+  return { ok: false, reason: 'kind не daily и не interval' }
 }
 
 // Порт computeSlotsForDay из lib/tracker/schedule.ts — см. подробные
@@ -152,12 +235,11 @@ Deno.serve(async (req) => {
 
   const today = new Date()
   let skippedInvalid = 0
-  const slots: {
-    medication_id: string
-    user_id: string
-    scheduled_at: string
-    status: 'upcoming'
-  }[] = []
+  // Отдельно от skippedInvalid: отвергнутое проверкой — ожидаемый случай, а
+  // упавшее с исключением значит, что parseSchedule чего-то не предусмотрел.
+  // Это сигнал о баге, и смешивать их в одном счётчике нельзя.
+  let skippedFailed = 0
+  const slots: SlotRow[] = []
   // Для сверки (reconcile) ниже: ожидаемые пары "medication_id|isoUtc" по
   // юзерам. У юзера с битым schedule сверку пропускаем — не зная ожидаемого
   // набора, нельзя решать, что лишнее.
@@ -165,40 +247,76 @@ Deno.serve(async (req) => {
   const usersWithInvalid = new Set<string>()
 
   for (const med of meds) {
-    const schedule = parseSchedule(med.schedule)
-    if (!schedule) {
+    const medId = med.id as string
+    const userId = med.user_id as string
+
+    // В логи — id ПРЕПАРАТА и причина, и ничего больше. По нему битый ряд
+    // находится запросом, при этом сам schedule, название препарата и user_id
+    // в логи Supabase не уходят (privacy-аудит 2026-08-02). Прежний
+    // безличный «invalid schedule json» заметить проблему позволял, а найти
+    // строку — нет.
+    const parsed = parseSchedule(med.schedule)
+    if (!parsed.ok) {
       skippedInvalid += 1
-      usersWithInvalid.add(med.user_id as string)
-      // Идентификаторы в логи не пишем (privacy-аудит 2026-08-02): счётчика
-      // skippedInvalid хватает, чтобы заметить проблему, а конкретный ряд
-      // ищется запросом к БД, а не по логам Supabase.
-      console.error('medication with invalid schedule json, skipped')
+      usersWithInvalid.add(userId)
+      console.error(`medication ${medId} skipped: ${parsed.reason}`)
       continue
     }
-    const timezone = tzByUser.get(med.user_id as string) ?? 'UTC'
+    const timezone = tzByUser.get(userId) ?? 'UTC'
 
-    for (let i = 0; i < DAYS_AHEAD; i += 1) {
-      const day = addDays(today, i)
-      // Препарат ещё не стартовал в этот день — сравниваем календарные даты
-      // в tz юзера (start_date в БД — голая YYYY-MM-DD строка).
-      if (formatInTimeZone(day, timezone, 'yyyy-MM-dd') < (med.start_date as string)) {
-        continue
-      }
-      for (const utc of computeSlotsForDay(schedule, day, timezone)) {
-        const iso = utc.toISOString()
-        slots.push({
-          medication_id: med.id as string,
-          user_id: med.user_id as string,
-          scheduled_at: iso,
-          status: 'upcoming',
-        })
-        let expected = expectedByUser.get(med.user_id as string)
-        if (!expected) {
-          expected = new Set()
-          expectedByUser.set(med.user_id as string, expected)
+    // Препарат попадает в общий набор ТОЛЬКО целиком: сначала собираем его
+    // слоты в локальный буфер, фиксируем после успеха.
+    //
+    // Почему не писать сразу в slots: при исключении на середине дней в
+    // наборе осталась бы половина слотов препарата, и — хуже — половина
+    // ожидаемых пар в expectedByUser. Сверка ниже сносит upcoming-слоты,
+    // которых в ожидаемом наборе нет, то есть неполный набор означал бы
+    // удаление живых слотов. Буфер делает препарат атомарным.
+    const medSlots: SlotRow[] = []
+    try {
+      for (let i = 0; i < DAYS_AHEAD; i += 1) {
+        const day = addDays(today, i)
+        // Препарат ещё не стартовал в этот день — сравниваем календарные даты
+        // в tz юзера (start_date в БД — голая YYYY-MM-DD строка).
+        if (formatInTimeZone(day, timezone, 'yyyy-MM-dd') < (med.start_date as string)) {
+          continue
         }
-        expected.add(`${med.id}|${iso}`)
+        for (const utc of computeSlotsForDay(parsed.schedule, day, timezone)) {
+          medSlots.push({
+            medication_id: medId,
+            user_id: userId,
+            scheduled_at: utc.toISOString(),
+            status: 'upcoming',
+          })
+        }
       }
+    } catch (e) {
+      // Последняя линия: parseSchedule выше уже отбивает всё, что роняло
+      // генерацию, но одна неучтённая строка не должна стоить пушей всем
+      // остальным. Раньше исключение здесь вылетало из Deno.serve, и терялись
+      // даже уже обработанные препараты — slots уходит в upsert только после
+      // этого цикла.
+      //
+      // Только имя класса ошибки: текст сообщения в общем случае может
+      // содержать значение, на котором упало, а это данные человека.
+      skippedFailed += 1
+      usersWithInvalid.add(userId)
+      console.error(
+        `medication ${medId} failed: ${e instanceof Error ? e.name : 'unknown error'}`,
+      )
+      continue
+    }
+
+    if (medSlots.length === 0) continue
+
+    let expected = expectedByUser.get(userId)
+    if (!expected) {
+      expected = new Set()
+      expectedByUser.set(userId, expected)
+    }
+    for (const slot of medSlots) {
+      slots.push(slot)
+      expected.add(`${slot.medication_id}|${slot.scheduled_at}`)
     }
   }
 
@@ -282,6 +400,7 @@ Deno.serve(async (req) => {
     slotsComputed: slots.length,
     inserted, // меньше slotsComputed = остальные уже существовали, это норма
     deletedStale, // снесённые сироты (несоответствие расписанию/tz)
-    skippedInvalid,
+    skippedInvalid, // отвергнуто проверкой расписания — ожидаемый случай
+    skippedFailed, // упало с исключением — > 0 значит баг, надо смотреть
   })
 })
