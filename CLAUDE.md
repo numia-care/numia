@@ -1,6 +1,7 @@
 # CLAUDE.md
 
-This file is read automatically by Claude Code at the start of every session. It holds the working context for development. Product context is in `nurra-context.md`.
+This file is read automatically by Claude Code at the start of every session. It
+holds the working context for development.
 
 ---
 
@@ -8,27 +9,26 @@ This file is read automatically by Claude Code at the start of every session. It
 
 **Numia** is a PWA companion for trans people on HRT. HRT tracker, mood diary, labs, progress photos/voice.
 
-Product details, audience, motivation, monetization: see `nurra-context.md`. Read it the first time you start a session.
-
 ### What to read at the start of a session
 
-- `nurra-context.md` — product context.
-- **`docs/TODO.md` — known but unresolved problems.** Not in the repository: it
-  stays on disk as local context, like `nurra-context.md`. If it isn't there,
-  skip this item — nothing is broken.
+Two of the files below are marked **local only**: they are internal working
+notes and are deliberately not in this repository. Working from a clone, you
+will not have them, and nothing breaks — just skip those entries.
 
-  Must be read before taking on any work: it holds the bugs and vulnerabilities
-  found, with a plan to fix them. If you're changing code in an affected area,
-  check whether the task gets solved along the way. Found a new problem outside
-  the scope of the current task — don't silently fix it as you go; add an entry
-  to `docs/TODO.md` (description, consequences, plan) and continue with the main
-  work.
+- `nurra-context.md` — **local only.** Product context: audience, motivation,
+  monetization.
+- **`docs/TODO.md` — local only.** The working queue. Must be read before taking
+  on any work: it holds what is still open, with the context and a plan. If
+  you're changing code in an affected area, check whether the task gets solved
+  along the way. Found something outside the scope of the current task — don't
+  silently fix it as you go; add an entry to it (description, consequences,
+  plan) and continue with the main work.
 
-  **When the current task is finished, remind about `docs/TODO.md`.** In one or
-  two lines: what's left there and which item makes sense to take next. Don't
-  start it without an answer — just show that the queue isn't empty. Closed an
-  item — delete it from the file instead of striking it through: the file must
-  stay a to-do list, not a log.
+  **When the current task is finished, remind about that queue.** In one or two
+  lines: what's left there and which item makes sense to take next. Don't start
+  it without an answer — just show that the queue isn't empty. Closed an item —
+  delete it from the file instead of striking it through: the file must stay a
+  to-do list, not a log.
 - `docs/api-v1.md` — the BFF contract for the iOS app, `docs/bff-deploy.md` — building and running in Docker. Needed only when the work touches the API or deploy.
 
 ---

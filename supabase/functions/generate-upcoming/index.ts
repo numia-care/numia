@@ -81,8 +81,10 @@ type ScheduleParse =
  * reason — статическая строка без значений из ряда: он уходит в логи, а туда
  * медданные не тащим (privacy-аудит 2026-08-02).
  *
- * Инвариант в самой БД (CHECK на medications.schedule) — следующий заход,
- * docs/TODO.md №1: он чинит и веб, и iOS, и прямой curl разом.
+ * Эта проверка — вторая линия, а не первая. Настоящее место инварианта —
+ * CHECK на medications.schedule в самой БД: он закрывает всех клиентов разом
+ * (веб, iOS, прямой запрос), а не один путь кода. Здесь же — защита самого
+ * прогона: что бы ни лежало в строке, ночная генерация не должна падать.
  */
 function parseSchedule(input: unknown): ScheduleParse {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {
