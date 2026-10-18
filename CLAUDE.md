@@ -13,9 +13,22 @@ Product details, audience, motivation, monetization: see `nurra-context.md`. Rea
 ### What to read at the start of a session
 
 - `nurra-context.md` — product context.
-- **`docs/TODO.md` — known but unresolved problems.** Must be read before taking on any work: it holds the bugs and vulnerabilities found, with a plan to fix them. If you're changing code in an affected area, check whether the task gets solved along the way. Found a new problem outside the scope of the current task — don't silently fix it as you go; add an entry to `docs/TODO.md` (description, consequences, plan) and continue with the main work.
+- **`docs/TODO.md` — known but unresolved problems.** Not in the repository: it
+  stays on disk as local context, like `nurra-context.md`. If it isn't there,
+  skip this item — nothing is broken.
 
-  **When the current task is finished, remind about `docs/TODO.md`.** In one or two lines: what's left there and which item makes sense to take next. Don't start it without an answer — just show that the queue isn't empty. Closed an item — delete it from the file instead of striking it through: the file must stay a to-do list, not a log.
+  Must be read before taking on any work: it holds the bugs and vulnerabilities
+  found, with a plan to fix them. If you're changing code in an affected area,
+  check whether the task gets solved along the way. Found a new problem outside
+  the scope of the current task — don't silently fix it as you go; add an entry
+  to `docs/TODO.md` (description, consequences, plan) and continue with the main
+  work.
+
+  **When the current task is finished, remind about `docs/TODO.md`.** In one or
+  two lines: what's left there and which item makes sense to take next. Don't
+  start it without an answer — just show that the queue isn't empty. Closed an
+  item — delete it from the file instead of striking it through: the file must
+  stay a to-do list, not a log.
 - `docs/api-v1.md` — the BFF contract for the iOS app, `docs/bff-deploy.md` — building and running in Docker. Needed only when the work touches the API or deploy.
 
 ---
