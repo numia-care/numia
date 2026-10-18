@@ -10,16 +10,16 @@ export default async function PathPage() {
 
   return (
     <div className="relative overflow-hidden">
-      {/* Пастельные эллипсы-свечения за лентой (эллипсы Кая): нежный зелёный и
+      {/* Пастельные эллипсы-свечения за лентой (эллипсы макета): нежный зелёный и
           розовый чередуются сверху вниз, попеременно у левого и правого края.
           Позиции в % — фон тянется вместе с лентой, сколько бы записей ни было.
           Дёшево для слабых телефонов: только blur, без анимации. */}
       {[
-        { top: '4%', side: 'right', color: 'var(--kai-glow-green)' },
-        { top: '26%', side: 'left', color: 'var(--kai-chip-pink)' },
-        { top: '48%', side: 'right', color: 'var(--kai-glow-green)' },
-        { top: '70%', side: 'left', color: 'var(--kai-chip-pink)' },
-        { top: '90%', side: 'right', color: 'var(--kai-glow-green)' },
+        { top: '4%', side: 'right', color: 'var(--brand-glow-green)' },
+        { top: '26%', side: 'left', color: 'var(--brand-chip-pink)' },
+        { top: '48%', side: 'right', color: 'var(--brand-glow-green)' },
+        { top: '70%', side: 'left', color: 'var(--brand-chip-pink)' },
+        { top: '90%', side: 'right', color: 'var(--brand-glow-green)' },
       ].map((blob, i) => (
         <div
           key={i}

@@ -228,7 +228,7 @@ function VoicePreview({
     <div className="p-[9px] pb-0">
       <div
         className="flex h-[52px] items-center gap-2.5 rounded-[16px] px-3.5"
-        style={{ backgroundImage: 'var(--kai-grad-audio)' }}
+        style={{ backgroundImage: 'var(--brand-grad-audio)' }}
       >
         <button
           type="button"

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import Link from 'next/link'
 
-import { PathIcon } from '@/components/icons/kai'
+import { PathIcon } from '@/components/icons'
 import { getCryptoKey } from '@/lib/crypto/session'
 import {
   decryptNote,
@@ -18,7 +18,7 @@ import {
 // today.jpg: высота 154.5, в шапке иконка-узел слева и белый кружок-шеврон
 // справа, ниже два превью записей). Левая — «Вики» (wiki-card.tsx).
 //
-// Заголовка текстом в макете нет — вместо него иконка Кая. Тайлов теперь ДВА,
+// Заголовка текстом в макете нет — вместо него иконка набора. Тайлов теперь ДВА,
 // а не три: карточка стала вдвое уже. Расшифровка на устройстве, как в ленте.
 // Вся карточка — ссылка в «Путь».
 type State = { kind: 'loading' } | { kind: 'ready'; entries: PathEntry[] }
@@ -86,7 +86,7 @@ export function PathPreview() {
   )
 }
 
-// Квадратный тайл записи (структура ряда — по фрейму Кая; контент реальный):
+// Квадратный тайл записи (структура ряда — по фрейму макета; контент реальный):
 // фото — расшифрованная миниатюра; голос — иконка; дневник — первые слова
 // расшифрованного текста. Object URL отзываем при
 // размонтировании.

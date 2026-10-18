@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 
-import { ShareIcon } from '@/components/icons/kai'
+import { ShareIcon } from '@/components/icons'
 import { pickQueerFact } from '@/lib/dashboard/queer-history'
 
 // Карточка квир-истории дня. Факт выбираем по локальной дате: совпадение

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { toast } from 'sonner'
 
-import { MoodIcon } from '@/components/icons/kai'
+import { MoodIcon } from '@/components/icons'
 import { MoodScale } from '@/components/path/mood-scale'
 import { buttonVariants } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -18,7 +18,7 @@ import {
 } from '@/lib/path/entries'
 import { cn } from '@/lib/utils'
 
-// Карточка «Как ты себя чувствуешь?» на дашборде (концепция Кая): тап по
+// Карточка «Как ты себя чувствуешь?» на дашборде (концепция дизайна): тап по
 // ступени настроения СРАЗУ создаёт запись дневника — трение в один тап,
 // это опора ежедневной привычки. После тапа мягко предлагаем добавить пару
 // слов (текст шифруется; поле можно пропустить — запись уже сохранена).
@@ -110,7 +110,7 @@ export function MoodQuickEntry() {
     // ЗАМЕР эталона today.jpg: карточка высотой 134.6, радиус 54
     // (--radius-5xl, в токенах он и подписан «муд-стрип»), заливка — мягкий
     // градиент лаванда → зелень (#EFEDF0 → #F0F6E8, замер по краям внутри).
-    // Сверху иконка Кая, под ней вопрос по центру, ниже пять плиток дугой.
+    // Сверху иконка набора, под ней вопрос по центру, ниже пять плиток дугой.
     //
     // Ширина — по колонке контента: детектор краёв даёт 25 и 361, то есть
     // ровно колонка. (В первом замере мне показалось, что карточка шире экрана,
@@ -122,7 +122,7 @@ export function MoodQuickEntry() {
       // justify-center — содержимое стоит по центру карточки по вертикали
       // (в макете дуга центрирована, а не прижата к нижней кромке).
       className="rounded-5xl shadow-card flex min-h-[135px] flex-col justify-center px-4 py-3.5"
-      style={{ backgroundImage: 'var(--kai-grad-mood)' }}
+      style={{ backgroundImage: 'var(--brand-grad-mood)' }}
     >
       <MoodIcon className="mx-auto size-[19px] text-foreground" />
       <h2 className="mt-2 text-center text-[15px] text-foreground">{t('title')}</h2>

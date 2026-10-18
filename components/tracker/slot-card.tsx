@@ -17,12 +17,12 @@ import { SlotBackfillDialog } from './slot-backfill-dialog'
 // Слот приёма — строка-пилюля по эталону преппараты1:
 //   [чекбокс] имя … «HH:MM • доза» [шеврон]
 //
-// Заливка — ЛАЙМОВЫЙ ГРАДИЕНТ у ВСЕХ строк (--kai-grad-slot, замер эталона).
+// Заливка — ЛАЙМОВЫЙ ГРАДИЕНТ у ВСЕХ строк (--brand-grad-slot, замер эталона).
 // Прежнее выделение двух ближайших приёмов голубой и розовой пилюлями снято:
 // в макете такого разделения нет, все строки одинаковые.
 //
 // Чекбокс слева — и есть «Принято»: скруглённый КВАДРАТ 17px (замер), белый;
-// по тапу заливается зелёным --kai-slot-check + вспышка ✦. Шеврон разворачивает
+// по тапу заливается зелёным --brand-slot-check + вспышка ✦. Шеврон разворачивает
 // детали (форма, «Пропустить» — нейтрально, без негативной окраски).
 //
 // Прошлые слоты (taken/skipped/missed) — строка целиком открывает backfill-
@@ -109,7 +109,7 @@ export function SlotCard(props: SlotCardProps) {
             ? 'bg-muted-foreground/30'
             : 'bg-card',
       )}
-      style={isTaken ? { backgroundColor: 'var(--kai-slot-check)' } : undefined}
+      style={isTaken ? { backgroundColor: 'var(--brand-slot-check)' } : undefined}
     />
   )
 
@@ -167,7 +167,7 @@ export function SlotCard(props: SlotCardProps) {
         !isUpcoming && 'cursor-pointer opacity-80 transition-opacity hover:opacity-100',
       )}
       // Лаймовый градиент — у всех строк одинаковый (замер эталона).
-      style={{ backgroundImage: 'var(--kai-grad-slot)' }}
+      style={{ backgroundImage: 'var(--brand-grad-slot)' }}
     >
       {row}
 

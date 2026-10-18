@@ -2,7 +2,7 @@
 
 import { CircleIcon, HistoryIcon, TrendingUpIcon } from 'lucide-react'
 
-import { TodayIcon } from '@/components/icons/kai'
+import { TodayIcon } from '@/components/icons'
 import { cn } from '@/lib/utils'
 
 import type { TabKey } from '@/lib/tracker/tab-key'
@@ -11,7 +11,7 @@ import { useTrackerTab } from './tracker-tab-context'
 
 // Табы экрана «Препараты» — ЗАМЕР эталонов преппараты1/2/3:
 //   пилюля 62×57, радиус ~16, зазор 9 (замер 8.6–9.9), прижаты ВЛЕВО;
-//   активный таб залит своим цветом (--kai-tab-*, замер из центра пилюли).
+//   активный таб залит своим цветом (--brand-tab-*, замер из центра пилюли).
 //
 // Раньше пилюли были на flex-1 и растягивались на всю ширину (~110 каждая) —
 // это и было главное расхождение с макетом, цвета вторичны.
@@ -36,7 +36,7 @@ interface TabDef {
   key: TabKey
   label: string
   icon: (props: { className?: string }) => React.ReactNode
-  active: string // класс заливки активного таба (замер Кая)
+  active: string // класс заливки активного таба (замер макета)
 }
 
 export function TrackerTabs({
@@ -65,28 +65,28 @@ export function TrackerTabs({
     {
       key: 'today',
       label: labels.today,
-      // ✦ из набора Кая — ровно та иконка, что в макете.
+      // ✦ из набора — ровно та иконка, что в макете.
       icon: (p) => <TodayIcon {...p} />,
       active: 'bg-tab-today',
     },
     {
       key: 'all',
       label: labels.all,
-      // TODO: заменить на иконку Кая — в наборе /icons кружка пока нет.
+      // TODO: заменить на иконку набора — в локальном наборе исходников кружка пока нет.
       icon: (p) => <CircleIcon {...p} strokeWidth={2.4} />,
       active: 'bg-tab-all',
     },
     {
       key: 'analyses',
       label: labels.analyses,
-      // TODO: заменить на иконку Кая — в наборе /icons графика пока нет.
+      // TODO: заменить на иконку набора — в локальном наборе исходников графика пока нет.
       icon: (p) => <TrendingUpIcon {...p} strokeWidth={2.4} />,
       active: 'bg-tab-analyses',
     },
     {
       key: 'history',
       label: labels.history,
-      // TODO: заменить на иконку Кая — в наборе /icons истории пока нет,
+      // TODO: заменить на иконку набора — в локальном наборе исходников истории пока нет,
       // как и у двух соседей выше. Временно lucide.
       icon: (p) => <HistoryIcon {...p} strokeWidth={2.4} />,
       active: 'bg-tab-history',

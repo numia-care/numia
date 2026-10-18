@@ -2,7 +2,7 @@ import { ChevronRightIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 
-import { WikiIcon } from '@/components/icons/kai'
+import { WikiIcon } from '@/components/icons'
 
 // «Вики» — ЛЕВАЯ из двух нижних карточек дашборда (ЗАМЕР эталона today.jpg:
 // высота 154.5, в шапке иконка-книжка и подпись «Вики», справа кружок-шеврон,

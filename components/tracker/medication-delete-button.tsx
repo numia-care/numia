@@ -54,7 +54,7 @@ export function MedicationDeleteButton({
             aria-label={t('deleteButton')}
             title={t('deleteButton')}
             className="shadow-soft flex h-[29px] w-[47px] items-center justify-center rounded-full transition-opacity hover:opacity-80"
-            style={{ backgroundColor: 'var(--kai-danger-soft)', color: 'var(--kai-danger)' }}
+            style={{ backgroundColor: 'var(--brand-danger-soft)', color: 'var(--brand-danger)' }}
           >
             <Trash2Icon className="size-[18px]" strokeWidth={1.8} />
           </button>

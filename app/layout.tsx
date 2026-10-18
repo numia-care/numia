@@ -14,11 +14,11 @@ import { Toaster } from '@/components/ui/sonner'
 
 import './globals.css'
 
-// Шрифты концепции Кая (шаг сведения дизайна, 2026-07-09). Всё через
+// Шрифты концепции дизайна (шаг сведения дизайна, 2026-07-09). Всё через
 // next/font — скачиваются на билде и раздаются с нашего origin (требование
 // безопасности: никаких сторонних CDN). Cormorant/DM Sans похоронены решением.
 //
-// Inter — весь UI (в макете SF/Google Sans — «шрифты мака Кая», сведено к
+// Inter — весь UI (в макете SF/Google Sans — «системные шрифты макета», сведено к
 // Inter как основному шрифту самого проработанного экрана «сегодня»).
 const inter = Inter({
   variable: '--font-inter',
@@ -32,7 +32,7 @@ const boldonse = Boldonse({
   subsets: ['latin'],
 })
 
-// Bitcount Grid Single — крупная дата (точный шрифт Кая для дата-пилюли).
+// Bitcount Grid Single — крупная дата (точный шрифт макета для дата-пилюли).
 const bitcount = Bitcount_Grid_Single({
   variable: '--font-bitcount',
   weight: '400',

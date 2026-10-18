@@ -14,12 +14,12 @@ import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 
 /**
- * Нижнее таб-меню — СВЕТЛАЯ стеклянная пилюля по финальному макету Кая
+ * Нижнее таб-меню — СВЕТЛАЯ стеклянная пилюля по финальному макету
  * (фрейм «сегодня итог» 570:1691): белое стекло ~68% + backdrop-blur, r:31,
  * тень-card; иконка + подпись, тёмные чернила навигации. Активный таб —
  * приподнятая белая плашка.
  *
- * Фон пилюли — через токен --kai-glass-nav (тема может переопределить).
+ * Фон пилюли — через токен --brand-glass-nav (тема может переопределить).
  * iOS safe-area снизу; контент не перекрывается благодаря padding-bottom
  * обёртки в (app)/layout.
  */
@@ -41,7 +41,7 @@ const TABS: Tab[] = [
   // /wiki — попадают из карточки «Вики» на дашборде (wiki-card.tsx), больше
   // ниоткуда.
   { href: '/', key: 'today', icon: SparklesIcon, match: ['/wiki'] },
-  // /labs* — «Анализы» это вкладка внутри «Препаратов» (IA Кая), и «+» с неё
+  // /labs* — «Анализы» это вкладка внутри «Препаратов» (принятая IA), и «+» с неё
   // ведёт на /labs/new. Раньше строчка стояла у Профиля — верно для тех
   // времён, когда «Анализы» были пунктом его меню. Пункт убрали в полировке
   // 2026-08-04, а match забыли перенести, из-за чего на форме нового анализа
@@ -65,7 +65,7 @@ export function BottomNav() {
     <nav className="fixed inset-x-0 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-40 flex justify-center px-6">
       <ul
         className="shadow-card flex w-full max-w-sm items-center justify-around gap-1 rounded-[31px] border border-border px-2 py-2 backdrop-blur-[9px]"
-        style={{ backgroundColor: 'var(--kai-glass-nav)' }}
+        style={{ backgroundColor: 'var(--brand-glass-nav)' }}
       >
         {TABS.map((tab) => {
           const active =

@@ -84,8 +84,8 @@ export function LabDeleteButton({
             type="button"
             className="shadow-soft flex items-center gap-2 rounded-full px-4 py-2 text-sm transition-opacity hover:opacity-80"
             style={{
-              backgroundColor: 'var(--kai-danger-soft)',
-              color: 'var(--kai-danger)',
+              backgroundColor: 'var(--brand-danger-soft)',
+              color: 'var(--brand-danger)',
             }}
           >
             <Trash2Icon className="size-[18px]" strokeWidth={1.8} />

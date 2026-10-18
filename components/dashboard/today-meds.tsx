@@ -2,7 +2,7 @@ import { ChevronRightIcon } from 'lucide-react'
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 
-import { MedicationsIcon } from '@/components/icons/kai'
+import { MedicationsIcon } from '@/components/icons'
 import { createClient, getAuthUser } from '@/lib/supabase/server'
 import { generateSlotsForActiveMeds } from '@/lib/tracker/slot-generator'
 import { formatSlotTime, getTodaySlots, type TodaySlot } from '@/lib/tracker/today'

@@ -206,7 +206,7 @@ function describeStatus(
   dotClass: string
   dotStyle?: React.CSSProperties
 } {
-  const checkStyle = { backgroundColor: 'var(--kai-slot-check)' }
+  const checkStyle = { backgroundColor: 'var(--brand-slot-check)' }
 
   if (slot.status === 'taken') {
     const late =

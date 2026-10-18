@@ -1,7 +1,7 @@
 import { getTranslations } from 'next-intl/server'
 import Link from 'next/link'
 
-import { WikiIcon } from '@/components/icons/kai'
+import { WikiIcon } from '@/components/icons'
 
 // Экран «Вики» — ЗАГЛУШКА до этапа 5 роадмапа (контентная база: препараты,
 // эффекты, референсные значения). Роут заведён, чтобы карточка на дашборде

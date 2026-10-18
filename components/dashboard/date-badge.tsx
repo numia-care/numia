@@ -3,7 +3,7 @@
 import { useState } from 'react'
 
 // Бейдж сегодняшней даты — ЗАМЕР эталона today.jpg: тёмная пилюля 94.8×23.9,
-// r:12, заливка #262626 (= --kai-ink), внутри «23/09/26» одной строкой
+// r:12, заливка #262626 (= --brand-ink), внутри «23/09/26» одной строкой
 // пиксельным Bitcount (--font-numeric, уже подключён в layout.tsx).
 // Глифы 8.6 высотой → кегль ~13, боковой паддинг 12.6.
 //
@@ -40,7 +40,7 @@ export function DateBadge() {
       suppressHydrationWarning
       dateTime={d.iso}
       className="font-numeric inline-flex h-[24px] items-center justify-center rounded-[12px] px-[13px] text-[13px] leading-none text-background"
-      style={{ backgroundColor: 'var(--kai-ink)' }}
+      style={{ backgroundColor: 'var(--brand-ink)' }}
     >
       {d.text}
     </time>
