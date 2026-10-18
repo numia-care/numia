@@ -51,3 +51,18 @@ Put the result in `.env.local`:
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Security
+
+Found a vulnerability? Please report it privately rather than opening a public
+issue — see [SECURITY.md](SECURITY.md).
+
+## License
+
+Licensed under the GNU Affero General Public License v3.0 only — see
+[LICENSE](LICENSE) for the full text.
+
+AGPL means that if you run a modified version of Numia as a network service,
+the people using it are entitled to its source. That is deliberate: this app
+holds medical and transition data, and the ability to check what the code
+actually does is part of what makes it trustworthy.
